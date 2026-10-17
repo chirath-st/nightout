@@ -8,6 +8,7 @@ import { formatTime } from '../lib/clock.js';
 import { icon, TONE_ICON, TONE_LABEL } from './icons.js';
 import { facadeArt, monogram } from './art.js';
 import { distanceTo, formatMiles, DEMO_SPOT } from '../lib/geo.js';
+import { activeDeal, dealState, DEAL_KINDS } from '../lib/deals.js';
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -137,6 +138,19 @@ export function cardStatus(venue, now) {
   </span>`;
 }
 
+/** The card's bottom-left deal tag: the live deal that ends soonest, or nothing. Visual; srSummary says it in words. */
+export function dealTag(venue, now) {
+  const d = activeDeal(venue, now);
+  if (!d) return '';
+  return `<span class="deal-tag">${icon(DEAL_KINDS[d.kind]?.icon ?? 'tag', { size: 14 })}<span>${esc(d.short || d.title)}</span></span>`;
+}
+
+/** When a deal runs, in words: "Now until 11:00 PM", "Starts 11:00 PM", "Ended". */
+export function dealWhen(deal, now) {
+  const st = dealState(deal, now);
+  return st === 'live' ? `Now until ${formatTime(deal.endsAt)}` : st === 'soon' ? `${formatTime(deal.startsAt)}–${formatTime(deal.endsAt)}` : 'Ended';
+}
+
 /** Distance line for the card's top right and the venue page. */
 export function distanceText(venue, from = DEMO_SPOT) {
   return formatMiles(distanceTo(venue, from));
@@ -147,7 +161,8 @@ export function srSummary(venue, now) {
   const st = crowdStatus(est);
   const showPeople = est.peopleLabel && !['stale', 'unknown', 'closed'].includes(est.tone);
   const dist = distanceText(venue);
-  const text = `${st.label}: ${est.headline}. ${est.tone === 'aging' ? 'May have changed. ' : ''}${showPeople ? `${est.peopleLabel}. ` : ''}${est.detail ? `${est.detail}. ` : ''}${est.observedAt != null ? `${est.sourceLabel}, ${est.ageLabel}.` : ''}${dist ? ` ${dist} from the demo spot.` : ''} Demo data.`;
+  const deal = activeDeal(venue, now);
+  const text = `${st.label}: ${est.headline}. ${est.tone === 'aging' ? 'May have changed. ' : ''}${showPeople ? `${est.peopleLabel}. ` : ''}${est.detail ? `${est.detail}. ` : ''}${est.observedAt != null ? `${est.sourceLabel}, ${est.ageLabel}.` : ''}${dist ? ` ${dist} from the demo spot.` : ''}${deal ? ` Demo deal: ${deal.title}, until ${formatTime(deal.endsAt)}.` : ''} Demo data.`;
   return `<span class="sr-only" data-est="${esc(venue.id)}" data-variant="sr" data-tone="${est.tone}">${esc(text)}</span>`;
 }
 
@@ -170,7 +185,7 @@ export function venueCard(venue, now, { saved = false, save = false } = {}) {
     <a class="bar-link" href="#/venue/${encodeURIComponent(venue.id)}" data-nav-venue="${esc(venue.id)}">
       <span class="card-top"><span class="bar-logo" aria-hidden="true">${venueLogo(venue)}</span><span class="card-dist">${icon('pinFill', { size: 16 })}${dist ? `${esc(dist)}<span class="dist-away">away</span>` : 'n/a'}</span></span>
       <span class="bar-name">${esc(venue.name)}</span>
-      <span class="bar-photo" data-thumb="${esc(venue.id)}">${venuePhoto(venue, { anchor: 'bottom' })}</span>
+      <span class="bar-photo" data-thumb="${esc(venue.id)}">${venuePhoto(venue, { anchor: 'bottom' })}<span class="deal-slot" data-deal-for="${esc(venue.id)}">${dealTag(venue, now)}</span></span>
       ${cardStatus(venue, now)}
       ${srSummary(venue, now)}
     </a>

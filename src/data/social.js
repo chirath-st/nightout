@@ -39,7 +39,7 @@ export const REWARDS = Object.freeze([
   { id: 'merch', title: 'Night Out hat', detail: 'Pick up at a pop-up', cost: 800, icon: 'shield' },
 ]);
 
-export const DRINKS_LOCK = 'New Jersey’s alcohol rules don’t allow rewards that can be redeemed for alcoholic drinks (N.J.A.C. 13:2-23.16). Points can’t be used for drinks unless counsel finds a compliant way.';
+export const DRINKS_LOCK = 'New Jersey doesn’t allow prizes or rewards that consist of alcohol or can be redeemed for it (N.J.A.C. 13:2-23.16), so points can’t be used for drinks.';
 
 export const balanceOf = (ledger) => ledger.reduce((sum, e) => sum + e.delta, 0);
 

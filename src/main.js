@@ -7,7 +7,7 @@ import { resolveVenues, diffQueue } from './lib/model.js';
 import { parseHash, buildHash, exploreStateFromQuery, exploreQuery } from './lib/router.js';
 import { FILTERS, SORTS, exploreList } from './lib/explore.js';
 import { windowState, purchasable, createPass, maxPartyFor, passStatus, money, refCode } from './lib/pass.js';
-import { estimateCompact, estimateBlock, estimateRing, estimateFor, demoChip, esc, venueRow, cardStatus, srSummary } from './ui/components.js';
+import { estimateCompact, estimateBlock, estimateRing, estimateFor, demoChip, esc, venueRow, cardStatus, srSummary, dealTag } from './ui/components.js';
 import { icon } from './ui/icons.js';
 import { renderExplore, exploreResults, exploreBanners, pinParts, areaSheet } from './views/explore.js';
 import { renderGroups, renderGroupNew, validateGroup } from './views/groups.js';
@@ -16,7 +16,8 @@ import { renderPoints } from './views/points.js';
 import { renderProfile } from './views/profile.js';
 import { renderVenue } from './views/venue.js';
 import { renderPassSheet } from './views/passSheet.js';
-import { renderSaved, renderPasses, renderPassDetail, renderConsole, renderAbout, draftFrom, rangeFor, consoleHint, draftReady } from './views/pages.js';
+import { renderSaved, renderPasses, renderPassDetail, renderConsole, renderAbout, draftFrom, rangeFor, consoleHint, draftReady, newDealDraft } from './views/pages.js';
+import { checkDeal } from './lib/deals.js';
 
 const FILTER_IDS = FILTERS.map((f) => f.id);
 const EXPLORE_KEYS = ['q', 'f', 'sort', 'view', 'area'];
@@ -33,7 +34,7 @@ const app = {
   lastVenueId: null,
   ui: { loading: true, refreshError: false, lastRefreshAt: null, searchOpen: false, mapSelected: null, staleNotice: null, lastRemoved: null, resetSnapshot: null, clearedQueue: null },
   firstFetchStarted: false,
-  console: { venueId: null, drafts: {} },
+  console: { venueId: null, drafts: {}, dealDraft: null, dealErrors: {} },
   passFlow: null,
   venueBack: null, // where the venue page's Back link returns to (Tonight, Saved, Passes…)
   scroll: new Map(),
@@ -60,7 +61,7 @@ const now = () => demoNow(app.state.clock, Date.now());
 function persist() { save(storage, app.state); }
 function rebuild() {
   const base = buildDataset(app.state.dataset, app.state.clock.base, app.state.syncAt ?? app.state.clock.base);
-  app.venues = resolveVenues(base, app.state.overrides, app.state.passes);
+  app.venues = resolveVenues(base, app.state.overrides, app.state.passes, app.state.deals);
   app.groups = buildGroups(app.state.clock.base);
 }
 const isOffline = () => app.state.sim.offline || navigator.onLine === false;
@@ -420,6 +421,11 @@ function tick() {
       if (hadFocus) fresh.querySelector('summary')?.focus({ preventScroll: true });
     }
   });
+  document.querySelectorAll('[data-deal-for]').forEach((slot) => {
+    const v = byId.get(slot.dataset.dealFor);
+    const html = v ? dealTag(v, n) : '';
+    if (slot.innerHTML !== html) slot.innerHTML = html;
+  });
   // Map pins share the same estimate meaning: patch any pin whose state changed, in place (no re-announce).
   document.querySelectorAll('[data-pin-tone]').forEach((b) => {
     const v = byId.get(b.dataset.id);
@@ -679,6 +685,46 @@ function updateConsoleHint() {
   if (el) el.textContent = consoleHint(d, now());
   document.querySelector('[data-action="console-publish"]')?.setAttribute('aria-disabled', String(!draftReady(d)));
 }
+/* ---------------- deals posted from the console ---------------- */
+const dealDraft = () => (app.console.dealDraft ??= newDealDraft());
+function postDeal() {
+  const v = consoleVenue();
+  const d = dealDraft();
+  const { errors, title } = checkDeal(d);
+  const startsAt = atNight(app.state.clock.base, d.start[0], d.start[1]);
+  const endsAt = atNight(app.state.clock.base, d.end[0], d.end[1]);
+  if (!errors.time && endsAt <= now()) errors.time = 'That end time has already passed tonight (demo time).';
+  app.console.dealErrors = errors;
+  if (Object.keys(errors).length) {
+    rerenderConsole();
+    const first = ['kind', 'title', 'item', 'price', 'costOk', 'time'].find((k) => errors[k]);
+    const id = { title: 'deal-title', item: 'deal-item', price: 'deal-price', costOk: 'deal-cost', time: 'deal-start' }[first];
+    document.getElementById(id)?.focus();
+    announce(errors[first]);
+    return;
+  }
+  const deal = { id: `deal-${refCode(`${v.id}${Date.now()}`).toLowerCase()}`, venueId: v.id, kind: d.kind, title, startsAt, endsAt, postedAt: now(), ...(d.kind === 'drink' ? { item: d.item, price: Number(d.price) } : {}) };
+  app.state.deals.unshift(deal);
+  audit(v, `Posted deal: ${title} (${formatTime(startsAt)}–${formatTime(endsAt)})`);
+  persist();
+  rebuild();
+  app.console.dealDraft = { ...newDealDraft(), kind: d.kind };
+  rerenderConsole();
+  toast(`Deal posted for ${v.name} (demo). Guests see it on the card while it runs.`);
+}
+function removeDeal(id) {
+  const i = app.state.deals.findIndex((x) => x.id === id);
+  if (i < 0) return;
+  const [gone] = app.state.deals.splice(i, 1);
+  const v = app.venues.find((x) => x.id === gone.venueId);
+  if (v) audit(v, `Removed deal: ${gone.title}`);
+  persist();
+  rebuild();
+  rerenderConsole();
+  document.getElementById('deal-h')?.focus?.();
+  toast(`Deal removed: ${gone.title}`, { actionLabel: 'Undo', onAction: () => { app.state.deals.splice(i, 0, gone); persist(); rebuild(); rerenderConsole(); announce('Deal restored'); } });
+}
+
 function audit(venue, summary) {
   app.state.audit.unshift({ at: now(), venueId: venue.id, summary });
   app.state.audit = app.state.audit.slice(0, 50);
@@ -706,11 +752,11 @@ function resetDemo() {
   persist();
   rebuild();
   app.passFlow = null;
-  app.console = { venueId: null, drafts: {} };
+  app.console = { venueId: null, drafts: {}, dealDraft: null, dealErrors: {} };
   app.scan = freshScan();
   app.groupDraft = null;
   app.profileEdit = { editing: false, errors: {} };
-  app.ui = { loading: false, refreshError: false, lastRefreshAt: now(), mapSelected: null, staleNotice: null, lastRemoved: null, clearedQueue: null, resetSnapshot: { state: snapshot, visit: app.visit } };
+  app.ui = { loading: false, refreshError: false, lastRefreshAt: now(), searchOpen: false, mapSelected: null, staleNotice: null, lastRemoved: null, clearedQueue: null, resetSnapshot: { state: snapshot, visit: app.visit } };
   render({ focus: 'heading' });
   toast('Demo reset: saved venues, passes, console changes and the demo clock are back to the start.', { actionLabel: 'Undo', onAction: undoReset });
 }
@@ -1094,6 +1140,8 @@ function handleAction(a, el) {
       return true;
     }
     case 'console-undo-clear': undoClear(); return true;
+    case 'deal-post': postDeal(); return true;
+    case 'deal-remove': removeDeal(el.dataset.id); return true;
     case 'console-price': {
       const v = consoleVenue();
       const next = Math.max(100, Math.min(5000, v.pass.basePrice + Number(el.dataset.delta)));
@@ -1204,6 +1252,7 @@ function onInput(e) {
       break;
     }
     case 'console-note': consoleDraft().note = t.value; break;
+    case 'deal-field': if (t.tagName === 'INPUT') dealDraft()[t.dataset.key] = t.value; break;
     case 'group-field': {
       const d = app.groupDraft ?? (app.groupDraft = newGroupDraft());
       d[t.dataset.key] = t.value;
@@ -1232,6 +1281,15 @@ function onChange(e) {
       rerenderConsole();
       break;
     case 'console-door': consoleDraft().doorStatus = t.value; updateConsoleHint(); break;
+    case 'deal-kind': dealDraft().kind = t.value; app.console.dealErrors = {}; rerenderConsole(); break;
+    case 'deal-cost': dealDraft().costOk = t.checked; break;
+    case 'deal-field':
+      if (t.tagName === 'SELECT') {
+        const d = dealDraft();
+        if (t.dataset.key === 'item') d.item = t.value;
+        else d[t.dataset.key] = t.value.split(':').map(Number);
+      }
+      break;
     case 'console-pause': {
       const v = consoleVenue();
       setPassOverride(v, { paused: t.checked });
@@ -1268,6 +1326,7 @@ function onSubmit(e) {
   e.preventDefault();
   if (e.target.id === 'pass-form') submitPass();
   if (e.target.id === 'door-form') handleAction('console-publish', e.target);
+  if (e.target.id === 'deal-form') postDeal();
   if (e.target.id === 'group-form') postGroup();
   if (e.target.id === 'profile-form') saveProfile(e.target);
 }

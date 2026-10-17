@@ -1,6 +1,7 @@
 // Pure search / filter / sort for the Tonight list. No DOM access, so it is unit-tested directly.
 import { describeEstimate } from './queue.js';
 import { distanceTo, DEMO_SPOT } from './geo.js';
+import { activeDeal } from './deals.js';
 
 const toMinutes = (hhmm) => {
   const [h, m] = hhmm.split(':').map(Number);
@@ -21,6 +22,7 @@ export function isOpenAt(venue, now) {
 export const FILTERS = Object.freeze([
   { id: 'open', label: 'Open now' },
   { id: 'short', label: 'Under 20 min' },
+  { id: 'deals', label: 'Deals now' },
   { id: 'nocover', label: 'No cover' },
   { id: 'saved', label: 'Saved' },
 ]);
@@ -67,6 +69,7 @@ export function exploreList(venues, { q = '', filters = [], sort = 'wait', area 
     if (active.has('open') && open !== true) continue;
     if (active.has('nocover') && venue.cover !== 0) continue;
     if (active.has('saved') && !savedIds.has(venue.id)) continue;
+    if (active.has('deals') && !activeDeal(venue, now)) continue;
     if (active.has('short') && !est.qualifiesShortWait) {
       if (est.tone === 'stale') excludedStale += 1;
       continue;

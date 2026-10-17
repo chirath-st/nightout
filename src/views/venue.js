@@ -1,5 +1,7 @@
 import { esc, estimateBlock, estimateRing, saveButton, stateBox, windowLabel, coverText, venuePhoto, venueLogo, distanceText } from '../ui/components.js';
 import { DEMO_SPOT } from '../lib/geo.js';
+import { dealsTonight, dealState, DEAL_KINDS } from '../lib/deals.js';
+import { dealWhen } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
 import { venueArt } from '../ui/art.js';
 import { isOpenAt } from '../lib/explore.js';
@@ -80,6 +82,7 @@ export function renderVenue(ctx, id) {
       ${venue.blurb ? `<p class="detail-blurb">${esc(venue.blurb)}</p>` : ''}
     </div>
     ${estimateBlock(venue, now)}
+    ${dealsSection(venue, now)}
     ${typicalStrip(venue, now)}
     ${passCta(venue, now)}
     <h2 class="section-title">Entry details (simulated)</h2>
@@ -99,4 +102,24 @@ export function renderVenue(ctx, id) {
       <p>A future version might help you check, ahead of time, that you’re bringing an accepted ID. It could never guarantee entry or replace the venue’s own ID check at the door. New Jersey also limits keeping data from scanned IDs. This prototype collects no ID information.</p>
     </section>
   </div>`;
+}
+
+/** Tonight's deals for this bar: live first, then later, then ended. Every one is a demo deal. */
+function dealsSection(venue, now) {
+  const deals = dealsTonight(venue, now);
+  if (!deals.length) return '';
+  return `<section class="deals" aria-labelledby="deals-h">
+    <h2 class="section-title" id="deals-h">Deals tonight</h2>
+    <ul class="deal-list">${deals.map((d) => {
+      const st = dealState(d, now);
+      const kind = DEAL_KINDS[d.kind] ?? DEAL_KINDS.food;
+      return `<li class="deal-row" data-state="${st}">
+        <span class="deal-icon">${icon(kind.icon, { size: 20 })}</span>
+        <span class="deal-main"><span class="deal-title">${esc(d.title)}</span>
+          <span class="deal-meta"><span class="deal-when">${esc(dealWhen(d, now))}</span><span class="sep" aria-hidden="true">•</span><span>${esc(kind.short)}</span>${kind.adults ? '<span class="sep" aria-hidden="true">•</span><span>21+</span>' : ''}</span></span>
+        <span class="deal-state">${st === 'live' ? 'Now' : st === 'soon' ? 'Later' : 'Ended'}</span>
+      </li>`;
+    }).join('')}</ul>
+    <p class="hint">Demo deals: ${esc(venue.name)} isn’t offering these. In the real app each deal is set by the bar and valid only there.</p>
+  </section>`;
 }

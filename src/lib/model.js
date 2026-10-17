@@ -7,10 +7,13 @@ export function soldFor(passes, venueId, windowId) {
     .reduce((sum, p) => sum + p.party, 0);
 }
 
-export function resolveVenues(baseVenues, overrides = {}, passes = []) {
+/** `posted` are deals the venue console added on this device (state.deals); they join the venue's demo deals. */
+export function resolveVenues(baseVenues, overrides = {}, passes = [], posted = []) {
   return baseVenues.map((v) => {
     const o = overrides[v.id] || {};
     const out = { ...v };
+    const mine = posted.filter((d) => d.venueId === v.id);
+    if (mine.length) out.deals = [...(v.deals ?? []), ...mine];
     if (o.queue !== undefined) out.queue = o.queue ? { ...o.queue } : null;
     if (v.pass) {
       const po = o.pass || {};

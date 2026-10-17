@@ -45,6 +45,20 @@ const GEO = {
   'glass-woods-tavern': [40.49630, -74.44104], deltas: [40.49467, -74.44077],
 };
 
+// SIMULATED deals ("weak hours" promotions). No bar is offering these; every one is labeled a demo deal.
+// Kinds and limits follow src/lib/deals.js (New Jersey rules). Times are on the demo night (hours < 12 are
+// after midnight). `short` is the card tag (keep it under ~18 characters).
+const DEALS = {
+  'olde-queens': [{ id: 'oq-cover', kind: 'entry', title: 'No cover before 11 PM', short: 'No cover till 11', at: [21, 0], until: [23, 0] }],
+  'ale-n-wich': [{ id: 'aw-wings', kind: 'food', title: '$5 wings until midnight', short: '$5 wings till 12', at: [22, 0], until: [0, 0] }],
+  'pitch-social': [{ id: 'ps-mock', kind: 'na', title: '$3 mocktails and sodas all night', short: '$3 mocktails', at: [21, 0], until: [2, 0] }],
+  'tavern-on-george': [{ id: 'tg-trivia', kind: 'event', title: 'Trivia at 11 PM: $25 food voucher prize (21+ teams, no purchase needed)', short: 'Trivia at 11', at: [23, 0], until: [0, 30] }],
+  'old-man-raffertys': [{ id: 'mr-cover', kind: 'entry', title: 'Half-price cover until 11:30 PM', short: '½ cover till 11:30', at: [22, 0], until: [23, 30] }],
+  'esquina-latina': [{ id: 'el-chips', kind: 'food', title: 'Free chips and salsa, no purchase needed', short: 'Free chips & salsa', at: [22, 0], until: [23, 30] }],
+  'scarlet-pub': [{ id: 'sp-late', kind: 'entry', title: 'Free entry after 1 AM', short: 'Free entry after 1', at: [1, 0], until: [2, 0] }],
+  'fat-cactus': [{ id: 'fc-nachos', kind: 'food', title: 'Half-price nachos 9 to 10 PM', short: '½ nachos 9–10', at: [21, 0], until: [22, 0] }],
+};
+
 const BASE = [
   {
     id: 'olde-queens', name: 'Olde Queens Tavern', area: 'Easton Ave', address: '108 Easton Ave', tags: ['College bar', 'Themed nights'],
@@ -256,6 +270,7 @@ function materialize(raw, demoStart, syncAt = demoStart) {
       })),
     };
   }
+  v.deals = (DEALS[v.id] ?? []).map(({ at, until, ...d }) => ({ ...d, venueId: v.id, startsAt: atNight(demoStart, at[0], at[1]), endsAt: atNight(demoStart, until[0], until[1]), synthetic: true }));
   const g = GEO[v.id];
   v.geo = g ? { lat: g[0], lng: g[1] } : null;
   v.synthetic = true;

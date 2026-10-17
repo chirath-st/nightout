@@ -1,4 +1,6 @@
-import { esc, venueCard, stateBox, passCard, estimateBlock, banner } from '../ui/components.js';
+import { esc, venueCard, stateBox, passCard, estimateBlock, banner, dealWhen } from '../ui/components.js';
+import { DEAL_KINDS, DRINK_ITEMS, DEAL_TITLE_MAX, slowHours } from '../lib/deals.js';
+import { TYPICAL_HOURS } from '../data/venues.js';
 import { icon } from '../ui/icons.js';
 import { passStatus, money } from '../lib/pass.js';
 import { FRESHNESS_MINUTES, describeEstimate, validPeople } from '../lib/queue.js';
@@ -116,6 +118,7 @@ export function renderConsole(ctx) {
         <p class="panel-sub">The same component as the guest app.</p>
         ${estimateBlock(v, ctx.now, { headingId: 'qb-console', showHow: false, headingLevel: 3 })}
       </section>
+      ${dealPanel(v, ctx)}
       ${passPanel(v, ctx)}
       <section class="panel" aria-labelledby="audit-h">
         <h2 id="audit-h">Change log</h2>
@@ -212,4 +215,49 @@ export function renderAbout(ctx) {
     <h2 class="section-title">Credits</h2>
     <p class="prose"><span>Original code, icons and illustrations were made for this prototype; no photos are used. The shared version loads the Playfair Display and Inter fonts (SIL Open Font License) from Google Fonts. Design and QA guidance came from pinned, licensed sources listed in <code>app/ATTRIBUTIONS.md</code>.</span></p>
   </div>`;
+}
+
+/* ---------- Console: post a deal (structured fields only; see lib/deals.js) ---------- */
+const DEAL_TIMES = [[21, 0], [21, 30], [22, 0], [22, 30], [23, 0], [23, 30], [0, 0], [0, 30], [1, 0], [1, 30], [2, 0]];
+const PLACEHOLDER = { entry: 'No cover before 11', food: '$5 wings till midnight', na: '$3 mocktails all night', event: 'Trivia at 11 (food voucher prize)' };
+const hhmm = ([h, m]) => `${h}:${String(m).padStart(2, '0')}`;
+const timeLabel = ([h, m]) => formatTime(new Date(2000, 0, h < 12 ? 2 : 1, h, m).getTime());
+const errP = (id, msg) => `<p class="field-error" id="${id}">${icon('alert')}${esc(msg)}</p>`;
+const invalid = (msg, id) => (msg ? ` aria-invalid="true" aria-describedby="${id}"` : '');
+
+export function newDealDraft() {
+  return { kind: 'entry', title: '', start: [22, 0], end: [23, 0], item: 'draft', price: '', costOk: false };
+}
+
+function dealPanel(v, ctx) {
+  const d = ctx.console.dealDraft ?? newDealDraft();
+  const e = ctx.console.dealErrors ?? {};
+  const slow = slowHours(v.typical, TYPICAL_HOURS);
+  const mine = ctx.state.deals.filter((x) => x.venueId === v.id);
+  const timeSelect = (key, label) => `<div class="field"><label class="label" for="deal-${key}">${label}</label><div class="select"><select id="deal-${key}" data-input="deal-field" data-key="${key}"${invalid(e.time, 'err-deal-time')}>${DEAL_TIMES.map((t) => `<option value="${hhmm(t)}" ${hhmm(t) === hhmm(d[key]) ? 'selected' : ''}>${timeLabel(t)}</option>`).join('')}</select>${icon('chevronDown', { size: 14 })}</div></div>`;
+  const fields = d.kind === 'drink'
+    ? `<div class="field-pair">
+        <div class="field"><label class="label" for="deal-item">Drink and size</label><div class="select"><select id="deal-item" data-input="deal-field" data-key="item"${invalid(e.item, 'err-deal-item')}>${DRINK_ITEMS.map((i) => `<option value="${i.id}" ${d.item === i.id ? 'selected' : ''}>${esc(`${i.label}, ${i.size}`)}</option>`).join('')}</select>${icon('chevronDown', { size: 14 })}</div>${e.item ? errP('err-deal-item', e.item) : ''}</div>
+        <div class="field"><label class="label" for="deal-price">Price per drink ($)</label><input id="deal-price" class="text-input" inputmode="decimal" autocomplete="off" value="${esc(d.price)}" data-input="deal-field" data-key="price" placeholder="4"${invalid(e.price, 'err-deal-price')}>${e.price ? errP('err-deal-price', e.price) : ''}</div>
+      </div>
+      <label class="check" style="margin-top:4px"><input id="deal-cost" type="checkbox" data-input="deal-cost" ${d.costOk ? 'checked' : ''}${invalid(e.costOk, 'err-deal-cost')}><span>This price is at or above our cost for the drink.</span></label>
+      ${e.costOk ? errP('err-deal-cost', e.costOk) : ''}
+      <p class="hint">One drink, its standard size and one price. Shown only to guests who confirmed they’re 21+, with no “was” price.</p>`
+    : `<div class="field"><label class="label" for="deal-title">Headline</label><input id="deal-title" class="text-input" maxlength="${DEAL_TITLE_MAX}" autocomplete="off" value="${esc(d.title)}" data-input="deal-field" data-key="title" placeholder="${esc(PLACEHOLDER[d.kind] ?? '')}"${invalid(e.title, 'err-deal-title')}>${e.title ? errP('err-deal-title', e.title) : `<p class="hint">Up to ${DEAL_TITLE_MAX} characters. Shown on the bar’s card while the deal runs.</p>`}</div>`;
+  return `<section class="panel" aria-labelledby="deal-h">
+    <h2 id="deal-h">Post a deal</h2>
+    <p class="panel-sub">Bring people in during slow hours.${slow.length ? ` Typically quiet here: ${esc(slow.join(', '))} (simulated pattern).` : ''} Guests see it on the bar’s card and page while it runs.</p>
+    <form id="deal-form" class="form-stack" novalidate style="margin-top:0">
+      <fieldset class="field-group"><legend>Type</legend>
+        <div class="radio-row deal-kinds">${Object.entries(DEAL_KINDS).map(([k, kd]) => `<label class="radio-card"><input type="radio" name="deal-kind" value="${k}" data-input="deal-kind" ${d.kind === k ? 'checked' : ''}><span>${esc(kd.short)}${kd.adults ? ' · 21+' : ''}</span></label>`).join('')}</div>
+      </fieldset>
+      ${fields}
+      <div class="field-pair">${timeSelect('start', 'Starts')}${timeSelect('end', 'Ends')}</div>
+      ${e.time ? errP('err-deal-time', e.time) : ''}
+      ${d.kind === 'event' ? '<p class="hint">Contests are open to 21+ entrants only, with no purchase needed.</p>' : ''}
+      <p class="hint">New Jersey doesn’t allow 2-for-1 or multi-drink offers, unlimited drinks, free items for buying alcohol, bigger pours for the same price, or prices by gender. This form only builds deals that avoid those.</p>
+      <div class="form-actions" style="margin-top:0"><button type="submit" class="btn btn-primary" data-action="deal-post">${icon('plus')}Post deal (demo)</button></div>
+    </form>
+    ${mine.length ? `<h3 class="label" style="margin-top:20px">Posted from this console</h3><ul class="plain-list">${mine.map((x) => `<li><span><b>${esc(x.title)}</b><small>${esc(dealWhen(x, ctx.now))}</small></span><button type="button" class="btn btn-sm" data-action="deal-remove" data-id="${esc(x.id)}" aria-label="Remove deal: ${esc(x.title)}">Remove</button></li>`).join('')}</ul>` : ''}
+  </section>`;
 }

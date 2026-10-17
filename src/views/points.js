@@ -46,12 +46,12 @@ export function renderPoints(ctx) {
         <p class="reward-cost">Not available</p>
       </li>
     </ul>
-    <p class="hint">Rewards are simulated: no bar has agreed to honor them. Line cuts and VIP entry would always depend on the venue, ID checks and capacity.</p>
+    <p class="hint">Rewards are simulated: no bar has agreed to honor them, and none can be used toward alcoholic beverages. Line cuts and VIP entry would always depend on the venue, ID checks and capacity.</p>
 
     <h2 class="section-title">Your rewards</h2>
     ${vouchers.length ? `<ul class="plain-list">${vouchers.map((v) => {
       const r = REWARDS.find((x) => x.id === v.rewardId);
-      return `<li><span><b>${esc(r?.title ?? 'Reward')}</b><small>Code ${esc(v.ref)} · demo, not valid</small></span><span class="num muted">${esc(formatTime(v.at))}</span></li>`;
+      return `<li><span><b>${esc(r?.title ?? 'Reward')}</b><small>Code ${esc(v.ref)} · demo, not valid · not valid toward alcoholic beverages</small></span><span class="num muted">${esc(formatTime(v.at))}</span></li>`;
     }).join('')}</ul>` : '<p class="hint">Nothing redeemed yet.</p>'}
     ${passes ? `<a class="list-link" href="#/passes">${icon('ticket', { size: 20 })}<span>Priority passes (${passes})</span>${icon('chevronRight', { size: 18 })}</a>` : ''}
 

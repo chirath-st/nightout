@@ -795,3 +795,20 @@ fieldset:disabled .bucket span { opacity: 0.4; }
 .crowd-chip[data-level="lively"], .crowd-chip[data-level="paused"] { --cs: #F5C451; }
 .crowd-chip[data-level="packed"] { --cs: #FF6B6B; }
 .crowd-chip[data-level="none"] { border-style: dashed; }
+
+/* ---------- Deals (card tag bottom left, bar page list, console) ---------- */
+.deal-slot { position: absolute; left: 6px; bottom: 6px; right: 6px; display: flex; pointer-events: none; }
+.deal-tag { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; height: 24px; padding: 0 8px 0 6px; border-radius: var(--r-pill); background: #fff; color: #0B0B0C; font-size: 11px; font-weight: 800; letter-spacing: 0.01em; box-shadow: 0 2px 8px rgb(0 0 0 / 0.45); }
+.deal-tag svg { flex: none; width: 13px; height: 13px; stroke-width: 2.2; }
+.deal-tag span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deal-list { display: grid; border-top: 1px solid var(--line); }
+.deal-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.deal-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--surface-2); color: var(--ink); }
+.deal-main { display: grid; gap: 2px; min-width: 0; }
+.deal-title { font-weight: 700; font-size: 15px; line-height: 20px; overflow-wrap: anywhere; }
+.deal-meta { font-size: 13px; color: var(--ink-2); display: flex; flex-wrap: wrap; align-items: center; }
+.deal-state { font-size: var(--t-2xs); font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 8px; border-radius: var(--r-pill); border: 1px solid var(--line-input); color: var(--ink-2); }
+.deal-row[data-state="live"] .deal-state { background: #fff; border-color: #fff; color: #000; }
+.deal-row[data-state="ended"] .deal-title { color: var(--ink-2); text-decoration: line-through; text-decoration-color: var(--ink-3); }
+.deals .hint { margin-top: 10px; }
+.deal-kinds { grid-template-columns: repeat(2, minmax(0, 1fr)); }
