@@ -9,7 +9,7 @@ import { FILTERS, SORTS, exploreList } from './lib/explore.js';
 import { windowState, purchasable, createPass, maxPartyFor, passStatus, money, refCode } from './lib/pass.js';
 import { estimateCompact, estimateBlock, estimateRing, estimateFor, demoChip, esc, venueRow, estimatePill, cardMeta, srSummary } from './ui/components.js';
 import { icon } from './ui/icons.js';
-import { renderExplore, exploreResults, exploreBanners, desktopMapPanel, pinParts, viewFab, areaSheet } from './views/explore.js';
+import { renderExplore, exploreResults, exploreBanners, pinParts, areaSheet } from './views/explore.js';
 import { renderGroups, renderGroupNew, validateGroup } from './views/groups.js';
 import { renderScan, pickListItems } from './views/scan.js';
 import { renderPoints } from './views/points.js';
@@ -23,7 +23,6 @@ const EXPLORE_KEYS = ['q', 'f', 'sort', 'view', 'area'];
 const SORT_IDS = SORTS.map((s) => s.id);
 const storage = (() => { try { return window.localStorage; } catch { return null; } })();
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const desktopMQ = window.matchMedia('(min-width: 960px)');
 
 const app = {
   state: null,
@@ -32,7 +31,7 @@ const app = {
   explore: { q: '', filters: [], sort: 'wait', view: 'list', area: '' },
   lastExploreHash: '#/',
   lastVenueId: null,
-  ui: { loading: true, refreshError: false, lastRefreshAt: null, mapSelected: null, staleNotice: null, lastRemoved: null, resetSnapshot: null, clearedQueue: null },
+  ui: { loading: true, refreshError: false, lastRefreshAt: null, searchOpen: false, mapSelected: null, staleNotice: null, lastRemoved: null, resetSnapshot: null, clearedQueue: null },
   firstFetchStarted: false,
   console: { venueId: null, drafts: {} },
   passFlow: null,
@@ -70,7 +69,7 @@ const savedSet = () => new Set(app.state.saved);
 function ctx(extra = {}) {
   return {
     venues: app.venues, now: now(), state: app.state, explore: app.explore, ui: app.ui, savedSet: savedSet(),
-    offline: isOffline(), isDesktop: desktopMQ.matches, console: app.console, visit: app.visit, groups: app.groups,
+    offline: isOffline(), console: app.console, visit: app.visit, groups: app.groups,
     backHref: app.venueBack?.href ?? app.lastExploreHash, backLabel: app.venueBack?.label ?? 'Bars', ...extra,
   };
 }
@@ -78,10 +77,6 @@ function ctx(extra = {}) {
 /* ---------------- history ---------------- */
 function histIdx() { return history.state?.idx ?? 0; }
 function go(hash, { replace = false } = {}) {
-  if (desktopMQ.matches) {
-    const p = parseHash(hash);
-    if ((p.name === 'venue' || p.name === 'pass') && !EXPLORE_KEYS.some((k) => p.query[k])) hash = buildHash(p.name, p.params, exploreQuery(app.explore));
-  }
   if (hash === location.hash || (hash === '#/' && (location.hash === '' || location.hash === '#'))) { route(); return; }
   rememberScroll();
   const idx = replace ? histIdx() : histIdx() + 1;
@@ -139,11 +134,10 @@ function announce(text) {
 function focusKey(el) {
   if (!el || el === document.body) return null;
   if (el.id) return `#${CSS.escape(el.id)}`;
-  const scope = el.closest('#detail-pane') ? '#detail-pane ' : el.closest('.split-list') ? '.split-list ' : '';
   if (el.type === 'radio' && el.name) return `input[name="${CSS.escape(el.name)}"][value="${CSS.escape(el.value)}"]`;
   const attrs = ['data-action', 'data-input', 'data-id', 'data-delta', 'data-window', 'data-filter', 'data-view', 'data-kind', 'data-key'];
   const sel = attrs.filter((a) => el.hasAttribute(a)).map((a) => `[${a}="${CSS.escape(el.getAttribute(a))}"]`).join('');
-  return sel ? `${scope}${sel}` : null;
+  return sel || null;
 }
 function preserveFocus(fn, fallback = pageHeading) {
   const active = document.activeElement;
@@ -158,9 +152,9 @@ function preserveFocus(fn, fallback = pageHeading) {
   if (!el || el.disabled || !el.isConnected) el = (sibling && document.querySelector(sibling)) || fallback?.() || null;
   if (el && el !== document.activeElement) el.focus({ preventScroll: true });
 }
-/** The heading that names the current view (desktop split: the venue, else the list or page). */
+/** The heading that names the current view. */
 function pageHeading() {
-  return document.querySelector('#detail-pane #page-h') || document.getElementById('page-h') || document.getElementById('list-h');
+  return document.getElementById('page-h');
 }
 
 /* ---------------- rendering ---------------- */
@@ -173,6 +167,7 @@ function renderShell() {
   const tonightTab = document.querySelector('[data-tab="bars"]');
   if (tonightTab) tonightTab.setAttribute('href', app.lastExploreHash);
   updateBadge();
+  syncSearchButton();
   const slot = document.getElementById('demo-slot');
   if (!slot.firstElementChild) slot.innerHTML = demoChip(now());
 }
@@ -192,10 +187,6 @@ function mainHtml() {
     case 'venue':
     case 'pass': {
       const id = r.name === 'tonight' ? null : r.params.id;
-      if (c.isDesktop) {
-        const detail = id ? renderVenue({ ...c, backHref: app.lastExploreHash }, id) : desktopMapPanel(c);
-        return `<div class="split"><div class="split-list"><div class="page">${renderExplore({ ...c, selectedId: id })}</div></div><div class="split-detail" id="detail-pane">${detail}</div></div>`;
-      }
       return id ? renderVenue(c, id) : `<div class="page">${renderExplore(c)}</div>`;
     }
     case 'saved': return renderSaved(c);
@@ -218,11 +209,10 @@ function render({ focus = 'heading', scroll = 'keep' } = {}) {
   renderShell();
   const main = document.getElementById('main');
   main.innerHTML = mainHtml();
-  document.body.classList.toggle('has-fab', app.route?.name === 'tonight');
   app.renderedHash = location.hash || '#/';
   const banners = document.getElementById('explore-banners');
   if (banners) banners.dataset.sig = exploreBanners(ctx());
-  const h1 = document.querySelector('#detail-pane h1') || main.querySelector('h1');
+  const h1 = main.querySelector('h1');
   document.title = `${h1 ? `${h1.textContent.trim()} · ` : ''}Night Out (demo)`;
   syncSheet();
   if (scroll === 'restore') window.scrollTo(0, app.scroll.get(app.renderedHash) ?? 0);
@@ -242,12 +232,12 @@ function updateBanners() {
   // Only replace when the content changes, so role="alert" banners aren't re-announced on every keystroke.
   if (banners.dataset.sig !== html) { banners.innerHTML = html; banners.dataset.sig = html; }
 }
-const listHeading = () => document.getElementById('list-h') || document.getElementById('page-h');
+const listHeading = () => document.getElementById('page-h');
 function renderResultsOnly({ announceCount = true } = {}) {
   const results = document.getElementById('results');
   if (!results) return;
   preserveFocus(() => {
-    results.innerHTML = exploreResults(ctx({ selectedId: app.route.params?.id ?? null }));
+    results.innerHTML = exploreResults(ctx());
     results.setAttribute('aria-busy', String(app.ui.loading));
     updateBanners();
     const clearBtn = document.querySelector('[data-action="clear-search"].clear');
@@ -263,21 +253,7 @@ function renderResultsOnly({ announceCount = true } = {}) {
       if (clearAll) clearAll.textContent = `Clear all (${app.explore.filters.length})`;
       else chips.insertAdjacentHTML('beforeend', `<button type="button" class="chip chip-clear" data-action="clear-filters">Clear all (${app.explore.filters.length})</button>`);
     } else clearAll?.remove();
-    const refreshBtn = document.querySelector('[data-action="refresh"].refresh-btn');
-    if (refreshBtn) refreshBtn.setAttribute('aria-disabled', String(app.ui.loading)); // stays focusable while busy
   }, listHeading);
-  // The floating List/Map pill is patched in place so it keeps keyboard focus when pressed.
-  const fab = document.querySelector('.fab');
-  if (fab) {
-    const tpl = document.createElement('template');
-    tpl.innerHTML = viewFab(app.explore.view);
-    const next = tpl.content.firstElementChild;
-    fab.dataset.view = next.dataset.view;
-    fab.setAttribute('aria-label', next.getAttribute('aria-label'));
-    fab.innerHTML = next.innerHTML;
-  }
-  const pane = document.getElementById('detail-pane');
-  if (pane && desktopMQ.matches && app.route.name === 'tonight') preserveFocus(() => { pane.innerHTML = desktopMapPanel(ctx()); }, listHeading);
   if (announceCount && !app.ui.loading) {
     const { total } = exploreList(app.venues, app.explore, now(), savedSet());
     announce(total ? `${total} venue${total === 1 ? '' : 's'} shown` : 'No venues match');
@@ -288,8 +264,7 @@ function updateExploreUrl() {
   const hash = buildHash('tonight', {}, exploreQuery(app.explore));
   app.lastExploreHash = hash;
   const r = app.route;
-  const target = r.name === 'tonight' ? hash
-    : desktopMQ.matches && (r.name === 'venue' || r.name === 'pass') ? buildHash(r.name, r.params, exploreQuery(app.explore)) : null;
+  const target = r.name === 'tonight' ? hash : null;
   if (target) {
     history.replaceState({ ...(history.state ?? {}), idx: histIdx(), explore: { ...app.explore } }, '', target);
     app.renderedHash = target;
@@ -314,6 +289,7 @@ function route({ viaPop = false } = {}) {
   const hasExploreQuery = EXPLORE_KEYS.some((k) => r.query[k]);
   if (r.name === 'tonight' || (isListRoute(r.name) && hasExploreQuery)) {
     app.explore = exploreStateFromQuery(r.query, FILTER_IDS, SORT_IDS);
+    if (app.explore.q || app.explore.filters.length) app.ui.searchOpen = true;
     app.lastExploreHash = buildHash('tonight', {}, exploreQuery(app.explore));
   } else if (isListRoute(r.name) && (viaPop || !prev) && entry.explore) {
     // Desktop venue entry recorded with the default list state (no query in its URL).
@@ -330,11 +306,6 @@ function route({ viaPop = false } = {}) {
       app.venueBack = labels[prev.name] ? { label: labels[prev.name], href: buildHash(prev.name, prev.params, prev.query) } : null;
     } else if (prev.name === 'tonight') app.venueBack = null;
   }
-  // Desktop keeps the list visible next to the venue, so the venue URL carries the list's query too.
-  if (desktopMQ.matches && (r.name === 'venue' || r.name === 'pass')) {
-    const want = buildHash(r.name, r.params, exploreQuery(app.explore));
-    if (want !== location.hash) { history.replaceState({ ...(history.state ?? {}), idx: histIdx() }, '', want); app.renderedHash = want; }
-  }
   if (isListRoute(r.name)) history.replaceState({ ...(history.state ?? {}), idx: histIdx(), back: r.name === 'tonight' ? null : app.venueBack ?? null, explore: { ...app.explore } }, '');
   if (r.name === 'console' && r.query.venue) app.console.venueId = r.query.venue;
   if (r.name === 'groupNew' && !app.groupDraft) { app.groupDraft = newGroupDraft(); app.groupErrors = {}; }
@@ -347,23 +318,13 @@ function route({ viaPop = false } = {}) {
 
   // Only re-render the main content when the page actually changed (sheet open/close keeps the page).
   const samePage = prev && ((prev.name === 'venue' && r.name === 'pass') || (prev.name === 'pass' && r.name === 'venue')) && prev.params.id === r.params.id;
-  if (samePage && !desktopMQ.matches) { renderShell(); syncSheet(); app.renderedHash = location.hash; return; }
-  const desktopSwap = desktopMQ.matches && prev && ['tonight', 'venue', 'pass'].includes(prev.name) && ['tonight', 'venue', 'pass'].includes(r.name);
+  if (samePage) { renderShell(); syncSheet(); app.renderedHash = location.hash; return; }
 
   const backToList = viaPop && r.name === 'tonight' && prev?.name === 'venue';
   const toDetail = !viaPop && r.name === 'venue' && prev?.name === 'tonight';
   const doRender = () => {
-    if (desktopSwap) {
-      const listY = window.scrollY;
-      render({ focus: 'none' });
-      window.scrollTo(0, listY);
-      if (r.name === 'venue') document.querySelector('#detail-pane #page-h')?.focus({ preventScroll: true });
-      else if (r.name === 'tonight' && viaPop && prev?.params?.id) (document.querySelector(`[data-nav-venue="${CSS.escape(prev.params.id)}"]`) ?? listHeading())?.focus({ preventScroll: true });
-      document.getElementById('detail-pane')?.scrollTo(0, 0);
-    } else {
-      const focusRow = viaPop && prev?.name === 'venue' && (r.name === 'tonight' || r.name === 'saved');
-      render({ focus: focusRow ? 'venue' : 'heading', scroll: viaPop ? 'restore' : 'top' });
-    }
+    const focusRow = viaPop && prev?.name === 'venue' && (r.name === 'tonight' || r.name === 'saved');
+    render({ focus: focusRow ? 'venue' : 'heading', scroll: viaPop ? 'restore' : 'top' });
   };
   const needsFirstFetch = ['tonight', 'venue', 'pass'].includes(r.name) && !app.firstFetchStarted;
   if (needsFirstFetch) app.firstFetchStarted = true;
@@ -374,7 +335,7 @@ function route({ viaPop = false } = {}) {
     return;
   }
   if (needsFirstFetch) queueMicrotask(() => simulateFetch({ initial: true }));
-  if ((toDetail || backToList) && !desktopMQ.matches && document.startViewTransition && !reducedMotion()) {
+  if ((toDetail || backToList) && document.startViewTransition && !reducedMotion()) {
     const id = app.lastVenueId;
     const art = (sel) => document.querySelector(`${sel} > svg`);
     const from = toDetail ? art(`[data-thumb="${CSS.escape(id)}"]`) : art(`[data-hero="${CSS.escape(id)}"]`);
@@ -684,7 +645,7 @@ function refreshCurrent({ removedId } = {}) {
     b.setAttribute('aria-label', `Save ${name}`);
     b.innerHTML = icon(on ? 'bookmarkFill' : 'bookmark');
   });
-  const listVisible = r === 'tonight' || (desktopMQ.matches && (r === 'venue' || r === 'pass'));
+  const listVisible = r === 'tonight';
   if (listVisible && app.explore.filters.includes('saved')) renderResultsOnly();
 }
 
@@ -941,6 +902,24 @@ function saveProfile(form) {
   toast('Profile saved.');
 }
 
+/* ---------------- search panel (opened from the header icon) ---------------- */
+function toggleSearch(open = !app.ui.searchOpen) {
+  if (app.route.name !== 'tonight') { app.ui.searchOpen = true; go(app.lastExploreHash); return; }
+  app.ui.searchOpen = open;
+  const panel = document.getElementById('explore-search');
+  if (panel) panel.hidden = !open;
+  syncSearchButton();
+  renderResultsOnly({ announceCount: false });
+  if (open) document.getElementById('q')?.focus();
+}
+function syncSearchButton() {
+  const btn = document.querySelector('[data-action="toggle-search"]');
+  if (!btn) return;
+  const onList = app.route?.name === 'tonight';
+  btn.hidden = !onList;
+  btn.setAttribute('aria-expanded', onList && app.ui.searchOpen ? 'true' : 'false');
+}
+
 /* ---------------- area picker ---------------- */
 function openAreaPicker() {
   const dlg = document.getElementById('picker');
@@ -953,7 +932,7 @@ function chooseArea(id) {
   updateExploreUrl();
   document.getElementById('picker').close();
   render({ focus: 'none' });
-  document.querySelector('.area-btn')?.focus({ preventScroll: true });
+  document.querySelector('.area-pill')?.focus({ preventScroll: true });
   const { total } = exploreList(app.venues, app.explore, now(), savedSet());
   announce(`${total} bar${total === 1 ? '' : 's'} shown`);
 }
@@ -1014,6 +993,17 @@ function handleAction(a, el) {
       app.explore.view = el.dataset.view;
       updateExploreUrl();
       renderResultsOnly();
+      return true;
+    case 'toggle-search': toggleSearch(); return true;
+    case 'clear-all':
+      app.explore.q = '';
+      app.explore.filters = [];
+      app.ui.staleNotice = null;
+      updateExploreUrl();
+      { const input = document.getElementById('q'); if (input) input.value = ''; }
+      renderResultsOnly();
+      listHeading()?.focus({ preventScroll: true });
+      announce('Search and filters cleared');
       return true;
     case 'map-select': {
       app.ui.mapSelected = app.ui.mapSelected === el.dataset.id ? null : el.dataset.id;
@@ -1298,7 +1288,7 @@ function wireSheet() {
   let suppressClickUntil = 0;
   dlg.addEventListener('click', (ev) => { if (performance.now() < suppressClickUntil) { ev.stopPropagation(); ev.preventDefault(); } }, true);
   dlg.addEventListener('pointerdown', (e) => {
-    if (sheetDrag || !e.target.closest('.sheet-grabber') || desktopMQ.matches) return;
+    if (sheetDrag || !e.target.closest('.sheet-grabber')) return;
     let base = 0;
     if (snap) { base = new DOMMatrix(getComputedStyle(dlg).transform).m42; snap.cancel(); snap = null; dlg.style.transform = `translateY(${base}px)`; }
     const t = performance.now();
@@ -1347,7 +1337,6 @@ function boot() {
   });
   window.addEventListener('online', () => { if (app.route.name === 'tonight' || app.route.name === 'venue') simulateFetch(); });
   window.addEventListener('offline', () => renderResultsOnly());
-  desktopMQ.addEventListener('change', () => render({ focus: 'none' }));
   wireSheet();
   route();
   setInterval(tick, 15_000);

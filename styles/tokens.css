@@ -75,8 +75,20 @@
   --d-toast: 220ms;
   --d-vt-root: 200ms;
 
-  --tabbar-h: 56px;
-  --topbar-h: 52px;
+  /* Phone-first: the app is always laid out as a phone screen, centered on wider screens. */
+  --phone-w: 430px;
+  --tabbar-h: 64px;     /* floating silver tab bar */
+  --tabbar-gap: 10px;   /* space between the tab bar and the bottom edge */
+  --topbar-h: 60px;
+
+  /* Silver (team mockup, 2026-10-17): cards, area pill and tab bar. Dark text on silver. */
+  --silver: linear-gradient(180deg, #FBFBFC 0%, #E6E7EB 45%, #CDCFD5 100%);
+  --silver-flat: #DDDEE2;
+  --silver-edge: inset 0 1px 0 rgb(255 255 255 / 0.95), inset 0 -1px 0 rgb(0 0 0 / 0.16);
+  --silver-shadow: 0 8px 24px rgb(0 0 0 / 0.55);
+  --on-silver: #0B0B0C;     /* 15:1 on the darkest silver */
+  --on-silver-2: #3A3A40;   /* secondary text, 7:1 on #CDCFD5 */
+  --focus-on-silver: #000000;
   --gutter: 16px;
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);

@@ -48,6 +48,11 @@ const P = {
   calendar: '<rect x="4" y="5.5" width="16" height="14" rx="2"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/>',
   gift: '<rect x="4" y="9" width="16" height="11" rx="1.5"/><path d="M3 9h18M12 9v11M12 9c-1.5-3.5-5.5-4-5.5-1.5S10 9 12 9Zm0 0c1.5-3.5 5.5-4 5.5-1.5S14 9 12 9Z"/>',
   ff: '<path d="M4 6.5v11l7-5.5-7-5.5ZM12 6.5v11l7-5.5-7-5.5Z"/>',
+  // Filled glyphs for the team mockup (fill only, no stroke).
+  pinFill: '<path fill="currentColor" stroke="none" fill-rule="evenodd" d="M12 22s-7.2-6.3-7.2-12A7.2 7.2 0 0 1 19.2 10c0 5.7-7.2 12-7.2 12Zm0-9.1a2.9 2.9 0 1 0 0-5.8 2.9 2.9 0 0 0 0 5.8Z"/>',
+  crowd1: '<g fill="currentColor" stroke="none"><circle cx="12" cy="7.4" r="3.7"/><path d="M4.8 20.6c.4-4.8 3.2-7.4 7.2-7.4s6.8 2.6 7.2 7.4Z"/></g>',
+  crowd3: '<g fill="currentColor" stroke="none"><circle cx="12" cy="7" r="3.2"/><path d="M6.7 19.8c.3-4.2 2.4-6.5 5.3-6.5s5 2.3 5.3 6.5Z"/><circle cx="5" cy="9.4" r="2.4"/><path d="M.6 18.8c.2-3.2 1.8-5 4.2-5 1 0 1.9.3 2.6.9-1.1 1.2-1.8 2.6-2 4.1Z"/><circle cx="19" cy="9.4" r="2.4"/><path d="M23.4 18.8c-.2-3.2-1.8-5-4.2-5-1 0-1.9.3-2.6.9 1.1 1.2 1.8 2.6 2 4.1Z"/></g>',
+  tag: '<path d="M3.5 12.3V5.1a1.6 1.6 0 0 1 1.6-1.6h7.2a1.6 1.6 0 0 1 1.1.47l7.2 7.2a1.6 1.6 0 0 1 0 2.26l-7.2 7.2a1.6 1.6 0 0 1-2.26 0l-7.2-7.2a1.6 1.6 0 0 1-.44-1.13Z"/><circle cx="8.2" cy="8.2" r="1.5" fill="currentColor" stroke="none"/>',
 };
 
 export function icon(name, { label, cls = '', size = 20 } = {}) {
