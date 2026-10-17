@@ -11,6 +11,7 @@ import { estimateCompact, estimateBlock, estimateRing, estimateFor, demoChip, es
 import { icon } from './ui/icons.js';
 import { renderExplore, exploreResults, exploreBanners, pinParts, areaSheet } from './views/explore.js';
 import { renderGroups, renderGroupNew, validateGroup } from './views/groups.js';
+import { renderEvents, eventResults } from './views/events.js';
 import { renderScan, pickListItems } from './views/scan.js';
 import { renderPoints } from './views/points.js';
 import { renderProfile } from './views/profile.js';
@@ -33,7 +34,7 @@ const app = {
   explore: { q: '', filters: [], sort: 'near', view: 'list', area: '' },
   lastExploreHash: '#/',
   lastVenueId: null,
-  ui: { loading: true, refreshError: false, lastRefreshAt: null, searchOpen: false, mapSelected: null, staleNotice: null, lastRemoved: null, resetSnapshot: null, clearedQueue: null },
+  ui: { loading: true, refreshError: false, lastRefreshAt: null, searchOpen: false, eventsView: 'tonight', eventsGenre: '', eventsTheme: '', eventsPrice: '', mapSelected: null, staleNotice: null, lastRemoved: null, resetSnapshot: null, clearedQueue: null },
   firstFetchStarted: false,
   console: { venueId: null, drafts: {}, dealDraft: null, dealErrors: {} },
   passFlow: null,
@@ -164,7 +165,7 @@ function pageHeading() {
 /* ---------------- rendering ---------------- */
 function renderShell() {
   const r = app.route;
-  const tabFor = { tonight: 'bars', venue: 'bars', pass: 'bars', groups: 'groups', groupNew: 'groups', scan: 'scan', points: 'points', passes: 'points', passDetail: 'points', profile: 'profile', saved: 'profile', console: 'profile', about: 'profile' };
+  const tabFor = { tonight: 'bars', venue: 'bars', pass: 'bars', events: 'events', groups: 'events', groupNew: 'events', scan: 'scan', points: 'points', passes: 'points', passDetail: 'points', profile: 'profile', saved: 'profile', console: 'profile', about: 'profile' };
   document.querySelectorAll('[data-tab]').forEach((a) => {
     if (a.dataset.tab === tabFor[r.name]) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   });
@@ -198,6 +199,7 @@ function mainHtml() {
     case 'passDetail': return renderPassDetail(c, r.params.id);
     case 'console': return renderConsole(c);
     case 'about': return renderAbout(c);
+    case 'events': return renderEvents(c);
     case 'groups': return renderGroups(c);
     case 'groupNew': return renderGroupNew(c, app.groupDraft ?? newGroupDraft(), app.groupErrors);
     case 'scan': return renderScan(c, app.scan);
@@ -764,7 +766,7 @@ function resetDemo() {
   app.scan = freshScan();
   app.groupDraft = null;
   app.profileEdit = { editing: false, errors: {} };
-  app.ui = { loading: false, refreshError: false, lastRefreshAt: now(), searchOpen: false, mapSelected: null, staleNotice: null, lastRemoved: null, clearedQueue: null, resetSnapshot: { state: snapshot, visit: app.visit } };
+  app.ui = { loading: false, refreshError: false, lastRefreshAt: now(), searchOpen: false, eventsView: 'tonight', eventsGenre: '', eventsTheme: '', eventsPrice: '', mapSelected: null, staleNotice: null, lastRemoved: null, clearedQueue: null, resetSnapshot: { state: snapshot, visit: app.visit } };
   render({ focus: 'heading' });
   toast('Demo reset: saved venues, passes, console changes and the demo clock are back to the start.', { actionLabel: 'Undo', onAction: undoReset });
 }
@@ -972,6 +974,30 @@ function syncSearchButton() {
   const onList = app.route?.name === 'tonight';
   btn.hidden = !onList;
   btn.setAttribute('aria-expanded', onList && app.ui.searchOpen ? 'true' : 'false');
+}
+
+/* ---------------- events ---------------- */
+function renderEventResults() {
+  const box = document.getElementById('event-results');
+  if (!box) return;
+  preserveFocus(() => { box.innerHTML = eventResults(ctx()); });
+  const n = box.querySelectorAll('.ev-card').length;
+  announce(n ? `${n} event${n === 1 ? '' : 's'} shown` : 'No events shown');
+}
+function toggleEventList(key, id) {
+  const list = app.state[key];
+  const on = !list.includes(id);
+  app.state[key] = on ? [...list, id] : list.filter((x) => x !== id);
+  persist();
+  const ev = app.events.find((e) => e.id === id);
+  // Saved view: unsaving removes the card, so re-render the list and keep focus nearby.
+  if (key === 'savedEvents' && app.ui.eventsView === 'saved' && !on) { renderEventResults(); document.getElementById('page-h')?.focus({ preventScroll: true }); }
+  else renderEventResults();
+  const msg = key === 'savedEvents' ? (on ? `Saved ${ev?.title}.` : `Removed ${ev?.title} from saved.`) : (on ? `You’re going to ${ev?.title}. Demo: no one is notified.` : `Not going to ${ev?.title}.`);
+  if (key === 'goingEvents') toast(msg); else announce(msg);
+  const count = app.state.savedEvents.length;
+  const savedTab = document.querySelector('[data-action="event-view"][data-view="saved"]');
+  if (savedTab) savedTab.innerHTML = `Saved${count ? ` <span class="num">${count}</span>` : ''}`;
 }
 
 /* ---------------- bar page: poll, directions, share ---------------- */
@@ -1232,6 +1258,14 @@ function handleAction(a, el) {
     case 'open-area': openAreaPicker(); return true;
     case 'close-picker': document.getElementById('picker').close(); return true;
     case 'vote': castVote(el.dataset.id, el.dataset.vote); return true;
+    case 'event-view':
+      app.ui.eventsView = el.dataset.view;
+      document.querySelectorAll('[data-action="event-view"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === app.ui.eventsView)));
+      renderEventResults();
+      return true;
+    case 'event-clear': app.ui.eventsGenre = ''; app.ui.eventsTheme = ''; app.ui.eventsPrice = ''; rerenderPage(); return true;
+    case 'event-save': toggleEventList('savedEvents', el.dataset.id); return true;
+    case 'event-going': toggleEventList('goingEvents', el.dataset.id); return true;
     case 'directions': openDirections(el.dataset.id); return true;
     case 'share': shareVenue(el.dataset.id); return true;
     case 'scroll-to': { const t = document.getElementById(el.dataset.target); if (t) { t.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' }); t.focus({ preventScroll: true }); } return true; }
@@ -1325,6 +1359,11 @@ function onChange(e) {
   const t = e.target;
   switch (t.dataset.input) {
     case 'sort': app.explore.sort = t.value; updateExploreUrl(); renderResultsOnly(); break;
+    case 'event-filter':
+      app.ui[{ genre: 'eventsGenre', theme: 'eventsTheme', price: 'eventsPrice' }[t.dataset.key]] = t.value;
+      t.closest('.select')?.classList.toggle('is-set', !!t.value);
+      renderEventResults();
+      break;
     case 'pass-window': app.passFlow.windowId = t.value; app.passFlow.errors = {}; renderSheet(); break;
     case 'pass-ack': app.passFlow.ack = t.checked; if (t.checked && app.passFlow.errors.ack) { delete app.passFlow.errors.ack; renderSheet(); } break;
     case 'console-venue':

@@ -38,6 +38,7 @@ function groupCard(g, ctx) {
 export function renderGroups(ctx) {
   const groups = allGroups(ctx);
   return `<div class="page">
+    <div class="back-row"><a class="back-link" href="#/events" data-action="back">${icon('chevronLeft')}Events</a></div>
     <div class="title-row">
       <h1 class="page-title" id="page-h" tabindex="-1">Groups</h1>
       <a class="btn btn-primary btn-sm" href="#/groups/new">${icon('plus', { size: 16 })}Post a group</a>

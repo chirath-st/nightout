@@ -24,6 +24,8 @@ export function defaultState(realNow) {
     reports: [], // { id, venueId, at, bucket, inLine, gotInAt, waitMin }
     activeWait: null, // { reportId, venueId, startedAt }
     prefs: { notifyDrops: false },
+    savedEvents: [], // event ids (sample events, this device only)
+    goingEvents: [],
     votes: {}, // venueId -> 'going' | 'maybe' | 'no' (sample poll, this device only)
     deals: [], // deals posted from the venue console: { id, venueId, kind, title, short, startsAt, endsAt, postedAt }
   };
@@ -51,6 +53,8 @@ export function migrate(raw, realNow) {
     reports: arr(raw.reports).slice(0, 100),
     activeWait: raw.activeWait && typeof raw.activeWait === 'object' && raw.activeWait.venueId ? raw.activeWait : null,
     prefs: { ...base.prefs, ...(raw.prefs && typeof raw.prefs === 'object' ? raw.prefs : {}) },
+    savedEvents: arr(raw.savedEvents).filter((s) => typeof s === 'string'),
+    goingEvents: arr(raw.goingEvents).filter((s) => typeof s === 'string'),
     votes: raw.votes && typeof raw.votes === 'object' ? Object.fromEntries(Object.entries(raw.votes).filter(([, x]) => ['going', 'maybe', 'no'].includes(x))) : {},
     deals: arr(raw.deals).filter((d) => d && typeof d.venueId === 'string' && typeof d.title === 'string' && Number.isFinite(d.startsAt) && Number.isFinite(d.endsAt)).slice(0, 50),
   };
