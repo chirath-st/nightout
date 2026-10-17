@@ -1,6 +1,7 @@
 import { esc, venueCard, stateBox, passCard, estimateBlock, banner, dealWhen } from '../ui/components.js';
 import { DEAL_KINDS, DRINK_ITEMS, DEAL_TITLE_MAX, slowHours } from '../lib/deals.js';
 import { TYPICAL_HOURS } from '../data/venues.js';
+import { DEMO_SPOT } from '../lib/geo.js';
 import { icon } from '../ui/icons.js';
 import { passStatus, money } from '../lib/pass.js';
 import { FRESHNESS_MINUTES, describeEstimate, validPeople } from '../lib/queue.js';
@@ -20,7 +21,7 @@ export function renderSaved(ctx) {
     ${saved.length
       ? `<ul class="bar-grid" style="margin-top:var(--s-4)">${saved.map((v) => venueCard(v, ctx.now, { saved: true, save: true })).join('')}</ul>
          <p class="hint" style="margin-top:12px">Estimates here use the same source, age and confidence rules as Tonight.</p>`
-      : stateBox({ iconName: 'bookmark', title: 'Nothing saved yet', body: 'Save venues from Tonight to compare their waits here later.', actions: '<a class="btn btn-primary" href="#/">Browse bars</a>' })}
+      : stateBox({ iconName: 'bookmark', title: 'Nothing saved yet', body: 'Save bars from their pages to compare waits here later.', actions: '<a class="btn btn-primary" href="#/">Browse bars</a>' })}
   </div>`;
 }
 
@@ -180,7 +181,7 @@ export function renderAbout(ctx) {
     <p class="page-sub">Night Out is a prototype with simulated data.</p>
     <div class="prose" style="margin-top:var(--s-4)">
       <p><strong>Bar names and street addresses are real. Everything else is simulated.</strong> Waits, line sizes, reports, passes, prices, covers, hours, menus and typical patterns are made up for this demo and don’t describe how these bars operate. No bar is affiliated with Night Out or has endorsed it, and no line is live.</p>
-      <p>Bars come from public listings checked in October 2026: the New Brunswick City Market “Nightlife, Bars &amp; Taverns” directory, the bars’ own websites, The Daily Targum and public event pages. Left out: Golden Rail (replaced by PITCH Social), Harvest Moon (current status unconfirmed), and Stuff Yer Face, 30 Burgers, The Vine and Olive Branch (seen in bar-crawl listings; addresses not confirmed).</p>
+      <p>The list is the student bars around Easton Ave, checked in October 2026 against the New Jersey ABC retail license list (October 1, 2026), New Brunswick council license records, the September 2026 Rutgers bar-crawl stops and the bars’ own websites: Olde Queens Tavern, Scarlet Pub, Huey’s Knight Club, PITCH Social, The Vine, The Olive Branch, Stuff Yer Face, 30 Burgers &amp; Brews and Evelyn’s, plus Ale ’N ’Wich on Hamilton St. Left out: Knights Public House (closed in 2026), and downtown restaurants with bars that aren’t student line spots. Distances are straight-line from a demo spot, ${esc(DEMO_SPOT.label)}, using OpenStreetMap, New Jersey address points and the US Census geocoder.</p>
       <p>This isn’t the first nightlife app around Rutgers. LineLeap already runs New Brunswick bar crawls, and at least one Easton Ave bar sells skip-the-line tickets on another platform. This demo explores a different promise: <em>trustworthy line information and a fair, transparent priority pass</em>.</p>
     </div>
     <h2 class="section-title">How estimates are labeled</h2>

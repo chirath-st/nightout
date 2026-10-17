@@ -51,8 +51,8 @@ export function matchesQuery(venue, q) {
 export const AREAS = Object.freeze([
   { id: '', label: 'All of New Brunswick' },
   { id: 'easton', label: 'Easton Ave', match: 'Easton Ave' },
-  { id: 'college', label: 'College Ave', match: 'College Ave' },
-  { id: 'downtown', label: 'Downtown', match: 'Downtown' },
+  { id: 'side', label: 'Bartlett & Morrell St', match: 'Bartlett & Morrell St' },
+  { id: 'hamilton', label: 'Hamilton St', match: 'Hamilton St' },
 ]);
 export const areaLabel = (id) => AREAS.find((a) => a.id === (id || ''))?.label ?? AREAS[0].label;
 

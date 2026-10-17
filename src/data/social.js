@@ -23,7 +23,7 @@ const GROUPS = [
   { id: 'g2', title: 'Trivia crew needs two more', venueId: 'ale-n-wich', at: [21, 0], spots: 5, going: 3, host: { name: 'Dev P.', handle: 'dev.trivia.demo', hue: 205 }, note: 'We lose every week. Come lose with us.', tags: ['Trivia'] },
   { id: 'g3', title: 'Birthday at Scarlet Pub', venueId: 'scarlet-pub', at: [23, 0], spots: 10, going: 7, host: { name: 'Sam K.', handle: 'samk.demo', hue: 340 }, note: 'Turning 22. Everyone welcome, bring good energy.', tags: ['Birthday'] },
   { id: 'g4', title: 'Late night at PITCH', venueId: 'pitch-social', at: [23, 30], spots: 4, going: 1, host: { name: 'Jordan L.', handle: '', hue: 140 }, note: 'Going for the DJ. Solo right now.', tags: ['DJ'] },
-  { id: 'g5', title: 'Downtown bar walk', venueId: 'old-man-raffertys', at: [22, 0], spots: 8, going: 4, host: { name: 'Priya S.', handle: 'priya.walks.demo', hue: 270 }, note: 'Starting at Rafferty’s, then wherever the line is shortest.', tags: ['Bar walk'] },
+  { id: 'g5', title: 'Easton Ave bar walk', venueId: 'hueys-knight-club', at: [22, 0], spots: 8, going: 4, host: { name: 'Priya S.', handle: 'priya.walks.demo', hue: 270 }, note: 'Starting at Huey’s, then wherever the line is shortest.', tags: ['Bar walk'] },
 ];
 
 export function buildGroups(demoStart) {

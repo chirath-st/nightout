@@ -7,17 +7,13 @@ import { DEMO_SPOT } from '../lib/geo.js';
 // Schematic positions (percent of the map box), roughly by street. Not to scale; no distances implied.
 // Laid out in columns at least 80 px apart at 320 px so no two pins overlap.
 const PIN_POS = {
-  // Easton Ave, two columns along the avenue
-  'hueys-knight-club': [84, 7], 'scarlet-pub': [56, 14], 'olde-queens': [84, 21], 'pitch-social': [56, 28], evelyns: [84, 35], 'knights-public-house': [56, 42],
-  // College Ave area (Hamilton St)
-  'ale-n-wich': [18, 26],
-  // Downtown: George, Paterson, Liberty, Dennis and Albany Streets
-  'destination-dogs': [18, 56], 'tavern-on-george': [50, 56], 'fat-cactus': [82, 56],
-  'esquina-latina': [18, 67], 'frog-and-peach': [50, 67], deltas: [82, 67],
-  'glass-woods-tavern': [18, 78], 'batch-bin-barrel': [50, 78], 'old-man-raffertys': [82, 78],
-  roosterspin: [50, 89],
+  // Easton Ave runs top right (low numbers, near the station) to bottom left on this sketch.
+  'thirty-burgers': [84, 12], evelyns: [62, 22], 'stuff-yer-face': [84, 32], 'pitch-social': [62, 42],
+  'olde-queens': [84, 52], 'scarlet-pub': [62, 62], 'hueys-knight-club': [40, 72],
+  // Side streets
+  'olive-branch': [18, 40], 'the-vine': [18, 56], 'ale-n-wich': [18, 84],
   // Worst-case fixture rows get their own spots so no pin hides another.
-  'worst-long-name': [18, 89], 'worst-one': [82, 89], 'worst-missing': [18, 42],
+  'worst-long-name': [40, 90], 'worst-one': [84, 90], 'worst-missing': [40, 22],
 };
 /** Unknown ids get a deterministic spot from their id instead of all stacking on one point. */
 function pinPos(id) {

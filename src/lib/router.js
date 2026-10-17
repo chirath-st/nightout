@@ -57,7 +57,7 @@ export function buildHash(name, params = {}, query = {}) {
 }
 
 /** Explore query <-> state. Filters are a comma list; unknown ids are dropped. */
-export const AREA_IDS = Object.freeze(['easton', 'college', 'downtown']);
+export const AREA_IDS = Object.freeze(['easton', 'side', 'hamilton']);
 
 /** Nearest first by default (team mockup: cards ordered 0.2, 0.3, 0.4 mi…). */
 export const DEFAULT_SORT = 'near';
