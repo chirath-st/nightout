@@ -73,7 +73,7 @@ export function renderVenue(ctx, id) {
   return `<div class="page detail">
     <div class="detail-hero" data-hero="${esc(venue.id)}">${venuePhoto(venue, { title: true })}
       <a class="back-link hero-btn" href="${ctx.backHref}" data-action="back" aria-label="Back to ${esc(ctx.backLabel)}">${icon('chevronLeft', { size: 22 })}</a>
-      <span class="hero-caption">${icon('info', { size: 13 })}<span>${venue.photo ? esc(venue.photoCredit ? `Photo: ${venue.photoCredit}` : 'Photo used with permission') : 'Illustration, not a photo'}</span></span>
+      <span class="hero-caption">${icon('info', { size: 13 })}<span>${venue.photo ? esc(`Photo: ${venue.photoCredit ?? 'the bar'}`) : 'Illustration, not a photo'}</span></span>
       ${saveButton(venue, saved, 'save-detail hero-btn')}
       <div class="hero-title">
         <span class="hero-meta"><span class="bar-logo hero-logo" aria-hidden="true">${venueLogo(venue)}</span><span class="eyebrow">${esc(eyebrow)}</span></span>

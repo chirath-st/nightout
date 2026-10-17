@@ -277,10 +277,10 @@ function artSrc(venue) {
 }
 /** Photo slot: the venue's own photo when licensed or permitted (venue.photo), else the drawn night storefront. */
 export function venuePhoto(venue, { title = false } = {}) {
-  if (venue.photo) return `<img src="${esc(venue.photo)}" alt="${title ? esc(`Photo of ${venue.name}`) : ''}" loading="lazy" decoding="async">`;
+  if (venue.photo) return `<img class="real-photo" src="${esc(venue.photo)}" alt="${title ? esc(venue.photoAlt ?? `Photo of ${venue.name}`) : ''}"${venue.photoPos ? ` style="--pos:${esc(venue.photoPos)}"` : ''} loading="lazy" decoding="async">`;
   return `<img class="night-art" src="${artSrc(venue)}" alt="${title ? esc(`Illustration of a bar at night, not a photo of ${venue.name}`) : ''}" decoding="async">`;
 }
-/** Logo slot: the bar's logo only with the bar's permission (venue.logo), else an initials badge. */
+/** Logo slot: the bar's real logo (demo use, see data/venues.js MEDIA), else an initials badge. */
 export function venueLogo(venue) {
   return venue.logo ? `<img src="${esc(venue.logo)}" alt="" loading="lazy">` : `<span class="mono">${esc(monogram(venue))}</span>`;
 }

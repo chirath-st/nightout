@@ -42,6 +42,21 @@ const GEO = {
   'the-vine': [40.50096, -74.45488], 'olive-branch': [40.50104, -74.45321],
 };
 
+// Real logos and photos, shown so judges recognize the bars (user decision 2026-10-17: "we will ask for the bars'
+// permission once we actually launch"). They belong to the bars (and one Flickr photographer); no bar has given
+// permission or is affiliated. Files, sources and crops: assets/bars/CREDITS.md. Scarlet Pub and Huey's keep the
+// initials badge and illustration (no usable logo or photo); PITCH Social has a logo only.
+const MEDIA = {
+  'olde-queens': { photo: 'Olde Queens Tavern website', alt: 'The Olde Queens Tavern neon sign at night', pos: '60% 40%' },
+  'ale-n-wich': { photo: 'Ale ’N ’Wich Pub website', alt: 'The brick corner building of Ale ’N ’Wich Pub', pos: '40% 55%' },
+  'pitch-social': {},
+  evelyns: { photo: 'Evelyn’s Restaurant website', alt: 'A plate of tabbouleh at Evelyn’s', pos: '50% 55%' },
+  'stuff-yer-face': { photo: 'Ben+Sam on Flickr, CC BY-SA 2.0', alt: 'The Stuff Yer Face storefront with its green awning', pos: '55% 50%' },
+  'thirty-burgers': { photo: '30 Burgers website (chain photo)', alt: 'A bacon cheeseburger from 30 Burgers', pos: '50% 45%' },
+  'the-vine': { photo: '@dtjphotography via The Vine’s website', alt: 'The Vine’s sign on a wall of greenery', pos: '50% 40%' },
+  'olive-branch': { photo: 'The Olive Branch website', alt: 'The beer taps at The Olive Branch', pos: '50% 50%' },
+};
+
 // SIMULATED deals ("weak hours" promotions). No bar is offering these; every one is labeled a demo deal.
 // Kinds and limits follow src/lib/deals.js (New Jersey rules). Times are on the demo night (hours < 12 are
 // after midnight). `short` is the card tag (keep it under ~18 characters).
@@ -202,6 +217,11 @@ function materialize(raw, demoStart, syncAt = demoStart) {
   v.deals = (DEALS[v.id] ?? []).map(({ at, until, ...d }) => ({ ...d, venueId: v.id, startsAt: atNight(demoStart, at[0], at[1]), endsAt: atNight(demoStart, until[0], until[1]), synthetic: true }));
   const g = GEO[v.id];
   v.geo = g ? { lat: g[0], lng: g[1] } : null;
+  const m = MEDIA[v.id];
+  if (m) {
+    v.logo = `assets/bars/${v.id}-logo.png`;
+    if (m.photo) Object.assign(v, { photo: `assets/bars/${v.id}-photo.jpg`, photoCredit: m.photo, photoAlt: m.alt, photoPos: m.pos });
+  }
   v.synthetic = true;
   return v;
 }

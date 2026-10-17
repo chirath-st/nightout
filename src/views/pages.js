@@ -214,7 +214,7 @@ export function renderAbout(ctx) {
       <p class="hint">Demo time is ${esc(formatTime(ctx.now))}. It started at 10:40 PM on the review date and runs in real time.</p>
     </div>
     <h2 class="section-title">Credits</h2>
-    <p class="prose"><span>Original code, icons and illustrations were made for this prototype; no photos are used. The shared version loads the Playfair Display and Inter fonts (SIL Open Font License) from Google Fonts. Design and QA guidance came from pinned, licensed sources listed in <code>app/ATTRIBUTIONS.md</code>.</span></p>
+    <p class="prose"><span>Original code, icons and illustrations were made for this prototype. Bar logos and photos are real and belong to the bars (Stuff Yer Face’s storefront photo: Ben+Sam on Flickr, CC BY-SA 2.0; The Vine’s sign photo: @dtjphotography). They’re shown only so the demo is recognizable; no bar has given permission or is affiliated, and permission will be asked before any launch. Each photo’s source is on its bar page. The shared version loads the Archivo font (SIL Open Font License) from Google Fonts. Design and QA guidance came from pinned, licensed sources listed in <code>app/ATTRIBUTIONS.md</code>.</span></p>
   </div>`;
 }
 

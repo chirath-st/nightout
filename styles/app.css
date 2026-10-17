@@ -1303,3 +1303,6 @@ fieldset:disabled .bucket input, fieldset:disabled .door-seg input { cursor: not
 .scan-flow .vf-sim { left: 50%; transform: translateX(-50%); }
 .scan-flow .bucket > span { height: auto; }
 .scan-done .scan-pts { font-size: 104px; line-height: .9; margin: 0; color: var(--ink); }
+
+/* ---------- Real bar photos (demo use): each photo sets its own focal point ---------- */
+img.real-photo { object-position: var(--pos, 50% 50%) !important; }
