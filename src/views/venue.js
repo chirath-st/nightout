@@ -212,7 +212,7 @@ export function pollSection(venue, vote) {
   return `<section class="poll" id="poll-${esc(venue.id)}" aria-labelledby="poll-h">
     <div class="section-head"><h2 id="poll-h">Who’s going?</h2><span class="eyebrow">Sample poll</span></div>
     <div class="poll-options" role="group" aria-label="Are you going tonight?">
-      ${VOTES.map(([k, label]) => `<button type="button" class="poll-opt" data-action="vote" data-id="${esc(venue.id)}" data-vote="${k}" aria-pressed="${vote === k}" style="--p:${r.pct[k]}%">
+      ${VOTES.map(([k, label]) => `<button type="button" class="poll-opt" data-action="vote" data-id="${esc(venue.id)}" data-vote="${k}" aria-pressed="${vote === k}" style="--pf:${(r.pct[k] / 100).toFixed(2)}">
         <span class="poll-label">${vote === k ? icon('check', { size: 16 }) : ''}${label}</span><span class="poll-pct num">${r.pct[k]}%</span></button>`).join('')}
     </div>
     <p class="hint">${r.total} answers${vote ? ', including yours' : ''} (sample). Tap your answer again to clear it. Your vote stays on this device.</p>

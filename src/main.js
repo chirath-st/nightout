@@ -345,9 +345,11 @@ function route({ viaPop = false } = {}) {
     return;
   }
   if (needsFirstFetch) queueMicrotask(() => simulateFetch({ initial: true }));
-  if ((toDetail || backToList) && document.startViewTransition && !reducedMotion()) {
+  if ((toDetail || backToList) && document.startViewTransition) {
+    // Reduced motion: the same transition without the shared photo, so it's a short cross-fade (CSS), not a morph.
+    const shared = !reducedMotion();
     const id = app.lastVenueId;
-    const art = (sel) => document.querySelector(`${sel} > :is(img, svg)`);
+    const art = (sel) => (shared ? document.querySelector(`${sel} > :is(img, svg)`) : null);
     const from = toDetail ? art(`[data-thumb="${CSS.escape(id)}"]`) : art(`[data-hero="${CSS.escape(id)}"]`);
     if (from) from.style.viewTransitionName = 'venue-art';
     let to = null;
@@ -436,7 +438,10 @@ function tick() {
     const tpl = document.createElement('template');
     tpl.innerHTML = dealTag(v, n).trim();
     const next = tpl.content.firstElementChild;
-    if (slot.innerHTML !== next.innerHTML) slot.replaceWith(next);
+    if (slot.innerHTML === next.innerHTML) return;
+    const appeared = !slot.querySelector('.deal-tag:not(.is-none)') && next.querySelector('.deal-tag:not(.is-none)');
+    slot.replaceWith(next);
+    if (appeared && !reducedMotion()) next.querySelector('.deal-tag')?.animate([{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }], { duration: cssMs('--d-reveal', 200), easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
   });
   // Map pins share the same estimate meaning: patch any pin whose state changed, in place (no re-announce).
   document.querySelectorAll('[data-pin-tone]').forEach((b) => {
@@ -480,7 +485,7 @@ function syncSheet() {
   }
   if (sheetClosing) {
     clearTimeout(sheetClosing.t);
-    dlg.removeEventListener('animationend', sheetClosing.onEnd);
+    dlg.removeEventListener('transitionend', sheetClosing.onEnd);
     sheetClosing = null;
     dlg.classList.remove('is-closing');
     dlg.style.transform = '';
@@ -517,9 +522,9 @@ function closeSheetAnimated() {
   const finish = () => {
     if (!sheetClosing) return;
     clearTimeout(sheetClosing.t);
-    dlg.removeEventListener('animationend', sheetClosing.onEnd);
+    dlg.removeEventListener('transitionend', sheetClosing.onEnd);
     sheetClosing = null;
-    dlg.classList.remove('is-closing');
+    dlg.classList.remove('is-closing', 'is-dragging');
     dlg.style.transform = '';
     if (dlg.open) dlg.close();
     dlg.innerHTML = '';
@@ -528,9 +533,12 @@ function closeSheetAnimated() {
       (document.querySelector('#main [data-nav="pass"]') || pageHeading())?.focus({ preventScroll: true });
     }
   };
-  const onEnd = (e) => { if (e.target === dlg) finish(); };
-  sheetClosing = { t: setTimeout(finish, cssMs('--d-sheet-out', 220) + 60), onEnd };
-  dlg.addEventListener('animationend', onEnd);
+  const onEnd = (e) => { if (e.target === dlg && (e.propertyName === 'transform' || e.propertyName === 'opacity')) finish(); };
+  sheetClosing = { t: setTimeout(finish, cssMs('--d-sheet-out', 220) + 80), onEnd };
+  dlg.addEventListener('transitionend', onEnd);
+  // Exit from wherever the sheet is (mid-drag or mid-open): drop the inline offset in the same frame as the class.
+  dlg.classList.remove('is-dragging');
+  dlg.style.transform = '';
   dlg.classList.add('is-closing');
 }
 function requestCloseSheet() {
@@ -1015,8 +1023,16 @@ function castVote(venueId, vote) {
   if (box && v) {
     const tpl = document.createElement('template');
     tpl.innerHTML = pollSection(v, votes[venueId] ?? null).trim();
-    box.replaceWith(tpl.content.firstElementChild);
-    document.querySelector(`[data-action="vote"][data-id="${CSS.escape(venueId)}"][data-vote="${CSS.escape(vote)}"]`)?.focus();
+    const next = tpl.content.firstElementChild;
+    box.querySelectorAll('.poll-opt').forEach((b) => {
+      const n = next.querySelector(`.poll-opt[data-vote="${b.dataset.vote}"]`);
+      b.setAttribute('aria-pressed', n.getAttribute('aria-pressed'));
+      b.style.cssText = n.style.cssText;
+      b.innerHTML = n.innerHTML;
+    });
+    const hint = box.querySelector('.hint'); const nh = next.querySelector('.hint');
+    if (hint && nh) hint.textContent = nh.textContent;
+    box.querySelector(`.poll-opt[data-vote="${CSS.escape(vote)}"]`)?.focus({ preventScroll: true });
   }
   const label = { going: 'Going', maybe: 'Maybe', no: 'Not tonight' }[vote];
   announce(votes[venueId] ? `Your answer: ${label}. Sample poll.` : 'Your answer was cleared.');
@@ -1045,6 +1061,18 @@ async function shareVenue(id) {
   }
 }
 
+/* ---------------- picker sheet (area, sort, directions): exits the way it entered ---------------- */
+function closePicker(focusAfter) {
+  const dlg = document.getElementById('picker');
+  if (!dlg.open || dlg.classList.contains('is-closing')) return;
+  let done = false;
+  // focusAfter runs after close(), so the browser's own focus restore can't override it.
+  const finish = () => { if (done) return; done = true; dlg.classList.remove('is-closing'); if (dlg.open) dlg.close(); focusAfter?.(); };
+  dlg.addEventListener('transitionend', (e) => { if (e.target === dlg) finish(); }, { once: true });
+  setTimeout(finish, cssMs('--d-sheet-out', 220) + 80);
+  dlg.classList.add('is-closing');
+}
+
 /* ---------------- sort sheet ---------------- */
 function openSortSheet() {
   const dlg = document.getElementById('picker');
@@ -1055,9 +1083,8 @@ function openSortSheet() {
 function chooseSort(id) {
   app.explore.sort = id;
   updateExploreUrl();
-  document.getElementById('picker').close();
+  closePicker(() => document.querySelector('[data-action="open-sort"]')?.focus({ preventScroll: true }));
   renderResultsOnly();
-  document.querySelector('[data-action="open-sort"]')?.focus({ preventScroll: true });
 }
 
 /* ---------------- area picker ---------------- */
@@ -1070,9 +1097,8 @@ function openAreaPicker() {
 function chooseArea(id) {
   app.explore.area = id;
   updateExploreUrl();
-  document.getElementById('picker').close();
+  closePicker(() => document.querySelector('.area-pill')?.focus({ preventScroll: true }));
   render({ focus: 'none' });
-  document.querySelector('.area-pill')?.focus({ preventScroll: true });
   watchMasthead();
   const { total } = exploreList(app.venues, app.explore, now(), savedSet());
   announce(`${total} bar${total === 1 ? '' : 's'} shown`);
@@ -1277,7 +1303,7 @@ function handleAction(a, el) {
       document.getElementById('age-title').focus();
       return true;
     case 'open-area': openAreaPicker(); return true;
-    case 'close-picker': document.getElementById('picker').close(); return true;
+    case 'close-picker': closePicker(); return true;
     case 'vote': castVote(el.dataset.id, el.dataset.vote); return true;
     case 'event-view':
       app.ui.eventsView = el.dataset.view;
@@ -1445,6 +1471,9 @@ function onSubmit(e) {
 }
 
 /* sheet: Escape, backdrop click, drag-to-dismiss (with button alternatives) */
+/** Progressive resistance past the edge (Apple-style rubber band). */
+const rubber = (o, d = 600, k = 0.55) => -((Math.abs(o) * d * k) / (d + k * Math.abs(o)));
+
 function wireSheet() {
   const dlg = document.getElementById('sheet');
   dlg.addEventListener('cancel', (e) => { e.preventDefault(); requestCloseSheet(); });
@@ -1460,9 +1489,12 @@ function wireSheet() {
   let suppressClickUntil = 0;
   dlg.addEventListener('click', (ev) => { if (performance.now() < suppressClickUntil) { ev.stopPropagation(); ev.preventDefault(); } }, true);
   dlg.addEventListener('pointerdown', (e) => {
-    if (sheetDrag || !e.target.closest('.sheet-grabber')) return;
-    let base = 0;
-    if (snap) { base = new DOMMatrix(getComputedStyle(dlg).transform).m42; snap.cancel(); snap = null; dlg.style.transform = `translateY(${base}px)`; }
+    if (sheetDrag || !e.target.closest('.sheet-grabber, .sheet-head') || e.target.closest('button, a, input') || !e.isPrimary) return;
+    // Grab mid-flight: read where the sheet is right now (opening transition or spring), then hold it there.
+    const base = new DOMMatrix(getComputedStyle(dlg).transform).m42 || 0;
+    if (snap) { snap.cancel(); snap = null; }
+    dlg.classList.add('is-dragging');
+    dlg.style.transform = `translateY(${base}px)`;
     const t = performance.now();
     sheetDrag = { id: e.pointerId, y0: e.clientY, base, dy: base, moved: false, last: { y: e.clientY, t, v: 0 } };
     e.target.setPointerCapture(e.pointerId);
@@ -1470,7 +1502,7 @@ function wireSheet() {
   dlg.addEventListener('pointermove', (e) => {
     if (!sheetDrag || e.pointerId !== sheetDrag.id) return;
     const raw = sheetDrag.base + (e.clientY - sheetDrag.y0);
-    sheetDrag.dy = raw < 0 ? raw * 0.2 : raw; // resist dragging upward
+    sheetDrag.dy = raw < 0 ? rubber(raw) : raw; // upward pulls rubber-band instead of hitting a wall
     if (Math.abs(raw - sheetDrag.base) > 4) sheetDrag.moved = true;
     const t = performance.now();
     sheetDrag.last = { y: e.clientY, t, v: (e.clientY - sheetDrag.last.y) / Math.max(1, t - sheetDrag.last.t) };
@@ -1480,13 +1512,15 @@ function wireSheet() {
     if (!sheetDrag || e.pointerId !== sheetDrag.id) return;
     const { dy, moved, last } = sheetDrag;
     sheetDrag = null;
-    if (!moved) { dlg.style.transform = ''; return; }
+    if (!moved) { dlg.style.transform = ''; dlg.classList.remove('is-dragging'); return; }
     if (e.type === 'pointerup') suppressClickUntil = performance.now() + 350;
-    const dismiss = e.type === 'pointerup' && (dy > 120 || last.v > 0.11) && app.passFlow?.step !== 'pending';
-    if (dismiss) { requestCloseSheet(); return; } // exit animation starts from the current drag offset
-    snap = dlg.animate([{ transform: `translateY(${dy}px)` }, { transform: 'translateY(0)' }], { duration: reducedMotion() ? 0 : cssMs('--d-sheet-out', 220), easing: getComputedStyle(document.documentElement).getPropertyValue('--ease-sheet').trim() || 'ease-out' });
+    // Flick down, or pulled far and not flicking back up (the release direction wins over position).
+    const dismiss = e.type === 'pointerup' && (last.v > 0.11 || (dy > 120 && last.v > -0.05)) && app.passFlow?.step !== 'pending';
+    if (dismiss) { requestCloseSheet(); return; } // the exit transition starts from the current drag offset
+    const spring = getComputedStyle(document.documentElement).getPropertyValue('--spring-drawer').trim() || 'ease-out';
+    snap = dlg.animate([{ transform: `translateY(${dy}px)` }, { transform: 'translateY(0)' }], { duration: reducedMotion() ? 0 : cssMs('--d-spring-drawer', 400), easing: spring });
     dlg.style.transform = '';
-    snap.finished.then(() => { snap = null; }).catch(() => {});
+    snap.finished.then(() => { snap = null; dlg.classList.remove('is-dragging'); }).catch(() => {});
   };
   dlg.addEventListener('pointerup', end);
   dlg.addEventListener('pointercancel', end);
@@ -1510,9 +1544,15 @@ function boot() {
   window.addEventListener('online', () => { if (app.route.name === 'tonight' || app.route.name === 'venue') simulateFetch(); });
   window.addEventListener('offline', () => renderResultsOnly());
   wireSheet();
+  const picker = document.getElementById('picker');
+  picker.addEventListener('cancel', (e) => { e.preventDefault(); closePicker(); });
+  picker.addEventListener('click', (e) => { if (e.target === picker) closePicker(); });
   route();
   setInterval(tick, 15_000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
+  document.addEventListener('visibilitychange', () => {
+    document.documentElement.toggleAttribute('data-hidden', document.hidden);
+    if (!document.hidden) tick();
+  });
   if (!app.state.ageConfirmed) {
     const gate = document.getElementById('age-gate');
     gate.addEventListener('cancel', (e) => e.preventDefault());

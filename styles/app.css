@@ -197,18 +197,6 @@ dialog.sheet {
 }
 dialog.sheet[open] { display: flex; }
 dialog.sheet::backdrop { background: var(--scrim); }
-@media (prefers-reduced-motion: no-preference) {
-  dialog.sheet[open] { animation: sheet-in var(--d-sheet-in) var(--ease-sheet); }
-  dialog.sheet[open]::backdrop { animation: fade-in var(--d-sheet-in) var(--ease-out); }
-  dialog.sheet.is-closing { animation: sheet-out var(--d-sheet-out) var(--ease-out) forwards; }
-  dialog.sheet.is-closing::backdrop { animation: fade-out var(--d-sheet-out) var(--ease-out) forwards; }
-  @keyframes sheet-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
-  @keyframes sheet-out { to { transform: translateY(100%); } }
-}
-@media (prefers-reduced-motion: reduce) {
-  dialog.sheet[open], dialog.sheet[open]::backdrop { animation: fade-in 150ms linear; }
-  dialog.sheet.is-closing, dialog.sheet.is-closing::backdrop { animation: fade-out 120ms linear forwards; }
-}
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
 .sheet-head { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: center; gap: 8px; padding: 22px 8px 6px var(--gutter); flex: none; }
@@ -352,7 +340,7 @@ legend, .sheet-body .label { font-weight: 700; font-size: 17px; line-height: 22p
 .waiting-top { display: flex; align-items: center; gap: 10px; }
 .waiting-top h2 { font-size: 17px; line-height: 22px; font-weight: 700; overflow-wrap: anywhere; }
 .pulse { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--fresh); box-shadow: 0 0 0 0 rgb(99 210 156 / 0.6); }
-@media (prefers-reduced-motion: no-preference) { .pulse { animation: pulse 1.8s var(--ease-out) infinite; } @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgb(99 210 156 / 0.6); } 100% { box-shadow: 0 0 0 12px rgb(99 210 156 / 0); } } }
+@media (prefers-reduced-motion: no-preference) { .pulse { animation: pulse var(--d-loop-pulse) var(--ease-out) var(--n-loop-pulse); } @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgb(99 210 156 / 0.6); } 100% { box-shadow: 0 0 0 12px rgb(99 210 156 / 0); } } }
 .waiting-time { margin-top: 10px; font-size: var(--t-display); line-height: 1; font-weight: 800; letter-spacing: -0.02em; }
 .waiting-time small { margin-left: 6px; font-size: 17px; font-weight: 600; color: var(--ink-2); letter-spacing: 0; }
 .waiting-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
@@ -377,7 +365,7 @@ legend, .sheet-body .label { font-weight: 700; font-size: 17px; line-height: 22p
 .vf-hint svg { width: 28px; height: 28px; }
 .vf-tag { position: absolute; top: 14px; left: 14px; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: var(--r-pill); background: rgb(0 0 0 / 0.66); color: #fff; font-size: 12px; font-weight: 700; }
 .vf-sim { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); padding: 3px 10px; border-radius: var(--r-pill); background: rgb(0 0 0 / 0.66); color: var(--ink-sub); font-size: 11px; font-weight: 600; white-space: nowrap; }
-@media (prefers-reduced-motion: no-preference) { .viewfinder.is-captured { animation: flash 420ms var(--ease-out); } @keyframes flash { 0% { filter: brightness(2.2); } 100% { filter: none; } } }
+@media (prefers-reduced-motion: no-preference) { .viewfinder.is-captured { animation: flash var(--d-flash) var(--ease-out); } @keyframes flash { 0% { filter: brightness(2.2); } 100% { filter: none; } } }
 .shutter-row { display: flex; justify-content: center; margin: 16px 0 6px; min-height: 76px; align-items: center; }
 .shutter { width: 76px; height: 76px; border-radius: 50%; border: 4px solid #fff; background: transparent; padding: 5px; cursor: pointer; transition: transform var(--d-press) var(--ease-out); }
 .shutter span { display: block; width: 100%; height: 100%; border-radius: 50%; background: #fff; }
@@ -672,7 +660,7 @@ main { min-width: 0; padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 40px
 .tab[aria-current="page"] .tab-label { font-weight: 800; }
 .tab[aria-current="page"] .fl { fill: currentColor; }
 .tab[aria-current="page"]::before { content: ""; position: absolute; top: -7px; left: 50%; width: 22px; height: 2px; margin-left: -11px; border-radius: 0 0 2px 2px; background: var(--ink); }
-.tab:active .tab-inner { transform: scale(.92); }
+.tab:active .tab-inner { transform: scale(.95); }
 .tab-scan .tab-inner { box-shadow: inset 0 0 0 1.5px currentColor; } /* [NEW] distinct center shape; same colors as other tabs */
 .tab-scan[aria-current="page"] .tab-inner { background: var(--accent); color: var(--accent-ink); box-shadow: none; }
 .tab-scan[aria-current="page"]::before { display: none; }
@@ -700,7 +688,7 @@ main { min-width: 0; padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 40px
 .btn-danger { color: var(--danger); }
 .icon-btn { position: relative; width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 50%; color: var(--ink); transition: transform var(--d-press) var(--ease-out), background-color var(--d-select) var(--ease-out); }
 .icon-btn .ic { width: 22px; height: 22px; }
-.icon-btn:active { transform: scale(.92); background: var(--fill-2); }
+.icon-btn:active { transform: scale(.95); background: var(--fill-2); }
 @media (hover: hover) and (pointer: fine) {
   .btn:hover { border-color: var(--ink-3); }
   .btn-primary:hover { background: #EDEDED; border-color: #EDEDED; }
@@ -926,10 +914,6 @@ dialog.sheet {
 }
 dialog.sheet[open] { display: flex; }
 dialog.sheet::backdrop { background: var(--scrim); }
-@media (prefers-reduced-motion: no-preference) {
-  dialog.sheet[open] { animation: sheet-in var(--d-sheet-in) var(--ease-sheet); }
-  @keyframes sheet-in { from { transform: translateY(100%); } to { transform: none; } }
-}
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 .sheet-head { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: center; gap: 8px; padding: 26px 8px 4px var(--gutter); }
 .sheet-grabber { position: absolute; top: 0; left: 50%; width: 64px; height: 26px; margin-left: -32px; display: grid; place-items: center; }
@@ -1018,8 +1002,7 @@ dialog.sheet::backdrop { background: var(--scrim); }
 
 /* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { transition-duration: 1ms !important; animation-duration: 1ms !important; animation-iteration-count: 1 !important; }
-  .bar-link:active, .btn:active, .chip:active, .act:active, .tab:active .tab-inner, .hero-btn:active, .icon-btn:active { transform: none; }
+  .bar-link:active, .btn:active, .chip:active, .act:active, .tab:active .tab-inner, .hero-btn:active, .icon-btn:active, .poll-opt:active, .segmented button:active { transform: none; }
 }
 
 /* Classes NOT carried over from the current app.css (delete them):
@@ -1083,7 +1066,7 @@ dialog.picker { max-width: var(--phone-w); }
 .food-title { font-weight: 700; font-size: var(--t-base); }
 .poll-options { display: grid; gap: 8px; }
 .poll-opt { position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 0 16px; border-radius: var(--r-btn-lg); border: 1px solid var(--line-input); background: var(--surface); color: var(--ink); font-size: var(--t-base); font-weight: 600; text-align: left; transition: transform var(--d-press) var(--ease-out); }
-.poll-opt::before { content: ""; position: absolute; inset: 0; width: var(--p); background: var(--fill-2); z-index: -1; transition: width 320ms var(--ease-out); }
+.poll-opt::before { content: ""; position: absolute; inset: 0; background: var(--fill-2); z-index: -1; transform: scaleX(var(--pf, 0)); transform-origin: left center; transition: transform var(--d-fill) var(--ease-out); }
 .poll-opt[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
 .poll-opt[aria-pressed="true"]::before { background: #2E2E2E; }
 .poll-opt:active { transform: scale(.98); }
@@ -1153,3 +1136,39 @@ dialog.picker { max-width: var(--phone-w); }
 .handle .ic { width: 14px; height: 14px; }
 .mini-tag { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: var(--r-xs); border: 1px solid var(--line-input); color: var(--ink-2); font-size: 10.5px; font-weight: 700; font-stretch: var(--w-semi); letter-spacing: .08em; text-transform: uppercase; vertical-align: middle; }
 .safety-note .ic { flex: none; width: 18px; height: 18px; margin-top: 1px; color: var(--ink); }
+
+/* ---------- Motion (research/claude-raw/motion-spec.md) ---------- */
+/* Sheets: transitions retarget, so a close during the open (or a grab mid-flight) never restarts. */
+dialog.sheet { transform: translateY(100%); transition: transform var(--d-sheet-out) var(--ease-out); }
+dialog.sheet[open] { transform: none; transition-duration: var(--d-sheet-in); transition-timing-function: var(--ease-sheet); }
+@starting-style { dialog.sheet[open] { transform: translateY(100%); } }
+dialog.sheet.is-closing { transform: translateY(100%); transition-duration: var(--d-sheet-out); transition-timing-function: var(--ease-out); }
+dialog.sheet.is-dragging { transition: none; }
+dialog.sheet::backdrop { opacity: 0; transition: opacity var(--d-sheet-out) var(--ease-out); }
+dialog.sheet[open]::backdrop { opacity: 1; transition-duration: var(--d-sheet-in); }
+@starting-style { dialog.sheet[open]::backdrop { opacity: 0; } }
+dialog.sheet.is-closing::backdrop { opacity: 0; }
+.sheet-head { touch-action: none; }
+@media (prefers-reduced-motion: reduce) {
+  dialog.sheet, dialog.sheet[open], dialog.sheet.is-closing { transform: none; transition: opacity var(--d-rm-in) linear; }
+  dialog.sheet[open] { opacity: 1; }
+  @starting-style { dialog.sheet[open] { opacity: 0; } }
+  dialog.sheet.is-closing { opacity: 0; transition-duration: var(--d-rm-out); }
+}
+/* Toasts leave faster than they arrive. */
+.toast.is-leaving { transition-duration: var(--d-toast-out); }
+/* Press feedback where it was missing (transform in the transition list, or the scale snaps). */
+.segmented button { transition: background-color var(--d-select) var(--ease-out), color var(--d-select) var(--ease-out), transform var(--d-press) var(--ease-out); }
+.segmented button:active { transform: scale(.97); }
+.bucket > span { transition: background-color var(--d-select) var(--ease-out), color var(--d-select) var(--ease-out), transform var(--d-press) var(--ease-out); }
+.bucket input:active + span { transform: scale(.97); }
+.option-row { transition: background-color var(--d-select) var(--ease-out); }
+.option-row:active { background: var(--surface); }
+/* Loops stop when nobody can see them. */
+html[data-hidden] *, html[data-hidden] *::before, html[data-hidden] *::after { animation-play-state: paused !important; }
+/* Reduced motion: list/detail becomes a short cross-fade instead of a hard cut. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*) { animation: none; }
+  ::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--d-rm-in); animation-timing-function: linear; }
+  .poll-opt::before { transition: none; }
+}

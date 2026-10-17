@@ -106,17 +106,29 @@
   --shadow-float: 0 12px 32px rgb(0 0 0 / 0.6);
   --shadow-sheet: 0 -12px 48px rgb(0 0 0 / 0.8);
 
-  /* ---------- Motion ---------- */
-  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* ---------- Motion (research/claude-raw/motion-spec.md): one ladder; anything over 300ms says why ---------- */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);   /* emilkowalski/skills animate */
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
-  --d-press: 120ms;     /* cards scale .98, buttons .97 */
-  --d-select: 180ms;    /* chip fill, opacity, header condense */
-  --d-sheet-in: 320ms;
-  --d-sheet-out: 220ms;
-  --d-toast: 220ms;
-  --d-vt: 280ms;
+  --d-press: 120ms;      /* :active scale (never below .95) */
+  --d-fade: 150ms;       /* short cross-fades */
+  --d-select: 160ms;     /* chip, tab, toggle fills; status edge hue */
+  --d-toast-out: 160ms;  /* exits are shorter than entrances */
+  --d-reveal: 200ms;     /* small entrances: badge, deal tag, map preview */
   --d-vt-root: 200ms;
+  --d-toast: 220ms;
+  --d-sheet-out: 220ms;
+  --d-flash: 240ms;      /* single capture flash */
+  --d-fill: 240ms;       /* poll result bars */
+  --d-vt: 280ms;         /* shared element (venue art) */
+  --d-sheet-in: 320ms;   /* > 300 because the sheet travels ~90% of the screen */
+  --d-ring: 400ms;
+  --d-rm-in: 150ms;      /* reduced-motion fades (linear) */
+  --d-rm-out: 120ms;
+  --d-loop-pulse: 1.8s;  /* x2 = 3.6s, under the WCAG 2.2.2 five-second limit */
+  --n-loop-pulse: 2;
+  --spring-drawer: var(--ease-sheet);   /* Apple drawer spring (damping .8, response .3); upgraded below */
+  --d-spring-drawer: 400ms;
 
   /* ---------- Layout ---------- */
   --phone-w: 430px;     /* app column, centered on wider screens over #050505 */
@@ -137,3 +149,11 @@
 @media (max-width: 359.98px) {
   :root { --t-3xl: 1.75rem; --gutter: 16px; }
 }
+
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --spring-drawer: linear(0, 0.051, 0.167, 0.311, 0.457, 0.59, 0.705, 0.797, 0.869, 0.922, 0.96, 0.985, 1.001, 1.01, 1.014, 1.015, 1.014, 1.013, 1.01, 1.008, 1.006, 1.004, 1.003, 1.002, 1);
+  }
+}
+@media (prefers-reduced-motion: reduce) { :root { --spring-drawer: var(--ease-out); } }
+
