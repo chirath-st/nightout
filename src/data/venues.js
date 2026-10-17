@@ -46,9 +46,18 @@ const GEO = {
 // Kinds and limits follow src/lib/deals.js (New Jersey rules). Times are on the demo night (hours < 12 are
 // after midnight). `short` is the card tag (keep it under ~18 characters).
 const DEALS = {
-  'olde-queens': [{ id: 'oq-cover', kind: 'entry', title: 'No cover before 11 PM', short: 'No cover till 11', at: [21, 0], until: [23, 0] }],
-  'ale-n-wich': [{ id: 'aw-wings', kind: 'food', title: '$5 wings until midnight', short: '$5 wings till 12', at: [22, 0], until: [0, 0] }],
-  'pitch-social': [{ id: 'ps-mock', kind: 'na', title: '$3 mocktails and sodas all night', short: '$3 mocktails', at: [21, 0], until: [2, 0] }],
+  'olde-queens': [
+    { id: 'oq-cover', kind: 'entry', title: 'No cover before 11 PM', short: 'No cover till 11', at: [21, 0], until: [23, 0] },
+    { id: 'oq-drafts', kind: 'drink', item: 'draft', price: 4, title: 'Happy hour: $4 draft beer (16 oz)', short: '$4 drafts till 12', at: [22, 0], until: [0, 0] },
+  ],
+  'ale-n-wich': [
+    { id: 'aw-wings', kind: 'food', title: '$5 wings until midnight', short: '$5 wings till 12', at: [22, 0], until: [0, 0] },
+    { id: 'aw-drafts', kind: 'drink', item: 'draft', price: 5, title: 'Happy hour: $5 draft beer (16 oz)', short: '$5 drafts to 11:30', at: [21, 0], until: [23, 30] },
+  ],
+  'pitch-social': [
+    { id: 'ps-hh', kind: 'drink', item: 'well', price: 5, title: 'Happy hour: $5 well drink (1.5 oz)', short: '$5 wells 8–10', at: [20, 0], until: [22, 0] },
+    { id: 'ps-mock', kind: 'na', title: '$3 mocktails and sodas all night', short: '$3 mocktails', at: [21, 0], until: [2, 0] },
+  ],
   'scarlet-pub': [{ id: 'sp-late', kind: 'entry', title: 'Free entry after 1 AM', short: 'Free entry after 1', at: [1, 0], until: [2, 0] }],
   'stuff-yer-face': [{ id: 'sf-food', kind: 'food', title: 'Half-price appetizers until 11:30 PM', short: '½ apps till 11:30', at: [22, 0], until: [23, 30] }],
   'the-vine': [{ id: 'tv-trivia', kind: 'event', title: 'Trivia at 11 PM: $25 food voucher prize (21+ teams, no purchase needed)', short: 'Trivia at 11', at: [23, 0], until: [0, 30] }],

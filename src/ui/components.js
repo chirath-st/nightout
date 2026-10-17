@@ -129,6 +129,20 @@ export function crowdStatus(est) {
   };
 }
 
+/** The bar page's status row: crowd word and icon, the wait range big, and where it came from. Live-patched by tick(). */
+export function venueStatus(venue, now) {
+  const est = estimateFor(venue, now);
+  const st = crowdStatus(est);
+  const range = est.waitLow != null && st.level !== 'none' && !['closed', 'paused', 'capacity'].includes(est.tone);
+  const fresh = est.observedAt != null && est.tone !== 'closed' ? `${est.shortSource} · ${est.ageLabel}${est.tone === 'aging' ? ' · may have changed' : ''}` : (est.detail || '');
+  return `<section class="venue-status" data-est="${esc(venue.id)}" data-variant="vstatus" data-tone="${est.tone}" data-level="${st.level}"${st.maybe ? ' data-maybe' : ''} aria-labelledby="vs-h">
+    <h2 class="sr-only" id="vs-h">Line right now</h2>
+    <div class="vs-crowd"><span class="vs-icon">${icon(st.icon, { size: 28 })}</span><span class="vs-word">${esc(st.label)}</span></div>
+    <div class="vs-wait">${range ? `<span class="vs-num num">${est.waitLow}–${est.waitHigh}</span><span class="vs-unit">min wait</span>` : `<span class="vs-text">${esc(st.sub)}</span>`}</div>
+    <p class="vs-fresh"><span class="demo-tag">Demo</span><span>${esc(fresh)}</span></p>
+  </section>`;
+}
+
 /** The card's bottom bar: crowd icon | word + wait. Visual only; the text twin is srSummary. */
 export function cardStatus(venue, now) {
   const est = estimateFor(venue, now);
@@ -213,7 +227,7 @@ export function venueRow(venue, now, { saved = false, selected = false } = {}) {
 }
 
 export function saveButton(venue, saved, extraCls = 'save') {
-  return `<button type="button" class="icon-btn ${extraCls}" data-action="toggle-save" data-id="${esc(venue.id)}" aria-pressed="${saved}" aria-label="Save ${esc(venue.name)}">${icon(saved ? 'bookmarkFill' : 'bookmark')}</button>`;
+  return `<button type="button" class="icon-btn ${extraCls}" data-action="toggle-save" data-id="${esc(venue.id)}" aria-pressed="${saved}" aria-label="Save ${esc(venue.name)}">${icon(saved ? 'heartFill' : 'heart')}</button>`;
 }
 
 export function skeletonRows(n = 5) {

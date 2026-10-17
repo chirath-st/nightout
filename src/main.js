@@ -7,14 +7,15 @@ import { resolveVenues, diffQueue } from './lib/model.js';
 import { parseHash, buildHash, exploreStateFromQuery, exploreQuery } from './lib/router.js';
 import { FILTERS, SORTS, exploreList } from './lib/explore.js';
 import { windowState, purchasable, createPass, maxPartyFor, passStatus, money, refCode } from './lib/pass.js';
-import { estimateCompact, estimateBlock, estimateRing, estimateFor, demoChip, esc, venueRow, cardStatus, srSummary, dealTag } from './ui/components.js';
+import { estimateCompact, estimateBlock, estimateRing, estimateFor, demoChip, esc, venueRow, cardStatus, srSummary, dealTag, venueStatus } from './ui/components.js';
 import { icon } from './ui/icons.js';
 import { renderExplore, exploreResults, exploreBanners, pinParts, areaSheet } from './views/explore.js';
 import { renderGroups, renderGroupNew, validateGroup } from './views/groups.js';
 import { renderScan, pickListItems } from './views/scan.js';
 import { renderPoints } from './views/points.js';
 import { renderProfile } from './views/profile.js';
-import { renderVenue } from './views/venue.js';
+import { renderVenue, directionsSheet, pollSection } from './views/venue.js';
+import { buildEvents } from './data/events.js';
 import { renderPassSheet } from './views/passSheet.js';
 import { renderSaved, renderPasses, renderPassDetail, renderConsole, renderAbout, draftFrom, rangeFor, consoleHint, draftReady, newDealDraft } from './views/pages.js';
 import { checkDeal } from './lib/deals.js';
@@ -41,6 +42,7 @@ const app = {
   renderedHash: null,
   visit: 0, // increments per route; inline Undo rows only show during the visit where the action happened
   groups: [],
+  events: [],
   groupDraft: null,
   groupErrors: {},
   scan: null,
@@ -63,6 +65,7 @@ function rebuild() {
   const base = buildDataset(app.state.dataset, app.state.clock.base, app.state.syncAt ?? app.state.clock.base);
   app.venues = resolveVenues(base, app.state.overrides, app.state.passes, app.state.deals);
   app.groups = buildGroups(app.state.clock.base);
+  app.events = buildEvents(app.state.clock.base);
 }
 const isOffline = () => app.state.sim.offline || navigator.onLine === false;
 const savedSet = () => new Set(app.state.saved);
@@ -70,7 +73,7 @@ const savedSet = () => new Set(app.state.saved);
 function ctx(extra = {}) {
   return {
     venues: app.venues, now: now(), state: app.state, explore: app.explore, ui: app.ui, savedSet: savedSet(),
-    offline: isOffline(), console: app.console, visit: app.visit, groups: app.groups,
+    offline: isOffline(), console: app.console, visit: app.visit, groups: app.groups, events: app.events,
     backHref: app.venueBack?.href ?? app.lastExploreHash, backLabel: app.venueBack?.label ?? 'Bars', ...extra,
   };
 }
@@ -311,6 +314,11 @@ function route({ viaPop = false } = {}) {
   if (r.name === 'console' && r.query.venue) app.console.venueId = r.query.venue;
   if (r.name === 'groupNew' && !app.groupDraft) { app.groupDraft = newGroupDraft(); app.groupErrors = {}; }
   if (r.name !== 'profile') app.profileEdit = { editing: false, errors: {} };
+  if (r.name === 'scan' && r.query.venue && app.venues.some((v) => v.id === r.query.venue) && !app.state.activeWait) {
+    app.scan = { ...freshScan(), venueId: r.query.venue };
+    history.replaceState({ ...(history.state ?? {}), idx: histIdx() }, '', '#/scan');
+    app.renderedHash = '#/scan';
+  }
   if (r.name === 'pass') {
     if (!app.passFlow || app.passFlow.venueId !== r.params.id || app.passFlow.step === 'done') startPassFlow(r.params.id);
   } else if (app.passFlow && app.passFlow.step !== 'pending') {
@@ -404,7 +412,7 @@ function tick() {
     if (!v) return;
     const before = el.dataset.tone;
     const variant = el.dataset.variant;
-    const html = variant === 'status' ? cardStatus(v, n) : variant === 'sr' ? srSummary(v, n)
+    const html = variant === 'status' ? cardStatus(v, n) : variant === 'vstatus' ? venueStatus(v, n) : variant === 'sr' ? srSummary(v, n)
       : variant === 'ring' ? estimateRing(v, n, { size: Number(el.dataset.size) || 56 })
       : el.dataset.variant === 'block'
       ? estimateBlock(v, n, { headingId: el.getAttribute('aria-labelledby') || 'qb-h', showHow: !!el.querySelector('details.how'), headingLevel: Number(el.dataset.level) || 2 })
@@ -966,6 +974,47 @@ function syncSearchButton() {
   btn.setAttribute('aria-expanded', onList && app.ui.searchOpen ? 'true' : 'false');
 }
 
+/* ---------------- bar page: poll, directions, share ---------------- */
+function castVote(venueId, vote) {
+  const votes = (app.state.votes ??= {});
+  const was = votes[venueId] ?? null;
+  if (was === vote) delete votes[venueId]; else votes[venueId] = vote;
+  persist();
+  const v = app.venues.find((x) => x.id === venueId);
+  const box = document.getElementById(`poll-${venueId}`);
+  if (box && v) {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = pollSection(v, votes[venueId] ?? null).trim();
+    box.replaceWith(tpl.content.firstElementChild);
+    document.querySelector(`[data-action="vote"][data-id="${CSS.escape(venueId)}"][data-vote="${CSS.escape(vote)}"]`)?.focus();
+  }
+  const label = { going: 'Going', maybe: 'Maybe', no: 'Not tonight' }[vote];
+  announce(votes[venueId] ? `Your answer: ${label}. Sample poll.` : 'Your answer was cleared.');
+}
+function openDirections(id) {
+  const v = app.venues.find((x) => x.id === id);
+  if (!v?.address) return;
+  const dlg = document.getElementById('picker');
+  dlg.innerHTML = directionsSheet(v);
+  dlg.showModal();
+  dlg.querySelector('.dir-links a')?.focus();
+}
+async function shareVenue(id) {
+  const v = app.venues.find((x) => x.id === id);
+  if (!v) return;
+  const url = `${location.href.split('#')[0]}#/venue/${encodeURIComponent(v.id)}`;
+  const est = estimateFor(v, now());
+  const text = `${v.name}: ${est.headline} (Night Out demo, simulated wait)`;
+  try {
+    if (navigator.share) { await navigator.share({ title: `${v.name} · Night Out (demo)`, text, url }); return; }
+    await navigator.clipboard.writeText(url);
+    toast('Link copied.');
+  } catch (err) {
+    if (err?.name === 'AbortError') return; // the person closed the share sheet
+    toast(`Couldn’t share. Link: ${url}`);
+  }
+}
+
 /* ---------------- area picker ---------------- */
 function openAreaPicker() {
   const dlg = document.getElementById('picker');
@@ -1182,6 +1231,10 @@ function handleAction(a, el) {
       return true;
     case 'open-area': openAreaPicker(); return true;
     case 'close-picker': document.getElementById('picker').close(); return true;
+    case 'vote': castVote(el.dataset.id, el.dataset.vote); return true;
+    case 'directions': openDirections(el.dataset.id); return true;
+    case 'share': shareVenue(el.dataset.id); return true;
+    case 'scroll-to': { const t = document.getElementById(el.dataset.target); if (t) { t.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' }); t.focus({ preventScroll: true }); } return true; }
     case 'join-group': toggleJoin(el.dataset.id); return true;
     case 'ig-link': toast(`Opens instagram.com/${el.dataset.handle} in the real app. Links are off in this demo.`); return true;
     case 'group-spots': {
