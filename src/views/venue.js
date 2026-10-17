@@ -7,7 +7,6 @@ import { DEMO_SPOT } from '../lib/geo.js';
 import { dealsTonight, dealState, DEAL_KINDS } from '../lib/deals.js';
 import { dealWhen } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
-import { venueArt } from '../ui/art.js';
 import { isOpenAt } from '../lib/explore.js';
 import { offerSummary, money, dollars } from '../lib/pass.js';
 import { TYPICAL_LABELS } from '../lib/queue.js';

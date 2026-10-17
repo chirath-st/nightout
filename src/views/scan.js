@@ -1,9 +1,8 @@
 // Scan: guests report a bar's line (photo + rough size) and tell us when they got in, which turns
 // into a measured wait. SIMULATED: the camera is a mock (no camera access, no image of anyone is taken),
 // reports and points stay on this device, and the report becomes that bar's demo crowd estimate.
-import { esc } from '../ui/components.js';
+import { esc, venuePhoto } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
-import { facadeArt } from '../ui/art.js';
 import { formatTime } from '../lib/clock.js';
 import { LINE_BUCKETS, POINTS } from '../data/social.js';
 
@@ -43,7 +42,7 @@ function captureStep(ctx, flow) {
   const sizeOk = !!flow.bucket;
   return `<div class="scan-venue"><div><p class="eyebrow">Reporting</p><p class="scan-venue-name">${esc(venue?.name ?? '')}</p></div><button type="button" class="btn btn-sm" data-action="scan-change">Change</button></div>
     <div class="viewfinder ${flow.captured ? 'is-captured' : ''}">
-      ${flow.captured ? `${facadeArt(venue)}<span class="vf-tag">${icon('check', { size: 14 })}Simulated photo</span>` : `<span class="vf-corners" aria-hidden="true"></span><p class="vf-hint">${icon('camera', { size: 22 })}Point at the line, then tap the shutter</p>`}
+      ${flow.captured ? `${venuePhoto(venue)}<span class="vf-tag">${icon('check', { size: 14 })}Simulated photo</span>` : `<span class="vf-corners" aria-hidden="true"></span><p class="vf-hint">${icon('camera', { size: 22 })}Point at the line, then tap the shutter</p>`}
       <span class="vf-sim">Demo camera: no photo is actually taken</span>
     </div>
     <div class="shutter-row">

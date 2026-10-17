@@ -5,11 +5,11 @@ import { buildDataset, atNight } from './data/venues.js';
 import { buildGroups, POINTS, LINE_BUCKETS, REWARDS, balanceOf, validHandle } from './data/social.js';
 import { resolveVenues, diffQueue } from './lib/model.js';
 import { parseHash, buildHash, exploreStateFromQuery, exploreQuery } from './lib/router.js';
-import { FILTERS, SORTS, exploreList } from './lib/explore.js';
+import { FILTERS, SORTS, exploreList, areaLabel } from './lib/explore.js';
 import { windowState, purchasable, createPass, maxPartyFor, passStatus, money, refCode } from './lib/pass.js';
-import { estimateCompact, estimateBlock, estimateRing, estimateFor, demoChip, esc, venueRow, cardStatus, srSummary, dealTag, venueStatus } from './ui/components.js';
+import { estimateCompact, estimateBlock, estimateRing, estimateFor, demoChip, esc, venueRow, cardStatus, cardFresh, srSummary, dealTag, venueStatus } from './ui/components.js';
 import { icon } from './ui/icons.js';
-import { renderExplore, exploreResults, exploreBanners, pinParts, areaSheet } from './views/explore.js';
+import { renderExplore, exploreResults, exploreBanners, exploreChips, pinParts, areaSheet, sortSheet } from './views/explore.js';
 import { renderGroups, renderGroupNew, validateGroup } from './views/groups.js';
 import { renderEvents, eventResults } from './views/events.js';
 import { renderScan, pickListItems } from './views/scan.js';
@@ -172,7 +172,6 @@ function renderShell() {
   const tonightTab = document.querySelector('[data-tab="bars"]');
   if (tonightTab) tonightTab.setAttribute('href', app.lastExploreHash);
   updateBadge();
-  syncSearchButton();
   const slot = document.getElementById('demo-slot');
   if (!slot.firstElementChild) slot.innerHTML = demoChip(now());
 }
@@ -216,6 +215,8 @@ function render({ focus = 'heading', scroll = 'keep' } = {}) {
   const main = document.getElementById('main');
   main.innerHTML = mainHtml();
   app.renderedHash = location.hash || '#/';
+  document.body.dataset.route = ['venue', 'pass'].includes(app.route?.name) ? 'venue' : app.route?.name ?? '';
+  watchMasthead();
   const banners = document.getElementById('explore-banners');
   if (banners) banners.dataset.sig = exploreBanners(ctx());
   const h1 = main.querySelector('h1');
@@ -248,21 +249,20 @@ function renderResultsOnly({ announceCount = true } = {}) {
     updateBanners();
     const clearBtn = document.querySelector('[data-action="clear-search"].clear');
     if (clearBtn) clearBtn.hidden = !app.explore.q;
-    document.querySelectorAll('[data-action="toggle-filter"]').forEach((b) => {
-      const on = app.explore.filters.includes(b.dataset.filter);
-      b.setAttribute('aria-pressed', String(on));
-      b.innerHTML = `${on ? icon('check') : ''}${esc(FILTERS.find((f) => f.id === b.dataset.filter).label)}`;
-    });
     const chips = document.querySelector('.chips');
-    const clearAll = chips?.querySelector('.chip-clear');
-    if (app.explore.filters.length) {
-      if (clearAll) clearAll.textContent = `Clear all (${app.explore.filters.length})`;
-      else chips.insertAdjacentHTML('beforeend', `<button type="button" class="chip chip-clear" data-action="clear-filters">Clear all (${app.explore.filters.length})</button>`);
-    } else clearAll?.remove();
+    if (chips) chips.innerHTML = exploreChips(ctx());
+    const mapBtn = document.querySelector('.map-btn');
+    if (mapBtn) {
+      const onMap = app.explore.view === 'map';
+      mapBtn.dataset.view = onMap ? 'list' : 'map';
+      mapBtn.setAttribute('aria-pressed', String(onMap));
+      mapBtn.setAttribute('aria-label', onMap ? 'Show list' : 'Show map');
+      mapBtn.innerHTML = icon(onMap ? 'list' : 'map');
+    }
   }, listHeading);
   if (announceCount && !app.ui.loading) {
     const { total } = exploreList(app.venues, app.explore, now(), savedSet());
-    announce(total ? `${total} venue${total === 1 ? '' : 's'} shown` : 'No venues match');
+    announce(total ? `${total} bar${total === 1 ? '' : 's'} shown` : 'No bars match');
   }
 }
 
@@ -295,7 +295,6 @@ function route({ viaPop = false } = {}) {
   const hasExploreQuery = EXPLORE_KEYS.some((k) => r.query[k]);
   if (r.name === 'tonight' || (isListRoute(r.name) && hasExploreQuery)) {
     app.explore = exploreStateFromQuery(r.query, FILTER_IDS, SORT_IDS);
-    if (app.explore.q || app.explore.filters.length) app.ui.searchOpen = true;
     app.lastExploreHash = buildHash('tonight', {}, exploreQuery(app.explore));
   } else if (isListRoute(r.name) && (viaPop || !prev) && entry.explore) {
     // Desktop venue entry recorded with the default list state (no query in its URL).
@@ -348,7 +347,7 @@ function route({ viaPop = false } = {}) {
   if (needsFirstFetch) queueMicrotask(() => simulateFetch({ initial: true }));
   if ((toDetail || backToList) && document.startViewTransition && !reducedMotion()) {
     const id = app.lastVenueId;
-    const art = (sel) => document.querySelector(`${sel} > svg`);
+    const art = (sel) => document.querySelector(`${sel} > :is(img, svg)`);
     const from = toDetail ? art(`[data-thumb="${CSS.escape(id)}"]`) : art(`[data-hero="${CSS.escape(id)}"]`);
     if (from) from.style.viewTransitionName = 'venue-art';
     let to = null;
@@ -414,7 +413,7 @@ function tick() {
     if (!v) return;
     const before = el.dataset.tone;
     const variant = el.dataset.variant;
-    const html = variant === 'status' ? cardStatus(v, n) : variant === 'vstatus' ? venueStatus(v, n) : variant === 'sr' ? srSummary(v, n)
+    const html = variant === 'status' ? cardStatus(v, n) : variant === 'fresh' ? cardFresh(v, n) : variant === 'vstatus' ? venueStatus(v, n) : variant === 'sr' ? srSummary(v, n)
       : variant === 'ring' ? estimateRing(v, n, { size: Number(el.dataset.size) || 56 })
       : el.dataset.variant === 'block'
       ? estimateBlock(v, n, { headingId: el.getAttribute('aria-labelledby') || 'qb-h', showHow: !!el.querySelector('details.how'), headingLevel: Number(el.dataset.level) || 2 })
@@ -433,8 +432,11 @@ function tick() {
   });
   document.querySelectorAll('[data-deal-for]').forEach((slot) => {
     const v = byId.get(slot.dataset.dealFor);
-    const html = v ? dealTag(v, n) : '';
-    if (slot.innerHTML !== html) slot.innerHTML = html;
+    if (!v) return;
+    const tpl = document.createElement('template');
+    tpl.innerHTML = dealTag(v, n).trim();
+    const next = tpl.content.firstElementChild;
+    if (slot.innerHTML !== next.innerHTML) slot.replaceWith(next);
   });
   // Map pins share the same estimate meaning: patch any pin whose state changed, in place (no re-announce).
   document.querySelectorAll('[data-pin-tone]').forEach((b) => {
@@ -958,22 +960,24 @@ function saveProfile(form) {
   toast('Profile saved.');
 }
 
-/* ---------------- search panel (opened from the header icon) ---------------- */
-function toggleSearch(open = !app.ui.searchOpen) {
-  if (app.route.name !== 'tonight') { app.ui.searchOpen = true; go(app.lastExploreHash); return; }
-  app.ui.searchOpen = open;
-  const panel = document.getElementById('explore-search');
-  if (panel) panel.hidden = !open;
-  syncSearchButton();
-  renderResultsOnly({ announceCount: false });
-  if (open) document.getElementById('q')?.focus();
+/* ---------------- search (always on Bars; the condensed header's icon jumps to it) ---------------- */
+function focusSearch() {
+  if (app.route.name !== 'tonight') { go(app.lastExploreHash); }
+  window.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
+  document.getElementById('q')?.focus({ preventScroll: true });
 }
-function syncSearchButton() {
-  const btn = document.querySelector('[data-action="toggle-search"]');
-  if (!btn) return;
-  const onList = app.route?.name === 'tonight';
-  btn.hidden = !onList;
-  btn.setAttribute('aria-expanded', onList && app.ui.searchOpen ? 'true' : 'false');
+let condenseObserver = null;
+/** The masthead condenses to "New Brunswick ⌄ · search · Demo" once the area title scrolls away (Bars only). */
+function watchMasthead() {
+  condenseObserver?.disconnect();
+  const bar = document.querySelector('.topbar');
+  const row = document.querySelector('.area-row');
+  const label = document.querySelector('[data-area-label]');
+  if (label) label.textContent = app.explore.area ? areaLabel(app.explore.area) : 'New Brunswick';
+  if (!bar) return;
+  if (!row || app.route?.name !== 'tonight' || !('IntersectionObserver' in window)) { delete bar.dataset.condensed; return; }
+  condenseObserver = new IntersectionObserver(([e]) => { if (e.isIntersecting) delete bar.dataset.condensed; else bar.dataset.condensed = ''; }, { rootMargin: '-52px 0px 0px 0px' });
+  condenseObserver.observe(row);
 }
 
 /* ---------------- events ---------------- */
@@ -1041,10 +1045,25 @@ async function shareVenue(id) {
   }
 }
 
+/* ---------------- sort sheet ---------------- */
+function openSortSheet() {
+  const dlg = document.getElementById('picker');
+  dlg.innerHTML = sortSheet(app.explore.sort);
+  dlg.showModal();
+  dlg.querySelector('input:checked')?.focus();
+}
+function chooseSort(id) {
+  app.explore.sort = id;
+  updateExploreUrl();
+  document.getElementById('picker').close();
+  renderResultsOnly();
+  document.querySelector('[data-action="open-sort"]')?.focus({ preventScroll: true });
+}
+
 /* ---------------- area picker ---------------- */
 function openAreaPicker() {
   const dlg = document.getElementById('picker');
-  dlg.innerHTML = areaSheet(app.explore.area);
+  dlg.innerHTML = areaSheet(app.explore.area, app.venues);
   dlg.showModal();
   dlg.querySelector('input:checked')?.focus();
 }
@@ -1054,6 +1073,7 @@ function chooseArea(id) {
   document.getElementById('picker').close();
   render({ focus: 'none' });
   document.querySelector('.area-pill')?.focus({ preventScroll: true });
+  watchMasthead();
   const { total } = exploreList(app.venues, app.explore, now(), savedSet());
   announce(`${total} bar${total === 1 ? '' : 's'} shown`);
 }
@@ -1115,7 +1135,8 @@ function handleAction(a, el) {
       updateExploreUrl();
       renderResultsOnly();
       return true;
-    case 'toggle-search': toggleSearch(); return true;
+    case 'focus-search': focusSearch(); return true;
+    case 'open-sort': openSortSheet(); return true;
     case 'clear-all':
       app.explore.q = '';
       app.explore.filters = [];
@@ -1358,7 +1379,7 @@ function onInput(e) {
 function onChange(e) {
   const t = e.target;
   switch (t.dataset.input) {
-    case 'sort': app.explore.sort = t.value; updateExploreUrl(); renderResultsOnly(); break;
+    case 'sort-choice': chooseSort(t.value); break;
     case 'event-filter':
       app.ui[{ genre: 'eventsGenre', theme: 'eventsTheme', price: 'eventsPrice' }[t.dataset.key]] = t.value;
       t.closest('.select')?.classList.toggle('is-set', !!t.value);

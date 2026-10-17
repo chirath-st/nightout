@@ -6,7 +6,8 @@ import { isOpenAt } from '../lib/explore.js';
 import { passStatus, PASS_STATUS_COPY, money, dollars } from '../lib/pass.js';
 import { formatTime } from '../lib/clock.js';
 import { icon, TONE_ICON, TONE_LABEL } from './icons.js';
-import { facadeArt, monogram } from './art.js';
+import { monogram } from './art.js';
+import { nightArt, NIGHT_PALETTES } from './nightart.js';
 import { distanceTo, formatMiles, DEMO_SPOT } from '../lib/geo.js';
 import { activeDeal, dealState, DEAL_KINDS } from '../lib/deals.js';
 
@@ -105,20 +106,20 @@ export function howItWorks() {
 }
 
 /**
- * Crowd status for the card's bottom bar (team mockup): Quiet / Lively / Packed by the TOP of the wait
- * range (Quiet <=5 min, Lively <=15, Packed longer), plus the range in words. Color is never the only
- * cue: every state has a word, an icon shape and a sub-line. States without a usable range say so.
+ * Crowd status: Quiet / Lively / Packed by the TOP of the wait range (Quiet <=5 min, Lively <=15, Packed
+ * longer), plus the range. Color is never the only cue: every state has a word, a meter or glyph shape and
+ * a value. States without a usable range say so (and never show a number).
  */
 export function crowdStatus(est) {
   switch (est.tone) {
-    case 'closed': return { level: 'closed', label: 'Closed', sub: 'Not open now', icon: 'closed' };
+    case 'closed': return { level: 'closed', label: 'Closed', sub: 'Not open now', icon: 'moon' };
     case 'paused': return { level: 'paused', label: 'Paused', sub: 'Entry paused', icon: 'pause' };
-    case 'capacity': return { level: 'packed', label: 'Full', sub: 'At capacity', icon: 'crowd3' };
-    case 'stale': return { level: 'none', label: 'No update', sub: 'Out of date', icon: 'help' };
+    case 'capacity': return { level: 'capacity', label: 'Full', sub: 'At capacity', icon: 'crowd3' };
+    case 'stale': return { level: 'none', label: 'No update', sub: 'Out of date', icon: 'aging' };
     case 'unknown': return { level: 'none', label: 'No reports', sub: 'Wait unknown', icon: 'help' };
     default: break;
   }
-  if (est.waitHigh == null) return { level: 'none', label: 'Unclear', sub: 'Reports disagree', icon: 'uncertain' };
+  if (est.waitHigh == null) return { level: 'mixed', label: 'Mixed', sub: 'Reports disagree', icon: 'uncertain', maybe: true };
   const level = est.waitHigh <= 5 ? 'quiet' : est.waitHigh <= 15 ? 'lively' : 'packed';
   return {
     level,
@@ -127,6 +128,20 @@ export function crowdStatus(est) {
     icon: level === 'quiet' ? 'crowd1' : 'crowd3',
     maybe: est.tone === 'aging' || est.tone === 'uncertain',
   };
+}
+
+/** 1/2/3-bar crowd meter (shape + count carry the level; hue is a fourth cue). */
+export const meter = (level, { maybe = false, lg = false } = {}) => `<span class="meter${lg ? ' is-lg' : ''}" data-level="${level}"${maybe ? ' data-maybe' : ''} aria-hidden="true"><i></i><i></i><i></i></span>`;
+const glyph = (name) => icon(name, { size: 14, cls: 'cs-glyph' });
+
+/** Open/close hint for the card when there's no deal: "Open till 2 AM", "Opens 8 PM", "Closed tonight". */
+export function hoursShort(venue, now) {
+  if (venue.closedTonight) return venue.hours ? `Usually ${formatTime(new Date(2000, 0, 1, ...venue.hours.open.split(':').map(Number)).getTime()).replace(':00', '')}–${formatTime(new Date(2000, 0, 1, ...venue.hours.close.split(':').map(Number)).getTime()).replace(':00', '')}` : 'Closed tonight';
+  if (!venue.hours) return 'Hours not listed';
+  const [ch, cm] = venue.hours.close.split(':').map(Number);
+  const [oh, om] = venue.hours.open.split(':').map(Number);
+  const t = (h, m) => formatTime(new Date(2000, 0, 1, h, m).getTime()).replace(':00', '');
+  return isOpenAt(venue, now) === false ? `Opens ${t(oh, om)}` : `Open till ${t(ch, cm)}`;
 }
 
 /** The bar page's status row: crowd word and icon, the wait range big, and where it came from. Live-patched by tick(). */
@@ -143,20 +158,49 @@ export function venueStatus(venue, now) {
   </section>`;
 }
 
-/** The card's bottom bar: crowd icon | word + wait. Visual only; the text twin is srSummary. */
+/** The card's bottom-right wait (spec "Late Edition"): eyebrow (meter or glyph + word) over the value. Live-patched. */
 export function cardStatus(venue, now) {
   const est = estimateFor(venue, now);
   const st = crowdStatus(est);
-  return `<span class="card-status" data-est="${esc(venue.id)}" data-variant="status" data-tone="${est.tone}" data-level="${st.level}"${st.maybe ? ' data-maybe' : ''} aria-hidden="true">
-    <span class="cs-icon">${icon(st.icon, { size: 26 })}</span><span class="cs-text"><b>${esc(st.label)}</b><small>${esc(st.sub)}</small></span>
-  </span>`;
+  const range = est.waitLow != null ? `${est.waitLow}–${est.waitHigh}` : null;
+  let eb; let val;
+  switch (est.tone) {
+    case 'capacity': eb = `${meter('capacity')}Door`; val = '<span class="cs-tag">Full</span>'; break;
+    case 'paused': eb = `${glyph('pause')}Door`; val = '<span class="cs-tag is-outline">Paused</span>'; break;
+    case 'unknown': eb = `${glyph('help')}Wait`; val = '<span class="cs-value is-word is-dim">No reports</span>'; break;
+    case 'stale': eb = `${glyph('aging')}Wait`; val = '<span class="cs-value is-word is-dim">Out of date</span>'; break;
+    case 'closed': eb = `${glyph('moon')}Closed`; val = `<span class="cs-value is-word">${venue.closedTonight ? 'Not tonight' : esc(hoursShort(venue, now))}</span>`; break;
+    case 'uncertain':
+      eb = `${meter('mixed')}Mixed`;
+      val = range ? `<span class="cs-value is-dim"><span class="approx">≈</span>${range}<small>min</small></span>` : '<span class="cs-value is-word is-dim">Unclear</span>';
+      break;
+    default:
+      eb = `${meter(st.level, { maybe: st.maybe })}${st.label}`;
+      val = st.maybe ? `<span class="cs-value is-dim"><span class="approx">≈</span>${range}<small>min</small></span>` : `<span class="cs-value">${range}<small>min</small></span>`;
+  }
+  return `<span class="card-status" data-est="${esc(venue.id)}" data-variant="status" data-tone="${est.tone}" data-level="${st.level}"${st.maybe ? ' data-maybe' : ''}><span class="foot-eb">${eb}</span>${val}</span>`;
 }
 
-/** The card's bottom-left deal tag: the live deal that ends soonest, or nothing. Visual; srSummary says it in words. */
+/** Freshness micro-line under the card name ("Demo wait · 4m ago"): the per-card demo marker. Live-patched. */
+export function cardFresh(venue, now) {
+  const est = estimateFor(venue, now);
+  const age = est.observedAt != null ? Math.max(0, Math.round((now - est.observedAt) / 60000)) : null;
+  const text = {
+    aging: `${icon('aging', { size: 12 })}Demo · ${age}m ago · may have changed`,
+    uncertain: 'Demo wait · reports differ',
+    unknown: 'Demo · be first to report',
+    stale: `${icon('aging', { size: 12 })}Demo · last report ${age}m ago`,
+    closed: 'Demo data',
+  }[est.tone] ?? `Demo wait · ${age ?? 0}m ago`;
+  return `<span class="card-fresh" data-est="${esc(venue.id)}" data-variant="fresh" data-tone="${est.tone}">${text}</span>`;
+}
+
+/** The card's bottom-left: the live deal ending soonest ("Demo deal"), else when the bar opens or closes. Live-patched. */
 export function dealTag(venue, now) {
   const d = activeDeal(venue, now);
-  if (!d) return '';
-  return `<span class="deal-tag">${icon(DEAL_KINDS[d.kind]?.icon ?? 'tag', { size: 14 })}<span>${esc(d.short || d.title)}</span></span>`;
+  return d
+    ? `<span class="deal-slot" data-deal-for="${esc(venue.id)}"><span class="foot-eb">Demo deal</span><span class="deal-tag">${esc(d.short || d.title)}</span></span>`
+    : `<span class="deal-slot" data-deal-for="${esc(venue.id)}"><span class="foot-eb">No deal</span><span class="deal-tag is-none">${esc(hoursShort(venue, now))}</span></span>`;
 }
 
 /** When a deal runs, in words: "Now until 11:00 PM", "Starts 11:00 PM", "Ended". */
@@ -180,9 +224,22 @@ export function srSummary(venue, now) {
   return `<span class="sr-only" data-est="${esc(venue.id)}" data-variant="sr" data-tone="${est.tone}">${esc(text)}</span>`;
 }
 
-/** Photo slot: the venue's own photo when licensed or permitted (venue.photo), else the drawn storefront. */
-export function venuePhoto(venue, { title = false, anchor } = {}) {
-  return venue.photo ? `<img src="${esc(venue.photo)}" alt="${title ? esc(`Photo of ${venue.name}`) : ''}" loading="lazy" decoding="async">` : facadeArt(venue, { title, anchor });
+// Neon palette per bar for the drawn storefront (placeholder art, not a likeness of the real bar).
+const ART_PAL = { 'olde-queens': 'amber', 'scarlet-pub': 'red', 'hueys-knight-club': 'violet', 'pitch-social': 'cyan', 'the-vine': 'green', 'olive-branch': 'gold', 'stuff-yer-face': 'rose', 'thirty-burgers': 'amber', evelyns: 'gold', 'ale-n-wich': 'green' };
+const artCache = new Map();
+function artSrc(venue) {
+  const pals = Object.keys(NIGHT_PALETTES);
+  let h = 0;
+  for (const ch of venue.id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const pal = ART_PAL[venue.id] ?? pals[h % pals.length];
+  const key = `${venue.id}|${pal}`;
+  if (!artCache.has(key)) artCache.set(key, `data:image/svg+xml;charset=utf-8,${encodeURIComponent(nightArt(venue.id, pal, {}))}`);
+  return artCache.get(key);
+}
+/** Photo slot: the venue's own photo when licensed or permitted (venue.photo), else the drawn night storefront. */
+export function venuePhoto(venue, { title = false } = {}) {
+  if (venue.photo) return `<img src="${esc(venue.photo)}" alt="${title ? esc(`Photo of ${venue.name}`) : ''}" loading="lazy" decoding="async">`;
+  return `<img class="night-art" src="${artSrc(venue)}" alt="${title ? esc(`Illustration of a bar at night, not a photo of ${venue.name}`) : ''}" decoding="async">`;
 }
 /** Logo slot: the bar's logo only with the bar's permission (venue.logo), else an initials badge. */
 export function venueLogo(venue) {
@@ -190,17 +247,19 @@ export function venueLogo(venue) {
 }
 
 /**
- * Bar card (team mockup): logo top left, distance top right, name, photo, crowd status bar.
- * `save` adds the Save toggle (Saved page only; the home grid matches the mockup without it).
+ * Bar card ("Late Edition"): a photo poster with the logo top left and distance top right, the name and a
+ * freshness line on the photo, then a footer with the deal bottom left and the wait bottom right.
+ * `save` adds the Save toggle (Saved page only). The link's name is the bar name plus the sr-only summary.
  */
 export function venueCard(venue, now, { saved = false, save = false } = {}) {
   const dist = distanceText(venue);
   return `<li class="bar-card" data-venue-row="${esc(venue.id)}" data-area="${esc(venue.area ?? '')}">
     <a class="bar-link" href="#/venue/${encodeURIComponent(venue.id)}" data-nav-venue="${esc(venue.id)}">
-      <span class="card-top"><span class="bar-logo" aria-hidden="true">${venueLogo(venue)}</span><span class="card-dist">${icon('pinFill', { size: 16 })}${dist ? `${esc(dist)}<span class="dist-away">away</span>` : 'n/a'}</span></span>
-      <span class="bar-name">${esc(venue.name)}</span>
-      <span class="bar-photo" data-thumb="${esc(venue.id)}">${venuePhoto(venue, { anchor: 'bottom' })}<span class="deal-slot" data-deal-for="${esc(venue.id)}">${dealTag(venue, now)}</span></span>
-      ${cardStatus(venue, now)}
+      <span class="bar-photo" data-thumb="${esc(venue.id)}">${venuePhoto(venue)}
+        <span class="card-top" aria-hidden="true"><span class="bar-logo">${venueLogo(venue)}</span><span class="card-dist">${icon('nav', { size: 11 })}${dist ? esc(dist) : 'n/a'}</span></span>
+        <span class="bar-id"><span class="bar-name">${esc(venue.name)}</span><span aria-hidden="true">${cardFresh(venue, now)}</span></span>
+      </span>
+      <span class="card-foot" aria-hidden="true">${dealTag(venue, now)}${cardStatus(venue, now)}</span>
       ${srSummary(venue, now)}
     </a>
     ${save ? saveButton(venue, saved, 'save card-save') : ''}
@@ -267,6 +326,7 @@ export function passCard(pass, now, { headingLevel = 3 } = {}) {
   </article>`;
 }
 
-export function demoChip(nowMs) {
-  return `<a class="demo-chip" href="#/about" aria-label="Demo data: real bar names, simulated waits and passes. About this demo"><span class="dot" aria-hidden="true"></span>Demo data</a><span class="demo-time num"><span class="demo-time-label">Demo time </span><span data-demo-time>${esc(formatTime(nowMs))}</span></span>`;
+export function demoChip() {
+  return `<a class="demo-chip" href="#/about" aria-label="Demo data: real bar names, simulated waits, deals and points. About this demo"><span class="dot" aria-hidden="true"></span><span class="demo-long" aria-hidden="true">Demo data</span><span class="demo-short" aria-hidden="true">Demo</span></a>`;
 }
+

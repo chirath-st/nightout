@@ -55,7 +55,10 @@ const P = {
   music: '<path d="M9 18.5V6.5l10-2v12"/><circle cx="6.5" cy="18.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/>',
   food: '<path d="M7 3.5v8M4.5 3.5v5a2.5 2.5 0 0 0 5 0v-5M7 11.5v9M16.5 20.5v-17c-2 1.2-3 3.6-3 6.5v4h3"/>',
   report: '<path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><circle cx="12" cy="12" r="3"/>',
-  // Filled glyphs for the team mockup (fill only, no stroke).
+  nav: '<path fill="currentColor" stroke="none" d="M20.5 3.5 3.5 10.6l7.2 2.7 2.7 7.2z"/>',
+  sort: '<path d="M8 5v14M4.5 8.5 8 5l3.5 3.5M16 19V5M12.5 15.5 16 19l3.5-3.5"/>',
+  retake: '<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4.5 4.5V9H9"/>',
+  // Filled glyphs (fill only, no stroke).
   pinFill: '<path fill="currentColor" stroke="none" fill-rule="evenodd" d="M12 22s-7.2-6.3-7.2-12A7.2 7.2 0 0 1 19.2 10c0 5.7-7.2 12-7.2 12Zm0-9.1a2.9 2.9 0 1 0 0-5.8 2.9 2.9 0 0 0 0 5.8Z"/>',
   crowd1: '<g fill="currentColor" stroke="none"><circle cx="12" cy="7.4" r="3.7"/><path d="M4.8 20.6c.4-4.8 3.2-7.4 7.2-7.4s6.8 2.6 7.2 7.4Z"/></g>',
   crowd3: '<g fill="currentColor" stroke="none"><circle cx="12" cy="7" r="3.2"/><path d="M6.7 19.8c.3-4.2 2.4-6.5 5.3-6.5s5 2.3 5.3 6.5Z"/><circle cx="5" cy="9.4" r="2.4"/><path d="M.6 18.8c.2-3.2 1.8-5 4.2-5 1 0 1.9.3 2.6.9-1.1 1.2-1.8 2.6-2 4.1Z"/><circle cx="19" cy="9.4" r="2.4"/><path d="M23.4 18.8c-.2-3.2-1.8-5-4.2-5-1 0-1.9.3-2.6.9 1.1 1.2 1.8 2.6 2 4.1Z"/></g>',

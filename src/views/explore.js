@@ -23,38 +23,40 @@ function pinPos(id) {
   return [15 + (h % 70), 15 + ((h >>> 8) % 70)];
 }
 
-/** Search, sort and filters. Lives in a panel the header search icon opens (team mockup: search up top). */
-export function exploreControls(ctx) {
-  const { q, filters, sort } = ctx.explore;
-  const chips = FILTERS.map((f) => `<button type="button" class="chip" data-action="toggle-filter" data-filter="${f.id}" aria-pressed="${filters.includes(f.id)}">${filters.includes(f.id) ? icon('check') : ''}${esc(f.label)}</button>`).join('');
-  const clear = filters.length ? `<button type="button" class="chip chip-clear" data-action="clear-filters">Clear all (${filters.length})</button>` : '';
-  return `<div id="explore-search" class="search-panel" ${ctx.ui.searchOpen ? '' : 'hidden'}>
-    <div class="search" role="search">
-      ${icon('search')}
-      <label for="q" class="sr-only">Search bars by name or area</label>
-      <input id="q" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" spellcheck="false" name="q" placeholder="Search bars…" value="${esc(q)}" data-input="search">
-      <button type="button" class="icon-btn clear" data-action="clear-search" aria-label="Clear search" ${q ? '' : 'hidden'}>${icon('x')}</button>
-    </div>
-    <div class="chips">
-      <div class="select chip-select"><label for="sort" class="sr-only">Sort</label><select id="sort" data-input="sort">${SORTS.map((s) => `<option value="${s.id}" ${sort === s.id ? 'selected' : ''}>Sort: ${esc(s.label)}</option>`).join('')}</select>${icon('chevronDown', { size: 14 })}</div>
+/** Filter chips with live counts (how many bars each filter alone would show). Re-rendered in place. */
+export function exploreChips(ctx) {
+  const { filters, sort } = ctx.explore;
+  const count = (f) => exploreList(ctx.venues, { ...ctx.explore, filters: [f] }, ctx.now, ctx.savedSet).total;
+  const sortShort = { near: 'Nearest', wait: 'Shortest wait', name: 'A–Z' }[sort] ?? 'Nearest';
+  const chips = FILTERS.map((f) => `<button type="button" class="chip" data-action="toggle-filter" data-filter="${f.id}" aria-pressed="${filters.includes(f.id)}">${esc(f.label)} <span class="n" aria-hidden="true">${count(f.id)}</span></button>`).join('');
+  const clear = filters.length ? `<button type="button" class="chip chip-clear" data-action="clear-filters">Clear (${filters.length})</button>` : '';
+  return `<button type="button" class="chip chip-sort" data-action="open-sort" aria-haspopup="dialog" aria-label="Sort: ${esc(sortShort)}. Change sort">${icon('sort', { size: 16 })}${esc(sortShort)}${icon('chevronDown', { size: 14 })}</button>
       <span class="chip-divider" aria-hidden="true"></span>
-      <span class="chip-group" role="group" aria-label="Filters">${chips}${clear}</span>
-    </div>
-  </div>`;
+      <span class="chip-group" role="group" aria-label="Filters">${chips}${clear}</span>`;
 }
 
-/** Count, freshness and Refresh on the left; List/Map on the right. */
+/** Search field (always visible: the team's sketch puts search up top), the Map toggle and the chips. */
+export function exploreControls(ctx) {
+  const { q, view } = ctx.explore;
+  return `<div id="explore-search" class="search-panel">
+    <div class="search" role="search">
+      ${icon('search')}
+      <label for="q" class="sr-only">Search bars by name or street</label>
+      <input id="q" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" spellcheck="false" name="q" placeholder="Search bars" value="${esc(q)}" data-input="search">
+      <button type="button" class="icon-btn clear" data-action="clear-search" aria-label="Clear search" ${q ? '' : 'hidden'}>${icon('x')}</button>
+    </div>
+    <button type="button" class="map-btn" data-action="set-view" data-view="${view === 'map' ? 'list' : 'map'}" aria-pressed="${view === 'map'}" aria-label="${view === 'map' ? 'Show list' : 'Show map'}">${icon(view === 'map' ? 'list' : 'map')}</button>
+  </div>
+  <div class="chips">${exploreChips(ctx)}</div>`;
+}
+
+/** Count and freshness on the left, Refresh on the right. */
 function resultsBar(ctx, { total, sortLabel, excludedStale }) {
-  const { ui, explore } = ctx;
+  const { ui } = ctx;
   const refreshed = ui.loading ? 'Refreshing…' : ui.lastRefreshAt ? `Updated ${formatTime(ui.lastRefreshAt)}` : '';
-  const active = [explore.q ? `“${esc(explore.q)}”` : '', ...explore.filters.map((f) => esc(FILTERS.find((x) => x.id === f)?.label))].filter(Boolean);
-  const showing = !ui.searchOpen && active.length
-    ? `<p class="filter-summary"><span>Showing ${active.join(' + ')}</span><button type="button" class="btn btn-sm" data-action="clear-all">Clear</button></p>` : '';
-  const seg = (view, label) => `<button type="button" data-action="set-view" data-view="${view}" aria-pressed="${explore.view === view}">${icon(view === 'map' ? 'map' : 'list', { size: 16 })}${label}</button>`;
-  return `${showing}<div class="results-bar">
-      <p class="summary-line"><span>${total} bar${total === 1 ? '' : 's'} · ${sortLabel}</span>${refreshed ? `<span>${refreshed}</span>` : ''}${excludedStale ? `<span>${excludedStale} out of date hidden</span>` : ''}</p>
-      <button type="button" class="icon-btn refresh-btn" data-action="refresh" aria-label="Refresh estimates" aria-disabled="${ui.loading}">${icon('refresh', { size: 20 })}</button>
-      <div class="segmented view-toggle" role="group" aria-label="View">${seg('list', 'List')}${seg('map', 'Map')}</div>
+  return `<div class="results-bar">
+      <p class="summary-line"><span class="sl-main">${total} bar${total === 1 ? '' : 's'} · ${sortLabel}</span>${refreshed ? `<span class="sl-upd">${refreshed}</span>` : ''}${excludedStale ? `<span>${excludedStale} out of date hidden</span>` : ''}</p>
+      <button type="button" class="icon-btn refresh-btn" data-action="refresh" aria-label="Refresh estimates" aria-disabled="${ui.loading}">${icon('refresh', { size: 18 })}</button>
     </div>`;
 }
 
@@ -162,20 +164,30 @@ export function renderExplore(ctx) {
   const area = ctx.explore.area ? areaLabel(ctx.explore.area) : 'New Brunswick';
   return `
     <div class="area-row">
-      <h1 class="area-title" id="page-h" tabindex="-1"><button type="button" class="area-pill" data-action="open-area" aria-haspopup="dialog" aria-label="Area: ${esc(areaLabel(ctx.explore.area))}. Change area">${icon('pinFill', { size: 24, cls: 'ic-pin' })}<span>${esc(area)}</span>${icon('chevronDown', { size: 22, cls: 'ic-chev' })}</button></h1>
+      <h1 class="area-title" id="page-h" tabindex="-1"><button type="button" class="area-pill" data-action="open-area" aria-haspopup="dialog" aria-label="Area: ${esc(areaLabel(ctx.explore.area))}. Change area"><span>${esc(area)}</span>${icon('chevronDown', { size: 28, cls: 'ic-chev' })}</button></h1>
     </div>
     ${exploreControls(ctx)}
     <div id="explore-banners">${exploreBanners(ctx)}</div>
     <div id="results" aria-busy="${ctx.ui.loading}">${exploreResults(ctx)}</div>
-    <p class="demo-caption">Example distances &amp; wait times. Distances are from a demo spot (${esc(DEMO_SPOT.label)}). Bar names are real; waits, prices and passes are simulated, and no bar is affiliated with Night Out.</p>`;
+    <p class="demo-caption"><b>Example distances, waits and deals.</b> Distances are straight-line from a demo spot (${esc(DEMO_SPOT.label)}). Bar names are real; waits, deals, prices and passes are simulated, and no bar is affiliated with Night Out.</p>`;
 }
 
-/** Area picker sheet (no GPS: Night Out never asks for your location). */
-export function areaSheet(current) {
+/** Area picker sheet (no GPS: Night Out never asks for your location). Counts are bars in each area. */
+export function areaSheet(current, venues = []) {
+  const n = (a) => (a.match ? venues.filter((v) => v.area === a.match).length : venues.length);
   return `<div class="sheet-head"><h2 class="sheet-title" id="picker-title">Choose an area</h2>
       <button type="button" class="icon-btn sheet-close" data-action="close-picker" aria-label="Close">${icon('x')}</button></div>
     <div class="sheet-body"><fieldset><legend class="sr-only">Area</legend><div class="option-list">
-      ${AREAS.map((a) => `<label class="option-row"><input type="radio" name="area" value="${a.id}" data-input="area" ${a.id === (current || '') ? 'checked' : ''}><span>${esc(a.label)}</span>${icon('check', { size: 18, cls: 'option-check' })}</label>`).join('')}
+      ${AREAS.map((a) => `<label class="option-row"><input type="radio" name="area" value="${a.id}" data-input="area" ${a.id === (current || '') ? 'checked' : ''}><span class="rd" aria-hidden="true">${icon('check')}</span><span>${esc(a.label)}</span><span class="n" aria-hidden="true">${n(a)}</span></label>`).join('')}
     </div></fieldset>
     <p class="hint">${icon('pin', { size: 14 })} Night Out doesn’t use your location. Distances are measured in a straight line from a demo starting spot, ${esc(DEMO_SPOT.label)}.</p></div>`;
+}
+
+/** Sort sheet (replaces the native select so the chip matches the filters). */
+export function sortSheet(current) {
+  return `<div class="sheet-head"><h2 class="sheet-title" id="picker-title">Sort bars</h2>
+      <button type="button" class="icon-btn sheet-close" data-action="close-picker" aria-label="Close">${icon('x')}</button></div>
+    <div class="sheet-body"><fieldset><legend class="sr-only">Sort</legend><div class="option-list">
+      ${SORTS.map((o) => `<label class="option-row"><input type="radio" name="sort" value="${o.id}" data-input="sort-choice" ${o.id === current ? 'checked' : ''}><span class="rd" aria-hidden="true">${icon('check')}</span><span>${esc(o.label)}</span></label>`).join('')}
+    </div></fieldset></div>`;
 }

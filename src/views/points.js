@@ -31,19 +31,17 @@ export function renderPoints(ctx) {
     <ul class="reward-grid">
       ${REWARDS.map((r) => {
         const short = r.cost - balance;
-        return `<li class="reward">
-          <span class="reward-icon">${icon(r.icon, { size: 22 })}</span>
-          <p class="reward-title">${esc(r.title)}</p>
-          <p class="reward-detail">${esc(r.detail)}</p>
-          <p class="reward-cost num">${fmt(r.cost)} pts</p>
-          <button type="button" class="btn btn-sm ${short <= 0 ? 'btn-primary' : ''}" data-action="redeem" data-id="${r.id}" ${short > 0 ? 'aria-disabled="true"' : ''} aria-label="${short > 0 ? `${esc(r.title)}: need ${fmt(short)} more points` : `Redeem ${esc(r.title)} for ${fmt(r.cost)} points`}">${short > 0 ? `Need ${fmt(short)} more` : 'Redeem'}</button>
+        return `<li class="reward${short > 0 ? ' is-short' : ''}">
+          <span class="reward-icon">${icon(r.icon, { size: 20 })}</span>
+          <span><p class="reward-title">${esc(r.title)}</p><p class="reward-detail">${esc(r.detail)}</p></span>
+          <span class="reward-side"><span class="reward-cost num">${fmt(r.cost)}<small>pts</small></span>
+            <button type="button" class="btn btn-sm ${short <= 0 ? 'btn-primary' : ''}" data-action="redeem" data-id="${r.id}" ${short > 0 ? 'aria-disabled="true"' : ''} aria-label="${short > 0 ? `${esc(r.title)}: need ${fmt(short)} more points` : `Redeem ${esc(r.title)} for ${fmt(r.cost)} points`}">${short > 0 ? `Need ${fmt(short)}` : 'Redeem'}</button></span>
         </li>`;
       }).join('')}
       <li class="reward is-locked">
-        <span class="reward-icon">${icon('lock', { size: 22 })}</span>
-        <p class="reward-title">Drinks</p>
-        <p class="reward-detail">${esc(DRINKS_LOCK)}</p>
-        <p class="reward-cost">Not available</p>
+        <span class="reward-icon">${icon('lock', { size: 20 })}</span>
+        <span><p class="reward-title">No alcohol rewards</p><p class="reward-detail">${esc(DRINKS_LOCK)}</p></span>
+        <span class="reward-side"><span class="reward-cost">Not available</span></span>
       </li>
     </ul>
     <p class="hint">Rewards are simulated: no bar has agreed to honor them, and none can be used toward alcoholic beverages. Line cuts and VIP entry would always depend on the venue, ID checks and capacity.</p>
