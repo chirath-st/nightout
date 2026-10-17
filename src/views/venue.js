@@ -1,4 +1,5 @@
-import { esc, estimateBlock, estimateRing, saveButton, stateBox, windowLabel, coverText, venuePhoto, venueLogo } from '../ui/components.js';
+import { esc, estimateBlock, estimateRing, saveButton, stateBox, windowLabel, coverText, venuePhoto, venueLogo, distanceText } from '../ui/components.js';
+import { DEMO_SPOT } from '../lib/geo.js';
 import { icon } from '../ui/icons.js';
 import { venueArt } from '../ui/art.js';
 import { isOpenAt } from '../lib/explore.js';
@@ -64,7 +65,7 @@ export function renderVenue(ctx, id) {
   const hoursShort = venue.closedTonight ? 'Closed tonight' : venue.hours ? `${to12(venue.hours.open)}–${to12(venue.hours.close)}` : null;
   return `<div class="page detail">
     <div class="detail-hero" data-hero="${esc(venue.id)}">${venuePhoto(venue, { title: true })}
-      <a class="back-link hero-btn mobile-only" href="${ctx.backHref}" data-action="back" aria-label="Back to ${esc(ctx.backLabel)}">${icon('chevronLeft', { size: 22 })}</a>
+      <a class="back-link hero-btn" href="${ctx.backHref}" data-action="back" aria-label="Back to ${esc(ctx.backLabel)}">${icon('chevronLeft', { size: 22 })}</a>
       ${saveButton(venue, saved, 'save-detail hero-btn')}
       <span class="hero-caption">${icon('info', { size: 14, cls: 'hero-caption-icon' })}<span>${venue.photo ? esc(venue.photoCredit ? `Photo: ${venue.photoCredit}` : 'Photo used with permission') : 'Illustration, not a photo'}</span></span>
       <div class="hero-title"><span class="bar-logo hero-logo" aria-hidden="true">${venueLogo(venue)}</span><h1 class="hero-name" id="page-h" tabindex="-1">${esc(venue.name)}</h1></div>
@@ -73,6 +74,7 @@ export function renderVenue(ctx, id) {
     <div class="detail-head">
       <p class="detail-kind">${esc(kind)}</p>
       <p class="detail-line">${esc([venue.address, venue.area].filter(Boolean).join(' · ') || 'Address not listed')}</p>
+      ${distanceText(venue) ? `<p class="detail-line detail-dist">${icon('pinFill', { size: 16 })}<span><strong>${esc(distanceText(venue))}</strong> from ${esc(DEMO_SPOT.label)} (demo starting spot, straight line)</span></p>` : ''}
       <p class="detail-line"><strong>${esc(openText)}</strong>${hoursShort ? `<span class="sep" aria-hidden="true">•</span>${esc(hoursShort)} (simulated)` : ''}</p>
       <p class="affiliation">${icon('info', { size: 14 })}<span>Not affiliated with Night Out. Wait, price and pass details on this page are simulated.</span></p>
       ${venue.blurb ? `<p class="detail-blurb">${esc(venue.blurb)}</p>` : ''}

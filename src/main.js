@@ -7,7 +7,7 @@ import { resolveVenues, diffQueue } from './lib/model.js';
 import { parseHash, buildHash, exploreStateFromQuery, exploreQuery } from './lib/router.js';
 import { FILTERS, SORTS, exploreList } from './lib/explore.js';
 import { windowState, purchasable, createPass, maxPartyFor, passStatus, money, refCode } from './lib/pass.js';
-import { estimateCompact, estimateBlock, estimateRing, estimateFor, demoChip, esc, venueRow, estimatePill, cardMeta, srSummary } from './ui/components.js';
+import { estimateCompact, estimateBlock, estimateRing, estimateFor, demoChip, esc, venueRow, cardStatus, srSummary } from './ui/components.js';
 import { icon } from './ui/icons.js';
 import { renderExplore, exploreResults, exploreBanners, pinParts, areaSheet } from './views/explore.js';
 import { renderGroups, renderGroupNew, validateGroup } from './views/groups.js';
@@ -28,7 +28,7 @@ const app = {
   state: null,
   venues: [],
   route: null,
-  explore: { q: '', filters: [], sort: 'wait', view: 'list', area: '' },
+  explore: { q: '', filters: [], sort: 'near', view: 'list', area: '' },
   lastExploreHash: '#/',
   lastVenueId: null,
   ui: { loading: true, refreshError: false, lastRefreshAt: null, searchOpen: false, mapSelected: null, staleNotice: null, lastRemoved: null, resetSnapshot: null, clearedQueue: null },
@@ -403,7 +403,7 @@ function tick() {
     if (!v) return;
     const before = el.dataset.tone;
     const variant = el.dataset.variant;
-    const html = variant === 'pill' ? estimatePill(v, n) : variant === 'cardmeta' ? cardMeta(v, n) : variant === 'sr' ? srSummary(v, n)
+    const html = variant === 'status' ? cardStatus(v, n) : variant === 'sr' ? srSummary(v, n)
       : variant === 'ring' ? estimateRing(v, n, { size: Number(el.dataset.size) || 56 })
       : el.dataset.variant === 'block'
       ? estimateBlock(v, n, { headingId: el.getAttribute('aria-labelledby') || 'qb-h', showHow: !!el.querySelector('details.how'), headingLevel: Number(el.dataset.level) || 2 })

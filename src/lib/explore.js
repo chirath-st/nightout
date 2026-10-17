@@ -1,5 +1,6 @@
 // Pure search / filter / sort for the Tonight list. No DOM access, so it is unit-tested directly.
 import { describeEstimate } from './queue.js';
+import { distanceTo, DEMO_SPOT } from './geo.js';
 
 const toMinutes = (hhmm) => {
   const [h, m] = hhmm.split(':').map(Number);
@@ -25,6 +26,7 @@ export const FILTERS = Object.freeze([
 ]);
 
 export const SORTS = Object.freeze([
+  { id: 'near', label: 'Nearest' },
   { id: 'wait', label: 'Shortest wait' },
   { id: 'name', label: 'A–Z' },
 ]);
@@ -52,7 +54,7 @@ export const AREAS = Object.freeze([
 ]);
 export const areaLabel = (id) => AREAS.find((a) => a.id === (id || ''))?.label ?? AREAS[0].label;
 
-export function exploreList(venues, { q = '', filters = [], sort = 'wait', area = '' } = {}, now, savedIds = new Set()) {
+export function exploreList(venues, { q = '', filters = [], sort = 'wait', area = '' } = {}, now, savedIds = new Set(), { from = DEMO_SPOT } = {}) {
   const areaMatch = AREAS.find((a) => a.id === area)?.match;
   const active = new Set(filters);
   let excludedStale = 0;
@@ -69,17 +71,18 @@ export function exploreList(venues, { q = '', filters = [], sort = 'wait', area 
       if (est.tone === 'stale') excludedStale += 1;
       continue;
     }
-    rows.push({ venue, est, open });
+    rows.push({ venue, est, open, miles: distanceTo(venue, from) });
   }
   const byName = (a, b) => a.venue.name.localeCompare(b.venue.name);
+  if (sort === 'near' || sort === 'name') {
+    // One list (the mockup's grid): nearest first, or A–Z. Unknown waits stay in place with their own label.
+    const byNear = (a, b) => (a.miles ?? Infinity) - (b.miles ?? Infinity) || byName(a, b);
+    rows.sort(sort === 'near' ? byNear : byName);
+    return { results: rows, unknown: [], total: rows.length, excludedStale };
+  }
   const known = rows.filter((r) => r.est.sortRank <= 3);
   const unknown = rows.filter((r) => r.est.sortRank > 3);
-  if (sort === 'name') {
-    known.sort(byName);
-    unknown.sort(byName);
-  } else {
-    known.sort((a, b) => a.est.sortRank - b.est.sortRank || (a.est.waitLow ?? 999) - (b.est.waitLow ?? 999) || byName(a, b));
-    unknown.sort((a, b) => a.est.sortRank - b.est.sortRank || byName(a, b));
-  }
+  known.sort((a, b) => a.est.sortRank - b.est.sortRank || (a.est.waitLow ?? 999) - (b.est.waitLow ?? 999) || byName(a, b));
+  unknown.sort((a, b) => a.est.sortRank - b.est.sortRank || byName(a, b));
   return { results: known, unknown, total: known.length + unknown.length, excludedStale };
 }

@@ -31,6 +31,20 @@ const SRC = {
   directory: 'New Brunswick City Market directory, "Nightlife, Bars & Taverns" (2026)',
 };
 
+// Bar coordinates (2026-10-17, checked twice): an OpenStreetMap point named for the bar, a New Jersey
+// (NJOGIS) address point, or the US Census Bureau geocoder's address match, in that order of preference.
+// Approximate (no venue-level source; may be off by up to ~100 m): Knights Public House, Batch Bin &
+// Barrel, Esquina Latina; Glass Woods Tavern is the Hyatt building's center. Used only for straight-line
+// distance from the demo spot; sources in research/claude-raw/geo-and-deals.md.
+const GEO = {
+  'olde-queens': [40.49887, -74.45207], 'scarlet-pub': [40.49960, -74.45290], 'ale-n-wich': [40.49626, -74.45610],
+  'hueys-knight-club': [40.49972, -74.45430], 'old-man-raffertys': [40.49657, -74.44380], 'knights-public-house': [40.49679, -74.44710],
+  evelyns: [40.49798, -74.44875], 'pitch-social': [40.49793, -74.44966], 'tavern-on-george': [40.49497, -74.44372],
+  'frog-and-peach': [40.49503, -74.44073], 'fat-cactus': [40.49460, -74.44395], roosterspin: [40.49636, -74.44539],
+  'destination-dogs': [40.49470, -74.44819], 'esquina-latina': [40.49393, -74.44219], 'batch-bin-barrel': [40.49642, -74.44321],
+  'glass-woods-tavern': [40.49630, -74.44104], deltas: [40.49467, -74.44077],
+};
+
 const BASE = [
   {
     id: 'olde-queens', name: 'Olde Queens Tavern', area: 'Easton Ave', address: '108 Easton Ave', tags: ['College bar', 'Themed nights'],
@@ -242,6 +256,8 @@ function materialize(raw, demoStart, syncAt = demoStart) {
       })),
     };
   }
+  const g = GEO[v.id];
+  v.geo = g ? { lat: g[0], lng: g[1] } : null;
   v.synthetic = true;
   return v;
 }
@@ -268,7 +284,7 @@ function worstCase(demoStart, syncAt) {
   nothing.address = null; nothing.source = null;
   nothing.name = 'Missing Everything';
   nothing.hours = null; nothing.cover = null; nothing.menu = []; nothing.tags = []; nothing.blurb = '';
-  nothing.area = null; nothing.palette = null; nothing.typical = null;
+  nothing.area = null; nothing.palette = null; nothing.typical = null; nothing.geo = null;
   for (const v of base) if (v.queue) v.queue.observedAt = syncAt - 90 * MIN;
   return [long, one, nothing, ...base];
 }

@@ -103,14 +103,15 @@ let artSeq = 0; // unique gradient ids when the same venue is drawn twice on a p
  * awning, neon sign color). It is not a picture of the real place. If the team later gets permission to
  * use a venue's real photo, set `venue.photo` (a local path) and it replaces this.
  */
-export function facadeArt(venue, { title = false } = {}) {
+/** `anchor: 'bottom'` keeps the storefront (door, awning) in wide crops such as the card's 4:3 photo slot. */
+export function facadeArt(venue, { title = false, anchor = 'middle' } = {}) {
   const c = venue.palette ?? ['#23262D', '#9AA3B2', '#E6E8EC', '#30343C'];
   const r = rng(`${venue.id}-facade`);
   const id = `fa${(artSeq += 1)}`;
   const neon = c[1];
   const t = title ? `<title>Illustration for ${venue.name} (not a photo)</title>` : '';
   const a11y = title ? 'role="img"' : 'aria-hidden="true" focusable="false"';
-  let s = `<svg viewBox="0 0 200 240" preserveAspectRatio="xMidYMid slice" ${a11y}>${t}
+  let s = `<svg viewBox="0 0 200 240" preserveAspectRatio="xMid${anchor === 'bottom' ? 'YMax' : 'YMid'} slice" ${a11y}>${t}
     <defs>
       <linearGradient id="${id}s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#05060A"/><stop offset="1" stop-color="${c[3]}"/></linearGradient>
       <radialGradient id="${id}g" cx=".5" cy="0" r="1"><stop offset="0" stop-color="${neon}" stop-opacity=".55"/><stop offset="1" stop-color="${neon}" stop-opacity="0"/></radialGradient>

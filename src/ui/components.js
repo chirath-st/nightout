@@ -7,6 +7,7 @@ import { passStatus, PASS_STATUS_COPY, money, dollars } from '../lib/pass.js';
 import { formatTime } from '../lib/clock.js';
 import { icon, TONE_ICON, TONE_LABEL } from './icons.js';
 import { facadeArt, monogram } from './art.js';
+import { distanceTo, formatMiles, DEMO_SPOT } from '../lib/geo.js';
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -78,7 +79,7 @@ export function estimateBlock(venue, now, { headingId = 'qb-h', showHow = true, 
   return `<section class="queue-block" data-est="${esc(venue.id)}" data-variant="block" data-tone="${est.tone}" data-level="${headingLevel}" aria-labelledby="${headingId}">
     <div class="qb-top">
       <${h} class="qb-label" id="${headingId}">Estimated wait at the door</${h}>
-      <span class="qb-tags">${toneBadge(est.tone)}<span class="demo-tag">Demo data</span></span>
+      <span class="qb-tags"><span class="crowd-chip" data-level="${crowdStatus(est).level}">${icon(crowdStatus(est).icon, { size: 16 })}${esc(crowdStatus(est).label)}</span>${toneBadge(est.tone)}<span class="demo-tag">Demo data</span></span>
     </div>
     <p class="qb-wait">${esc(big)}${unit ? `<small>${unit}</small>` : ''}</p>
     ${est.detail ? `<p class="qb-detail">${esc(est.detail)}</p>` : ''}
@@ -102,61 +103,78 @@ export function howItWorks() {
     </ul></details>`;
 }
 
-/** Wait level for the card dot: by wait length when the estimate is usable; neutral otherwise. */
-export function waitLevel(est) {
-  if (est.tone === 'closed') return 'closed';
-  if (est.tone === 'stale' || est.tone === 'unknown') return 'none';
-  if (est.tone === 'capacity') return 'high';
-  if (est.tone === 'paused') return 'paused';
-  if (est.waitHigh == null) return 'none';
-  return est.waitHigh <= 15 ? 'low' : est.waitHigh <= 30 ? 'mid' : 'high';
+/**
+ * Crowd status for the card's bottom bar (team mockup): Quiet / Lively / Packed by the TOP of the wait
+ * range (Quiet <=5 min, Lively <=15, Packed longer), plus the range in words. Color is never the only
+ * cue: every state has a word, an icon shape and a sub-line. States without a usable range say so.
+ */
+export function crowdStatus(est) {
+  switch (est.tone) {
+    case 'closed': return { level: 'closed', label: 'Closed', sub: 'Not open now', icon: 'closed' };
+    case 'paused': return { level: 'paused', label: 'Paused', sub: 'Entry paused', icon: 'pause' };
+    case 'capacity': return { level: 'packed', label: 'Full', sub: 'At capacity', icon: 'crowd3' };
+    case 'stale': return { level: 'none', label: 'No update', sub: 'Out of date', icon: 'help' };
+    case 'unknown': return { level: 'none', label: 'No reports', sub: 'Wait unknown', icon: 'help' };
+    default: break;
+  }
+  if (est.waitHigh == null) return { level: 'none', label: 'Unclear', sub: 'Reports disagree', icon: 'uncertain' };
+  const level = est.waitHigh <= 5 ? 'quiet' : est.waitHigh <= 15 ? 'lively' : 'packed';
+  return {
+    level,
+    label: { quiet: 'Quiet', lively: 'Lively', packed: 'Packed' }[level],
+    sub: est.waitHigh <= 2 ? 'No wait' : `${est.waitLow}–${est.waitHigh} min wait`,
+    icon: level === 'quiet' ? 'crowd1' : 'crowd3',
+    maybe: est.tone === 'aging' || est.tone === 'uncertain',
+  };
 }
-const PILL_WORD = { closed: 'Closed', paused: 'Paused', capacity: 'Full', stale: 'Out of date', unknown: 'No reports' };
 
-/** Dot + text pill at the photo's bottom right (the sketch's crowd dot, with words so color isn't the only cue). */
-export function estimatePill(venue, now) {
+/** The card's bottom bar: crowd icon | word + wait. Visual only; the text twin is srSummary. */
+export function cardStatus(venue, now) {
   const est = estimateFor(venue, now);
-  const level = waitLevel(est);
-  const text = est.waitLow != null && !['closed', 'paused', 'capacity', 'stale', 'unknown'].includes(est.tone)
-    ? `${est.waitLow}–${est.waitHigh} min` : (PILL_WORD[est.tone] ?? 'Unclear');
-  return `<span class="wait-pill" data-est="${esc(venue.id)}" data-variant="pill" data-tone="${est.tone}" data-level="${level}" aria-hidden="true"><span class="wait-dot"></span>${esc(text)}</span>`;
+  const st = crowdStatus(est);
+  return `<span class="card-status" data-est="${esc(venue.id)}" data-variant="status" data-tone="${est.tone}" data-level="${st.level}"${st.maybe ? ' data-maybe' : ''} aria-hidden="true">
+    <span class="cs-icon">${icon(st.icon, { size: 26 })}</span><span class="cs-text"><b>${esc(st.label)}</b><small>${esc(st.sub)}</small></span>
+  </span>`;
 }
 
-/** Freshness line under the name: area, then how old the report is (the trust signal). */
-export function cardMeta(venue, now) {
-  const est = estimateFor(venue, now);
-  const when = est.tone === 'closed' ? 'Closed now'
-    : est.observedAt == null ? 'No reports yet'
-    : `${est.ageLabel}${est.tone === 'aging' ? ' · may have changed' : ''}`;
-  return `<span class="bar-meta" data-est="${esc(venue.id)}" data-variant="cardmeta" data-tone="${est.tone}">${esc([venue.area, when].filter(Boolean).join(' · '))}</span>`;
+/** Distance line for the card's top right and the venue page. */
+export function distanceText(venue, from = DEMO_SPOT) {
+  return formatMiles(distanceTo(venue, from));
 }
 
 export function srSummary(venue, now) {
   const est = estimateFor(venue, now);
+  const st = crowdStatus(est);
   const showPeople = est.peopleLabel && !['stale', 'unknown', 'closed'].includes(est.tone);
-  const text = `${est.headline}. ${showPeople ? `${est.peopleLabel}. ` : ''}${est.detail ? `${est.detail}. ` : ''}${est.observedAt != null ? `${est.sourceLabel}, ${est.ageLabel}.` : ''} Demo data.`;
+  const dist = distanceText(venue);
+  const text = `${st.label}: ${est.headline}. ${est.tone === 'aging' ? 'May have changed. ' : ''}${showPeople ? `${est.peopleLabel}. ` : ''}${est.detail ? `${est.detail}. ` : ''}${est.observedAt != null ? `${est.sourceLabel}, ${est.ageLabel}.` : ''}${dist ? ` ${dist} from the demo spot.` : ''} Demo data.`;
   return `<span class="sr-only" data-est="${esc(venue.id)}" data-variant="sr" data-tone="${est.tone}">${esc(text)}</span>`;
 }
 
-/** Photo slot: the venue's own photo when the team has permission (venue.photo), else the drawn storefront. */
-export function venuePhoto(venue, { title = false } = {}) {
-  return venue.photo ? `<img src="${esc(venue.photo)}" alt="${title ? esc(`Photo of ${venue.name}`) : ''}" loading="lazy" decoding="async">` : facadeArt(venue, { title });
+/** Photo slot: the venue's own photo when licensed or permitted (venue.photo), else the drawn storefront. */
+export function venuePhoto(venue, { title = false, anchor } = {}) {
+  return venue.photo ? `<img src="${esc(venue.photo)}" alt="${title ? esc(`Photo of ${venue.name}`) : ''}" loading="lazy" decoding="async">` : facadeArt(venue, { title, anchor });
 }
-/** Logo slot: the bar's logo when permitted (venue.logo), else an initials badge. */
+/** Logo slot: the bar's logo only with the bar's permission (venue.logo), else an initials badge. */
 export function venueLogo(venue) {
   return venue.logo ? `<img src="${esc(venue.logo)}" alt="" loading="lazy">` : `<span class="mono">${esc(monogram(venue))}</span>`;
 }
 
-/** Bar card for the home grid and Saved: photo with logo badge and wait pill, then name and freshness. */
-export function venueCard(venue, now, { saved = false, selected = false } = {}) {
-  return `<li class="bar-card${selected ? ' is-selected' : ''}" data-venue-row="${esc(venue.id)}">
-    <a class="bar-link" href="#/venue/${encodeURIComponent(venue.id)}" data-nav-venue="${esc(venue.id)}" ${selected ? 'aria-current="true"' : ''}>
-      <span class="bar-photo" data-thumb="${esc(venue.id)}">${venuePhoto(venue)}<span class="bar-logo" aria-hidden="true">${venueLogo(venue)}</span>${estimatePill(venue, now)}</span>
+/**
+ * Bar card (team mockup): logo top left, distance top right, name, photo, crowd status bar.
+ * `save` adds the Save toggle (Saved page only; the home grid matches the mockup without it).
+ */
+export function venueCard(venue, now, { saved = false, save = false } = {}) {
+  const dist = distanceText(venue);
+  return `<li class="bar-card" data-venue-row="${esc(venue.id)}" data-area="${esc(venue.area ?? '')}">
+    <a class="bar-link" href="#/venue/${encodeURIComponent(venue.id)}" data-nav-venue="${esc(venue.id)}">
+      <span class="card-top"><span class="bar-logo" aria-hidden="true">${venueLogo(venue)}</span><span class="card-dist">${icon('pinFill', { size: 16 })}${dist ? `${esc(dist)}<span class="dist-away">away</span>` : 'n/a'}</span></span>
       <span class="bar-name">${esc(venue.name)}</span>
-      ${cardMeta(venue, now)}
+      <span class="bar-photo" data-thumb="${esc(venue.id)}">${venuePhoto(venue, { anchor: 'bottom' })}</span>
+      ${cardStatus(venue, now)}
       ${srSummary(venue, now)}
     </a>
-    ${saveButton(venue, saved, 'save card-save')}
+    ${save ? saveButton(venue, saved, 'save card-save') : ''}
   </li>`;
 }
 

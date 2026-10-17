@@ -2,6 +2,7 @@ import { exploreList, FILTERS, SORTS, AREAS, areaLabel } from '../lib/explore.js
 import { esc, venueRow, venueCard, stateBox, banner, estimateFor } from '../ui/components.js';
 import { icon, TONE_LABEL } from '../ui/icons.js';
 import { formatTime } from '../lib/clock.js';
+import { DEMO_SPOT } from '../lib/geo.js';
 
 // Schematic positions (percent of the map box), roughly by street. Not to scale; no distances implied.
 // Laid out in columns at least 80 px apart at 320 px so no two pins overlap.
@@ -55,7 +56,7 @@ function resultsBar(ctx, { total, sortLabel, excludedStale }) {
     ? `<p class="filter-summary"><span>Showing ${active.join(' + ')}</span><button type="button" class="btn btn-sm" data-action="clear-all">Clear</button></p>` : '';
   const seg = (view, label) => `<button type="button" data-action="set-view" data-view="${view}" aria-pressed="${explore.view === view}">${icon(view === 'map' ? 'map' : 'list', { size: 16 })}${label}</button>`;
   return `${showing}<div class="results-bar">
-      <p class="summary-line"><span>${total} bar${total === 1 ? '' : 's'} · ${sortLabel}</span>${refreshed ? `<span aria-hidden="true">·</span><span>${refreshed}</span>` : ''}${excludedStale ? `<span aria-hidden="true">·</span><span>${excludedStale} out of date hidden</span>` : ''}</p>
+      <p class="summary-line"><span>${total} bar${total === 1 ? '' : 's'} · ${sortLabel}</span>${refreshed ? `<span>${refreshed}</span>` : ''}${excludedStale ? `<span>${excludedStale} out of date hidden</span>` : ''}</p>
       <button type="button" class="icon-btn refresh-btn" data-action="refresh" aria-label="Refresh estimates" aria-disabled="${ui.loading}">${icon('refresh', { size: 20 })}</button>
       <div class="segmented view-toggle" role="group" aria-label="View">${seg('list', 'List')}${seg('map', 'Map')}</div>
     </div>`;
@@ -86,7 +87,7 @@ export function exploreResults(ctx) {
     return stateBox({ iconName: 'help', title: 'No venues in this dataset', body: 'The demo dataset is empty. Restore the sample venues to continue.', actions: '<button type="button" class="btn btn-primary" data-action="dataset" data-kind="demo">Restore demo venues</button>' });
   }
   const { results, unknown, total, excludedStale } = exploreList(venues, explore, now, savedSet);
-  const sortLabel = explore.sort === 'name' ? 'A–Z' : 'shortest wait first';
+  const sortLabel = { near: 'nearest first', name: 'A–Z', wait: 'shortest wait first' }[explore.sort] ?? 'nearest first';
   if (total === 0) {
     const bits = [];
     if (explore.q) bits.push(`“${esc(explore.q)}”`);
@@ -101,6 +102,7 @@ export function exploreResults(ctx) {
   const summary = resultsBar(ctx, { total, sortLabel, excludedStale });
   if (explore.view === 'map') return summary + mapView(ctx, results.concat(unknown));
   const list = (rows) => `<ul class="bar-grid">${rows.map((r) => venueCard(r.venue, now, { saved: savedSet.has(r.venue.id) })).join('')}</ul>`;
+  if (explore.sort !== 'wait') return `${summary}${list(results)}`;
   return `${summary}
     ${results.length ? `<h2 class="group-title">Estimated waits <small>${results.length}</small></h2>${list(results)}` : ''}
     ${unknown.length ? `<h2 class="group-title">No current wait estimate <small>${unknown.length}</small></h2>${list(unknown)}` : ''}`;
@@ -169,7 +171,7 @@ export function renderExplore(ctx) {
     ${exploreControls(ctx)}
     <div id="explore-banners">${exploreBanners(ctx)}</div>
     <div id="results" aria-busy="${ctx.ui.loading}">${exploreResults(ctx)}</div>
-    <p class="demo-caption">Example wait times. Bar names are real; waits, prices and passes are simulated, and no bar is affiliated with Night Out.</p>`;
+    <p class="demo-caption">Example distances &amp; wait times. Distances are from a demo spot (${esc(DEMO_SPOT.label)}). Bar names are real; waits, prices and passes are simulated, and no bar is affiliated with Night Out.</p>`;
 }
 
 /** Area picker sheet (no GPS: Night Out never asks for your location). */
@@ -179,5 +181,5 @@ export function areaSheet(current) {
     <div class="sheet-body"><fieldset><legend class="sr-only">Area</legend><div class="option-list">
       ${AREAS.map((a) => `<label class="option-row"><input type="radio" name="area" value="${a.id}" data-input="area" ${a.id === (current || '') ? 'checked' : ''}><span>${esc(a.label)}</span>${icon('check', { size: 18, cls: 'option-check' })}</label>`).join('')}
     </div></fieldset>
-    <p class="hint">${icon('pin', { size: 14 })} Night Out doesn’t use your location. Pick the area you’re heading to.</p></div>`;
+    <p class="hint">${icon('pin', { size: 14 })} Night Out doesn’t use your location. Distances are measured in a straight line from a demo starting spot, ${esc(DEMO_SPOT.label)}.</p></div>`;
 }

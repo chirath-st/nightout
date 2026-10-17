@@ -59,9 +59,12 @@ export function buildHash(name, params = {}, query = {}) {
 /** Explore query <-> state. Filters are a comma list; unknown ids are dropped. */
 export const AREA_IDS = Object.freeze(['easton', 'college', 'downtown']);
 
+/** Nearest first by default (team mockup: cards ordered 0.2, 0.3, 0.4 mi…). */
+export const DEFAULT_SORT = 'near';
+
 export function exploreStateFromQuery(query, validFilters, validSorts) {
   const filters = (query.f || '').split(',').filter((f) => validFilters.includes(f));
-  const sort = validSorts.includes(query.sort) ? query.sort : 'wait';
+  const sort = validSorts.includes(query.sort) ? query.sort : DEFAULT_SORT;
   const view = query.view === 'map' ? 'map' : 'list';
   const area = AREA_IDS.includes(query.area) ? query.area : '';
   return { q: query.q || '', filters, sort, view, area };
@@ -71,7 +74,7 @@ export function exploreQuery({ q, filters, sort, view, area }) {
   return {
     q: q || '',
     f: filters.length ? filters.join(',') : '',
-    sort: sort && sort !== 'wait' ? sort : '',
+    sort: sort && sort !== DEFAULT_SORT ? sort : '',
     view: view === 'map' ? 'map' : '',
     area: area || '',
   };

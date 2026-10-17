@@ -16,7 +16,7 @@ export function renderSaved(ctx) {
     ${missing ? banner('info', 'info', `<p>${missing} saved venue${missing === 1 ? ' isn’t' : 's aren’t'} in the current demo dataset. ${missing === 1 ? 'It comes' : 'They come'} back when you switch to the demo venues.</p>`, ctx.state.dataset !== 'demo' ? '<button type="button" class="btn" data-action="dataset" data-kind="demo">Switch to demo venues</button>' : '') : ''}
     ${ctx.ui.lastRemoved && ctx.ui.lastRemoved.visit === ctx.visit ? `<div class="undo-row" role="status"><span>Removed ${esc(ctx.ui.lastRemoved.name)}.</span><button type="button" class="btn btn-quiet" data-action="undo-remove">Undo</button></div>` : ''}
     ${saved.length
-      ? `<ul class="bar-grid" style="margin-top:var(--s-4)">${saved.map((v) => venueCard(v, ctx.now, { saved: true })).join('')}</ul>
+      ? `<ul class="bar-grid" style="margin-top:var(--s-4)">${saved.map((v) => venueCard(v, ctx.now, { saved: true, save: true })).join('')}</ul>
          <p class="hint" style="margin-top:12px">Estimates here use the same source, age and confidence rules as Tonight.</p>`
       : stateBox({ iconName: 'bookmark', title: 'Nothing saved yet', body: 'Save venues from Tonight to compare their waits here later.', actions: '<a class="btn btn-primary" href="#/">Browse bars</a>' })}
   </div>`;
