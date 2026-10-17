@@ -1,4 +1,4 @@
-import { exploreList, FILTERS, SORTS, AREAS, areaLabel } from '../lib/explore.js';
+import { exploreList, FILTERS, AREAS, areaLabel } from '../lib/explore.js';
 import { esc, venueRow, venueCard, stateBox, banner, estimateFor } from '../ui/components.js';
 import { icon, TONE_LABEL } from '../ui/icons.js';
 import { formatTime } from '../lib/clock.js';
@@ -23,16 +23,17 @@ function pinPos(id) {
   return [15 + (h % 70), 15 + ((h >>> 8) % 70)];
 }
 
-/** Filter chips with live counts (how many bars each filter alone would show). Re-rendered in place. */
+/** Sort row (team ask, 2026-10-17: "cleaner and simplified"): one segmented control, no counts. "Deals" shows only
+ * bars with a live deal, nearest first. A filter or A–Z order set by an older link shows as one removable chip. */
+export const QUICK_VIEWS = Object.freeze([['near', 'Nearest'], ['wait', 'Shortest wait'], ['deals', 'Deals']]);
+export const quickViewOf = ({ sort, filters }) => (filters.includes('deals') ? 'deals' : sort === 'wait' ? 'wait' : sort === 'name' ? null : 'near');
+
 export function exploreChips(ctx) {
-  const { filters, sort } = ctx.explore;
-  const count = (f) => exploreList(ctx.venues, { ...ctx.explore, filters: [f] }, ctx.now, ctx.savedSet).total;
-  const sortShort = { near: 'Nearest', wait: 'Shortest wait', name: 'A–Z' }[sort] ?? 'Nearest';
-  const chips = FILTERS.map((f) => `<button type="button" class="chip" data-action="toggle-filter" data-filter="${f.id}" aria-pressed="${filters.includes(f.id)}">${esc(f.label)} <span class="n" aria-hidden="true">${count(f.id)}</span></button>`).join('');
-  const clear = filters.length ? `<button type="button" class="chip chip-clear" data-action="clear-filters">Clear (${filters.length})</button>` : '';
-  return `<button type="button" class="chip chip-sort" data-action="open-sort" aria-haspopup="dialog" aria-label="Sort: ${esc(sortShort)}. Change sort">${icon('sort', { size: 16 })}${esc(sortShort)}${icon('chevronDown', { size: 14 })}</button>
-      <span class="chip-divider" aria-hidden="true"></span>
-      <span class="chip-group" role="group" aria-label="Filters">${chips}${clear}</span>`;
+  const current = quickViewOf(ctx.explore);
+  const extra = FILTERS.filter((f) => f.id !== 'deals' && ctx.explore.filters.includes(f.id))
+    .map((f) => `<button type="button" class="chip chip-x" data-action="toggle-filter" data-filter="${f.id}" aria-label="Remove filter: ${esc(f.label)}">${esc(f.label)}${icon('x', { size: 14 })}</button>`);
+  if (ctx.explore.sort === 'name') extra.push(`<button type="button" class="chip chip-x" data-action="quick-view" data-view="near" aria-label="Remove A–Z order">A–Z${icon('x', { size: 14 })}</button>`);
+  return `<div class="sort-seg" role="group" aria-label="Show bars">${QUICK_VIEWS.map(([id, label]) => `<button type="button" data-action="quick-view" data-view="${id}" aria-pressed="${current === id}">${label}</button>`).join('')}</div>${extra.join('')}`;
 }
 
 /** Search field (always visible: the team's sketch puts search up top), the Map toggle and the chips. */
@@ -184,10 +185,3 @@ export function areaSheet(current, venues = []) {
 }
 
 /** Sort sheet (replaces the native select so the chip matches the filters). */
-export function sortSheet(current) {
-  return `<div class="sheet-head"><h2 class="sheet-title" id="picker-title">Sort bars</h2>
-      <button type="button" class="icon-btn sheet-close" data-action="close-picker" aria-label="Close">${icon('x')}</button></div>
-    <div class="sheet-body"><fieldset><legend class="sr-only">Sort</legend><div class="option-list">
-      ${SORTS.map((o) => `<label class="option-row"><input type="radio" name="sort" value="${o.id}" data-input="sort-choice" ${o.id === current ? 'checked' : ''}><span class="rd" aria-hidden="true">${icon('check')}</span><span>${esc(o.label)}</span></label>`).join('')}
-    </div></fieldset></div>`;
-}

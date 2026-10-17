@@ -79,7 +79,8 @@ export function exploreList(venues, { q = '', filters = [], sort = 'wait', area 
   const byName = (a, b) => a.venue.name.localeCompare(b.venue.name);
   if (sort === 'near' || sort === 'name') {
     // One list (the mockup's grid): nearest first, or A–Z. Unknown waits stay in place with their own label.
-    const byNear = (a, b) => (a.miles ?? Infinity) - (b.miles ?? Infinity) || byName(a, b);
+    // Closed bars sink to the bottom so "Nearest" leads with places you can go now.
+    const byNear = (a, b) => (a.open === false) - (b.open === false) || (a.miles ?? Infinity) - (b.miles ?? Infinity) || byName(a, b);
     rows.sort(sort === 'near' ? byNear : byName);
     return { results: rows, unknown: [], total: rows.length, excludedStale };
   }

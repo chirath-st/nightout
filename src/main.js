@@ -7,9 +7,9 @@ import { resolveVenues, diffQueue } from './lib/model.js';
 import { parseHash, buildHash, exploreStateFromQuery, exploreQuery } from './lib/router.js';
 import { FILTERS, SORTS, exploreList, areaLabel } from './lib/explore.js';
 import { windowState, purchasable, createPass, maxPartyFor, passStatus, money, refCode } from './lib/pass.js';
-import { estimateCompact, estimateBlock, estimateRing, estimateFor, demoChip, esc, venueRow, cardStatus, cardFresh, srSummary, dealTag, venueStatus } from './ui/components.js';
+import { estimateCompact, estimateBlock, estimateRing, estimateFor, pointsChip, esc, venueRow, cardStatus, cardFresh, srSummary, dealTag, venueStatus } from './ui/components.js';
 import { icon } from './ui/icons.js';
-import { renderExplore, exploreResults, exploreBanners, exploreChips, pinParts, areaSheet, sortSheet } from './views/explore.js';
+import { renderExplore, exploreResults, exploreBanners, exploreChips, pinParts, areaSheet } from './views/explore.js';
 import { renderGroups, renderGroupNew, validateGroup } from './views/groups.js';
 import { renderEvents, eventResults } from './views/events.js';
 import { renderScan, pickListItems, scanEstimate, scanSubmitReady, draftQueue } from './views/scan.js';
@@ -62,7 +62,7 @@ function init() {
   rebuild();
 }
 const now = () => demoNow(app.state.clock, Date.now());
-function persist() { save(storage, app.state); }
+function persist() { save(storage, app.state); updatePointsChip(); }
 function rebuild() {
   const base = buildDataset(app.state.dataset, app.state.clock.base, app.state.syncAt ?? app.state.clock.base);
   app.venues = resolveVenues(base, app.state.overrides, app.state.passes, app.state.deals);
@@ -173,8 +173,18 @@ function renderShell() {
   const tonightTab = document.querySelector('[data-tab="bars"]');
   if (tonightTab) tonightTab.setAttribute('href', app.lastExploreHash);
   updateBadge();
+  updatePointsChip();
+}
+/** Keep the top-right points chip in step with the ledger; a short pop when the balance changes. */
+function updatePointsChip() {
   const slot = document.getElementById('demo-slot');
-  if (!slot.firstElementChild) slot.innerHTML = demoChip(now());
+  if (!slot) return;
+  const bal = balanceOf(app.state.points);
+  const prev = slot.dataset.balance;
+  if (prev === String(bal) && slot.firstElementChild) return;
+  slot.innerHTML = pointsChip(bal);
+  slot.dataset.balance = String(bal);
+  if (prev != null && !reducedMotion()) slot.firstElementChild.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.12)' }, { transform: 'scale(1)' }], { duration: 320, easing: 'cubic-bezier(.2,.8,.2,1)' });
 }
 function updateBadge() {
   const active = app.state.passes.filter((p) => ['upcoming', 'active'].includes(passStatus(p, now()))).length;
@@ -1164,20 +1174,6 @@ function checkIn() {
   announce(`Checked in at ${v.name}. Plus ${POINTS.CHECKIN} demo points.`);
 }
 
-/* ---------------- sort sheet ---------------- */
-function openSortSheet() {
-  const dlg = document.getElementById('picker');
-  dlg.innerHTML = sortSheet(app.explore.sort);
-  dlg.showModal();
-  dlg.querySelector('input:checked')?.focus();
-}
-function chooseSort(id) {
-  app.explore.sort = id;
-  updateExploreUrl();
-  closePicker(() => document.querySelector('[data-action="open-sort"]')?.focus({ preventScroll: true }));
-  renderResultsOnly();
-}
-
 /* ---------------- area picker ---------------- */
 function openAreaPicker() {
   const dlg = document.getElementById('picker');
@@ -1237,8 +1233,21 @@ function handleAction(a, el) {
       app.ui.staleNotice = null;
       updateExploreUrl();
       renderResultsOnly();
-      document.querySelector('[data-action="toggle-filter"]')?.focus();
+      document.querySelector('[data-action="quick-view"][aria-pressed="true"]')?.focus();
       return true;
+    case 'quick-view': {
+      // Nearest / Shortest wait / Deals: one choice. Other filters from older links are kept.
+      const v = el.dataset.view;
+      const others = app.explore.filters.filter((f) => f !== 'deals');
+      app.explore.sort = v === 'wait' ? 'wait' : 'near';
+      app.explore.filters = v === 'deals' ? FILTER_IDS.filter((x) => x === 'deals' || others.includes(x)) : others;
+      app.ui.staleNotice = null;
+      updateExploreUrl();
+      renderResultsOnly();
+      document.querySelector(`[data-action="quick-view"][data-view="${v}"]`)?.focus({ preventScroll: true });
+      announce({ near: 'Nearest first', wait: 'Shortest wait first', deals: 'Bars with a deal now' }[v] ?? '');
+      return true;
+    }
     case 'clear-search': {
       app.explore.q = '';
       const input = document.getElementById('q');
@@ -1253,7 +1262,6 @@ function handleAction(a, el) {
       renderResultsOnly();
       return true;
     case 'focus-search': focusSearch(); return true;
-    case 'open-sort': openSortSheet(); return true;
     case 'clear-all':
       app.explore.q = '';
       app.explore.filters = [];
@@ -1512,7 +1520,6 @@ function onInput(e) {
 function onChange(e) {
   const t = e.target;
   switch (t.dataset.input) {
-    case 'sort-choice': chooseSort(t.value); break;
     case 'event-filter':
       app.ui[{ genre: 'eventsGenre', theme: 'eventsTheme', price: 'eventsPrice' }[t.dataset.key]] = t.value;
       t.closest('.select')?.classList.toggle('is-set', !!t.value);

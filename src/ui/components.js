@@ -365,7 +365,9 @@ export function passCard(pass, now, { headingLevel = 3 } = {}) {
   </article>`;
 }
 
-export function demoChip() {
-  return `<a class="demo-chip" href="#/about" aria-label="Demo data: real bar names, simulated waits, deals and points. About this demo"><span class="dot" aria-hidden="true"></span><span class="demo-long" aria-hidden="true">Demo data</span><span class="demo-short" aria-hidden="true">Demo</span></a>`;
+/** Top-right points chip: your demo balance, linking to Points (replaces the old "Demo data" tag; every number in the app still says "demo" where it appears). */
+export function pointsChip(balance) {
+  const n = new Intl.NumberFormat('en-US').format(balance);
+  return `<a class="pts-chip" href="#/points" aria-label="${n} demo points. Open Points">${icon('star', { size: 15 })}<span class="num" data-pts-value>${n}</span></a>`;
 }
 
