@@ -10,7 +10,7 @@ import { windowState, purchasable, createPass, maxPartyFor, passStatus, money, r
 import { estimateCompact, estimateBlock, estimateRing, estimateFor, pointsChip, esc, venueRow, cardStatus, cardFresh, srSummary, dealTag, venueStatus } from './ui/components.js';
 import { icon } from './ui/icons.js';
 import { renderExplore, exploreResults, exploreBanners, exploreChips, pinParts, areaSheet } from './views/explore.js';
-import { renderGroups, renderGroupNew, validateGroup } from './views/groups.js';
+import { renderGroups, renderGroupNew, validateGroup, membersSheet, nightMinutes, MAX_STOPS } from './views/groups.js';
 import { renderEvents, eventResults } from './views/events.js';
 import { renderScan, pickListItems, scanEstimate, scanSubmitReady, draftQueue } from './views/scan.js';
 import { renderPoints, checkinSheet } from './views/points.js';
@@ -831,14 +831,24 @@ function undoClear() {
 /* ---------------- groups ---------------- */
 function newGroupDraft() {
   const first = app.venues.find((v) => v.id === app.lastVenueId) ?? [...app.venues].sort((a, b) => a.name.localeCompare(b.name))[0];
-  return { title: '', venueId: first?.id ?? '', time: '22:30', spots: 4, note: '', handle: app.state.profile.handle || '' };
+  return { title: '', venueId: first?.id ?? '', time: '22:30', spots: 4, note: '', handle: app.state.profile.handle || '', hop: false, stops: [] };
+}
+/** Next default stop: a different bar from the previous stop, an hour later (capped at the last time slot). */
+function nextHopStop(d) {
+  const prev = d.stops[d.stops.length - 1] ?? { venueId: d.venueId, time: d.time };
+  const names = [...app.venues].sort((a, b) => a.name.localeCompare(b.name));
+  const i = names.findIndex((v) => v.id === prev.venueId);
+  const venue = names[(i + 1) % names.length];
+  const mins = Math.min(nightMinutes('1:30'), nightMinutes(prev.time) + 60);
+  const h = (Math.floor(mins / 60) + 18) % 24;
+  return { venueId: venue.id, time: `${h}:${String(mins % 60).padStart(2, '0')}` };
 }
 function postGroup() {
   const d = app.groupDraft ?? newGroupDraft();
   app.groupErrors = validateGroup(d);
   if (Object.keys(app.groupErrors).length) {
     rerenderPage();
-    document.querySelector(app.groupErrors.title ? '#g-title' : '#g-ig')?.focus();
+    document.querySelector(app.groupErrors.title ? '#g-title' : app.groupErrors.handle ? '#g-ig' : '#hop-bar-0')?.focus();
     return;
   }
   const [h, m] = d.time.split(':').map(Number);
@@ -847,6 +857,12 @@ function postGroup() {
     spots: d.spots, going: 1, note: d.note.trim(), mine: true,
     host: { name: app.state.profile.name, handle: d.handle.replace(/^@/, ''), hue: 220 },
   };
+  if (d.hop && d.stops.length) {
+    group.stops = [{ venueId: d.venueId, time: d.time }, ...d.stops].map((st) => {
+      const [sh, sm] = st.time.split(':').map(Number);
+      return { venueId: st.venueId, startsAt: atNight(app.state.clock.base, sh, sm) };
+    });
+  }
   app.state.groups.created.unshift(group);
   persist();
   app.groupDraft = null;
@@ -1421,6 +1437,30 @@ function handleAction(a, el) {
     case 'share': shareVenue(el.dataset.id); return true;
     case 'scroll-to': { const t = document.getElementById(el.dataset.target); if (t) { t.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' }); t.focus({ preventScroll: true }); } return true; }
     case 'join-group': toggleJoin(el.dataset.id); return true;
+    case 'group-members': {
+      const g = [...app.state.groups.created, ...app.groups].find((x) => x.id === el.dataset.id);
+      if (g) openAccountSheet(membersSheet(g, ctx()), '.sheet-close');
+      return true;
+    }
+    case 'hop-add': {
+      const d = app.groupDraft ?? (app.groupDraft = newGroupDraft());
+      if (d.stops.length >= MAX_STOPS - 1) return true;
+      d.stops.push(nextHopStop(d));
+      rerenderPage();
+      document.getElementById(`hop-bar-${d.stops.length - 1}`)?.focus();
+      announce(`Stop ${d.stops.length + 1} added`);
+      return true;
+    }
+    case 'hop-remove': {
+      const d = app.groupDraft ?? (app.groupDraft = newGroupDraft());
+      d.stops.splice(Number(el.dataset.index), 1);
+      if (!d.stops.length) d.hop = false;
+      app.groupErrors = {};
+      rerenderPage();
+      (document.querySelector('[data-action="hop-add"]') || document.getElementById('g-hop'))?.focus();
+      announce('Stop removed');
+      return true;
+    }
     case 'ig-link': toast(`Opens instagram.com/${el.dataset.handle} in the real app. Links are off in this demo.`); return true;
     case 'group-spots': {
       const d = app.groupDraft ?? (app.groupDraft = newGroupDraft());
@@ -1502,6 +1542,12 @@ function onInput(e) {
     }
     case 'console-note': consoleDraft().note = t.value; break;
     case 'deal-field': if (t.tagName === 'INPUT') dealDraft()[t.dataset.key] = t.value; break;
+    case 'hop-field': {
+      const d = app.groupDraft ?? (app.groupDraft = newGroupDraft());
+      const st = d.stops[Number(t.dataset.index)];
+      if (st) st[t.dataset.key] = t.value;
+      break;
+    }
     case 'group-field': {
       const d = app.groupDraft ?? (app.groupDraft = newGroupDraft());
       d[t.dataset.key] = t.value;
@@ -1557,6 +1603,22 @@ function onChange(e) {
       break;
     }
     case 'area': chooseArea(t.value); break;
+    case 'group-hop': {
+      const d = app.groupDraft ?? (app.groupDraft = newGroupDraft());
+      d.hop = t.checked;
+      if (d.hop && !d.stops.length) d.stops.push(nextHopStop(d));
+      app.groupErrors = {};
+      rerenderPage();
+      document.getElementById('g-hop')?.focus();
+      announce(d.hop ? 'Bar hop on. Stop 2 added below.' : 'Bar hop off');
+      break;
+    }
+    case 'hop-field': {
+      const d = app.groupDraft ?? (app.groupDraft = newGroupDraft());
+      const st = d.stops[Number(t.dataset.index)];
+      if (st) st[t.dataset.key] = t.value;
+      break;
+    }
     case 'scan-bucket': app.scan.bucket = t.value; app.scan.error = null; patchScanEstimate(); break;
     case 'scan-door': app.scan.door = t.value; patchScanEstimate(); break;
     case 'scan-inline': app.scan.inLine = t.checked; break;

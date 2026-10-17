@@ -1367,3 +1367,47 @@ img.real-photo { object-position: var(--pos, 50% 50%) !important; }
   .splash.is-playing .splash-tag { animation: none; opacity: 1; }
   .splash.is-out .splash-mark { transform: none; filter: none; }
 }
+
+/* ---------- Groups: member faces, bar hops, who's going (illustrated demo people) ---------- */
+img.avatar-img { display: block; flex: none; width: var(--size); height: var(--size); border-radius: 50%; object-fit: cover; background: var(--surface); }
+.avatars img.avatar-img, .avatars .avatar { margin-left: -8px; box-shadow: 0 0 0 2px var(--surface-2); }
+.avatars > :first-child { margin-left: 0; }
+.avatar-more { display: inline-grid; place-items: center; font-family: var(--font-num); font-stretch: var(--w-cond); font-size: 13px; font-weight: 800; color: var(--ink); background: var(--fill-2); }
+button.group-spots { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.group-spots .gs-text { display: grid; gap: 1px; }
+.group-spots .gs-text .num { font-size: var(--t-sm); font-weight: 700; color: var(--ink); }
+.group-spots .gs-text small { font-size: var(--t-xs); color: var(--ink-3); }
+button.group-spots:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 8px; }
+button.group-spots:active .avatars { transform: scale(.97); }
+
+.hop { display: grid; gap: 8px; }
+.hop-label { display: inline-flex; align-items: center; gap: 6px; font-size: var(--t-2xs); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+.hop-list { display: grid; gap: 0; }
+.hop-stop { position: relative; display: flex; align-items: center; gap: 10px; min-height: 46px; padding-left: 20px; }
+.hop-stop::before { content: ""; position: absolute; left: 5px; top: 0; bottom: 0; width: 2px; background: var(--line-strong); }
+.hop-stop:first-child::before { top: 50%; }
+.hop-stop:last-child::before { bottom: 50%; }
+.hop-dot { position: absolute; left: 1px; top: 50%; width: 10px; height: 10px; margin-top: -5px; border-radius: 50%; background: var(--bg); box-shadow: inset 0 0 0 2px var(--ink-3); }
+.hop-stop.is-past .hop-dot { background: var(--ink-3); box-shadow: none; }
+.hop-stop.is-now .hop-dot { background: var(--ink); box-shadow: 0 0 0 3px rgb(255 255 255 / .18); }
+.hop-stop .bar-logo { width: 28px; height: 28px; }
+.hop-bar { flex: 1; min-width: 0; display: grid; }
+.hop-bar b { font-size: var(--t-sm); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hop-bar small { font-size: var(--t-xs); color: var(--ink-3); font-family: var(--font-num); font-stretch: var(--w-cond); font-weight: 700; letter-spacing: .01em; }
+.hop-stop.is-past .hop-bar b { color: var(--ink-3); }
+.hop-now { flex: none; border-color: var(--ink); color: var(--ink); }
+
+.members-sub { margin: 2px 0 10px; font-size: var(--t-sm); color: var(--ink-2); }
+.member-list { display: grid; }
+.member-list li { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.member-list li > span { flex: 1; min-width: 0; display: grid; gap: 5px; }
+.member-list b { font-size: var(--t-md); font-weight: 700; }
+.member-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.hop-switch { margin-top: 2px; }
+.hop-edit { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 8px; }
+.hop-edit legend { margin-bottom: 6px; }
+.hop-edit-list { display: grid; gap: 8px; counter-reset: stop 1; }
+.hop-edit-row { display: grid; grid-template-columns: minmax(0, 1fr) 122px 44px; gap: 6px; align-items: center; }
+.hop-edit-row .select select { width: 100%; min-height: 46px; }
+.hop-edit .btn-sm { justify-self: start; }

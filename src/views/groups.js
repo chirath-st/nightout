@@ -3,9 +3,11 @@
 import { esc, stateBox, venueLogo, cardStatus, distanceText } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
 import { formatTime } from '../lib/clock.js';
-import { initials, validHandle } from '../data/social.js';
+import { initials, validHandle, groupMembers, currentStop } from '../data/social.js';
+import { personAvatar } from '../ui/avatars.js';
 
-const avatar = (person, size = 36) => `<span class="avatar" style="--size:${size}px" aria-hidden="true">${esc(initials(person.name))}</span>`;
+const MAX_FACES = 5;
+const membersFor = (g, ctx) => groupMembers(g, { you: ctx.state.profile, joined: ctx.state.groups.joined.includes(g.id) });
 
 export function allGroups(ctx) {
   return [...ctx.state.groups.created, ...ctx.groups].sort((a, b) => a.startsAt - b.startsAt);
@@ -17,24 +19,58 @@ function groupCard(g, ctx) {
   const going = g.going + (ctx.state.groups.joined.includes(g.id) ? 1 : 0);
   const full = going >= g.spots && !joined;
   const ended = ctx.now >= g.startsAt + 3 * 60 * 60000;
-  const crowd = ['A', 'J', 'K', 'M', 'R', 'S', 'T'].slice(0, Math.min(3, Math.max(0, going - 1))).map((ch) => `<span class="avatar" style="--size:26px" aria-hidden="true">${ch}</span>`).join('');
+  const members = membersFor(g, ctx);
+  const faces = members.slice(0, MAX_FACES).map((m) => personAvatar(m, 30)).join('');
+  const more = members.length > MAX_FACES ? `<span class="avatar avatar-more" style="--size:30px">+${members.length - MAX_FACES}</span>` : '';
+  const open = Math.max(0, g.spots - going);
   const handle = g.host.handle
     ? `<button type="button" class="handle" data-action="ig-link" data-handle="${esc(g.host.handle)}" aria-label="Instagram @${esc(g.host.handle)}">${icon('at', { size: 14 })}${esc(g.host.handle)}</button>`
     : '';
   const [t, ap] = formatTime(g.startsAt).split(/\s+/);
   return `<li class="group-card">
     <div class="group-dest">${venue ? `<span class="bar-logo" aria-hidden="true">${venueLogo(venue)}</span>` : ''}<span><b>${esc(venue?.name ?? 'Bar not in this dataset')}</b><small>${esc([venue && distanceText(venue), 'Demo group'].filter(Boolean).join(' · '))}</small></span>${venue ? `<span class="group-wait" aria-hidden="true">${cardStatus(venue, ctx.now)}</span>` : ''}</div>
-    <div class="group-host">${avatar(g.host)}<div class="group-host-text"><span class="group-host-name">${esc(g.host.name)}${g.mine ? ' <span class="mini-tag">You</span>' : ''}</span>${handle}</div></div>
+    <div class="group-host">${personAvatar(members[0], 36)}<div class="group-host-text"><span class="group-host-name">${esc(g.host.name)}${g.mine ? ' <span class="mini-tag">You</span>' : ''}</span>${handle}</div></div>
     <h2 class="group-title-text">${esc(g.title)}</h2>
-    <p class="group-when"><small>Leaving</small><span class="num">${esc(t)}</span><small class="ap">${esc(ap ?? '')}</small></p>
+    ${g.stops?.length > 1 ? hopTimeline(g, ctx) : `<p class="group-when"><small>Leaving</small><span class="num">${esc(t)}</span><small class="ap">${esc(ap ?? '')}</small></p>`}
     ${g.note ? `<p class="group-note">${esc(g.note)}</p>` : ''}
     <div class="group-foot">
-      <div class="group-spots"><span class="avatars" aria-hidden="true">${avatar(g.host, 26)}${crowd}</span><span class="num">${going} of ${g.spots} going</span></div>
+      <button type="button" class="group-spots" data-action="group-members" data-id="${esc(g.id)}" aria-haspopup="dialog" aria-label="${going} of ${g.spots} going. See who’s going"><span class="avatars" aria-hidden="true">${faces}${more}</span><span class="gs-text"><span class="num">${going} of ${g.spots} going</span><small>${open ? `${open} spot${open === 1 ? '' : 's'} left` : 'Full'}</small></span></button>
       ${g.mine ? '<span class="mini-tag">Your group</span>'
         : ended ? '<span class="mini-tag">Ended</span>'
         : `<button type="button" class="btn ${joined ? '' : 'btn-primary'} btn-sm" data-action="join-group" data-id="${esc(g.id)}" aria-pressed="${joined}" ${full ? 'aria-disabled="true"' : ''}>${joined ? `${icon('check', { size: 16 })}Joined` : full ? 'Full' : 'Join'}</button>`}
     </div>
   </li>`;
+}
+
+/** Bar hop: each stop runs until the next one starts; the current stop is marked while the hop is on. */
+function hopTimeline(g, ctx) {
+  const cur = currentStop(g.stops, ctx.now);
+  const ended = ctx.now >= g.stops[g.stops.length - 1].startsAt + 2 * 60 * 60000;
+  return `<div class="hop"><p class="hop-label">${icon('nav', { size: 14 })}Bar hop · ${g.stops.length} stops</p>
+    <ol class="hop-list">${g.stops.map((st, i) => {
+      const v = ctx.venues.find((x) => x.id === st.venueId);
+      const next = g.stops[i + 1];
+      const now = cur === i && !ended;
+      return `<li class="hop-stop${now ? ' is-now' : cur != null && i < cur ? ' is-past' : ''}">
+        <span class="hop-dot" aria-hidden="true"></span>
+        ${v ? `<span class="bar-logo" aria-hidden="true">${venueLogo(v)}</span>` : ''}
+        <span class="hop-bar"><b>${esc(v?.name ?? 'Bar not in this dataset')}</b><small class="num">${esc(formatTime(st.startsAt))}${next ? `–${esc(formatTime(next.startsAt))}` : ' till late'}</small></span>
+        ${now ? '<span class="mini-tag hop-now">Now</span>' : ''}
+      </li>`;
+    }).join('')}</ol></div>`;
+}
+
+/** "Who's going" sheet: everyone in the group with their picture and vibe (demo people). */
+export function membersSheet(g, ctx) {
+  const members = membersFor(g, ctx);
+  const going = g.going + (ctx.state.groups.joined.includes(g.id) ? 1 : 0);
+  return `<div class="sheet-head"><span class="sheet-grabber" aria-hidden="true"></span><h2 class="sheet-title" id="picker-title">Who’s going</h2>
+      <button type="button" class="icon-btn sheet-close" data-action="close-picker" aria-label="Close">${icon('x')}</button></div>
+    <div class="sheet-body">
+      <p class="members-sub">${esc(g.title)} · <span class="num">${going} of ${g.spots}</span></p>
+      <ul class="member-list">${members.map((m) => `<li>${personAvatar(m, 44)}<span><b>${esc(m.you ? `${m.name} (you)` : m.name)}</b>${m.vibe?.length || m.role ? `<span class="member-tags">${[m.role, ...(m.vibe ?? [])].filter(Boolean).map((x) => `<span class="mini-tag">${esc(x)}</span>`).join('')}</span>` : ''}</span></li>`).join('')}</ul>
+      <p class="hint">Demo people: names are made up and pictures are drawn by the app. Real profiles would come from sign-up.</p>
+    </div>`;
 }
 
 export function renderGroups(ctx) {
@@ -52,7 +88,11 @@ export function renderGroups(ctx) {
   </div>`;
 }
 
-const TIMES = [[21, 0], [21, 30], [22, 0], [22, 30], [23, 0], [23, 30], [0, 0], [0, 30], [1, 0]];
+const TIMES = [[21, 0], [21, 30], [22, 0], [22, 30], [23, 0], [23, 30], [0, 0], [0, 30], [1, 0], [1, 30]];
+const timeOptions = (value) => TIMES.map(([h, m]) => { const v = `${h}:${String(m).padStart(2, '0')}`; const label = formatTime(new Date(2000, 0, 1, h, m).getTime()); return `<option value="${v}" ${v === value ? 'selected' : ''}>${label}</option>`; }).join('');
+/** Minutes after 6 PM for a 'H:MM' time on the demo night (times before noon are after midnight). */
+export const nightMinutes = (hhmm) => { const [h, m] = hhmm.split(':').map(Number); return ((h < 12 ? h + 24 : h) - 18) * 60 + m; };
+export const MAX_STOPS = 4;
 
 export function renderGroupNew(ctx, draft, errors = {}) {
   const d = draft;
@@ -74,9 +114,20 @@ export function renderGroupNew(ctx, draft, errors = {}) {
         </div>
         <div class="field">
           <label class="label" for="g-time">Meet at</label>
-          <div class="select"><select id="g-time" name="time" data-input="group-field" data-key="time">${TIMES.map(([h, m]) => { const v = `${h}:${String(m).padStart(2, '0')}`; const label = formatTime(new Date(2000, 0, 1, h, m).getTime()); return `<option value="${v}" ${v === d.time ? 'selected' : ''}>${label}</option>`; }).join('')}</select>${icon('chevronDown', { size: 14 })}</div>
+          <div class="select"><select id="g-time" name="time" data-input="group-field" data-key="time">${timeOptions(d.time)}</select>${icon('chevronDown', { size: 14 })}</div>
         </div>
       </div>
+      <div class="switch-row hop-switch"><label for="g-hop"><span class="label" style="margin:0">Bar hop</span><span class="hint">Add more stops with times, like Huey’s at 10, then Scarlet Pub at 11.</span></label>
+        <span class="switch"><input id="g-hop" type="checkbox" role="switch" data-input="group-hop" ${d.hop ? 'checked' : ''}><span></span></span></div>
+      ${d.hop ? `<fieldset class="hop-edit"><legend class="label">Then</legend>
+        <ol class="hop-edit-list">${d.stops.map((st, i) => `<li class="hop-edit-row">
+          <div class="select"><label class="sr-only" for="hop-bar-${i}">Stop ${i + 2} bar</label><select id="hop-bar-${i}" data-input="hop-field" data-index="${i}" data-key="venueId">${venues.map((v) => `<option value="${esc(v.id)}" ${v.id === st.venueId ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select>${icon('chevronDown', { size: 14 })}</div>
+          <div class="select hop-time"><label class="sr-only" for="hop-time-${i}">Stop ${i + 2} time</label><select id="hop-time-${i}" data-input="hop-field" data-index="${i}" data-key="time">${timeOptions(st.time)}</select>${icon('chevronDown', { size: 14 })}</div>
+          <button type="button" class="icon-btn" data-action="hop-remove" data-index="${i}" aria-label="Remove stop ${i + 2}">${icon('x')}</button>
+        </li>`).join('')}</ol>
+        ${errors.stops ? `<p class="field-error" id="err-g-stops">${icon('alert')}${esc(errors.stops)}</p>` : ''}
+        ${d.stops.length < MAX_STOPS - 1 ? `<button type="button" class="btn btn-sm" data-action="hop-add">${icon('plus', { size: 16 })}Add a stop</button>` : `<p class="hint">Up to ${MAX_STOPS} stops.</p>`}
+      </fieldset>` : ''}
       <div class="field stepper-row">
         <div><p class="label" id="g-spots-label">Group size</p><p class="hint">Including you</p></div>
         <div class="stepper" role="group" aria-labelledby="g-spots-label">
@@ -103,5 +154,10 @@ export function validateGroup(d) {
   const errors = {};
   if (!d.title.trim()) errors.title = 'Add a short plan, like “Pregame then Scarlet Pub”.';
   if (d.handle && !validHandle(d.handle.replace(/^@/, ''))) errors.handle = 'Use letters, numbers, periods or underscores (up to 30).';
+  if (d.hop && d.stops?.length) {
+    const seq = [{ venueId: d.venueId, time: d.time }, ...d.stops];
+    if (seq.some((st, i) => i > 0 && nightMinutes(st.time) <= nightMinutes(seq[i - 1].time))) errors.stops = 'Each stop needs a later time than the one before.';
+    else if (seq.some((st, i) => i > 0 && st.venueId === seq[i - 1].venueId)) errors.stops = 'Pick a different bar than the stop before.';
+  }
   return errors;
 }
