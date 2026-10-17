@@ -18,7 +18,9 @@ export function defaultState(realNow) {
     sim: { offline: false, failNextRefresh: false, failNextPass: false },
     // Social + rewards (all simulated, this device only)
     profile: { name: 'Alex', handle: '' },
-    points: [{ id: 'start', at: null, delta: 300, label: 'Demo starting balance' }],
+    points: [{ id: 'start', at: null, delta: 240, label: 'Demo starting balance' }],
+    checkins: [], // { id, venueId, at } (simulated door-QR check-ins)
+    lastDaily: null, // demo night (ms) of the last daily-login bonus
     vouchers: [], // redeemed rewards: { id, rewardId, ref, at }
     groups: { joined: [], created: [] },
     reports: [], // { id, venueId, at, bucket, inLine, gotInAt, waitMin }
@@ -55,6 +57,8 @@ export function migrate(raw, realNow) {
     prefs: { ...base.prefs, ...(raw.prefs && typeof raw.prefs === 'object' ? raw.prefs : {}) },
     savedEvents: arr(raw.savedEvents).filter((s) => typeof s === 'string'),
     goingEvents: arr(raw.goingEvents).filter((s) => typeof s === 'string'),
+    checkins: arr(raw.checkins).filter((c) => c && typeof c.venueId === 'string' && Number.isFinite(c.at)).slice(0, 200),
+    lastDaily: Number.isFinite(raw.lastDaily) ? raw.lastDaily : null,
     votes: raw.votes && typeof raw.votes === 'object' ? Object.fromEntries(Object.entries(raw.votes).filter(([, x]) => ['going', 'maybe', 'no'].includes(x))) : {},
     deals: arr(raw.deals).filter((d) => d && typeof d.venueId === 'string' && typeof d.title === 'string' && Number.isFinite(d.startsAt) && Number.isFinite(d.endsAt)).slice(0, 50),
   };

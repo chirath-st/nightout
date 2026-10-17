@@ -1,33 +1,55 @@
-// Points: balance, ways to earn, rewards and history. SIMULATED: demo points have no cash value and no
-// bar honors these rewards. No reward can be redeemed for alcohol (NJ rule, see DRINKS_LOCK).
-import { esc } from '../ui/components.js';
+// Points: balance and progress to the next reward, door check-ins, how to earn, rewards and history.
+// SIMULATED: demo points have no cash value, no bar honors these rewards, and check-ins are a simulated
+// QR scan (no camera). No reward can be redeemed for alcohol (NJ rule, see DRINKS_LOCK).
+import { esc, venueLogo } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
 import { formatTime } from '../lib/clock.js';
-import { REWARDS, DRINKS_LOCK, POINTS, balanceOf } from '../data/social.js';
+import { REWARDS, DRINKS_LOCK, POINTS, balanceOf, nextReward, initials, checkedInTonight } from '../data/social.js';
+import { isOpenAt } from '../lib/explore.js';
 
 const fmt = (n) => new Intl.NumberFormat('en-US').format(n);
 
 export function renderPoints(ctx) {
-  const balance = balanceOf(ctx.state.points);
-  const vouchers = [...ctx.state.vouchers].sort((a, b) => b.at - a.at);
-  const history = [...ctx.state.points].reverse().slice(0, 12);
-  const passes = ctx.state.passes.length;
+  const st = ctx.state;
+  const balance = balanceOf(st.points);
+  const next = nextReward(balance);
+  const vouchers = [...st.vouchers].sort((a, b) => b.at - a.at);
+  const history = [...st.points].reverse().slice(0, 15);
+  const passes = st.passes.length;
+  const uniqueBars = new Set(st.checkins.map((c) => c.venueId)).size;
+  const dailyDone = st.lastDaily === st.clock.base;
   return `<div class="page">
-    <h1 class="page-title" id="page-h" tabindex="-1">Points</h1>
+    <div class="points-head">
+      <span class="avatar" style="--size:44px" aria-hidden="true">${esc(initials(st.profile.name))}</span>
+      <div><h1 class="page-title" id="page-h" tabindex="-1">My points</h1><p class="points-who">${esc(st.profile.name)} <span class="demo-tag">Demo points</span></p></div>
+    </div>
     <section class="points-card" aria-label="Your points">
       <p class="eyebrow">Your balance</p>
-      <p class="points-total"><span class="num">${fmt(balance)}</span><small>pts</small></p>
-      <p class="points-note">Demo points. No cash value; nothing here is real yet.</p>
+      <p class="points-total num">${fmt(balance)}<small>pts</small></p>
+      ${next ? `<div class="points-next"><span class="pn-track" aria-hidden="true"><i style="--pn:${next.progress.toFixed(3)}"></i></span>
+        <p><b class="num">${fmt(next.need)}</b> points to your next reward: ${esc(next.reward.title)}</p></div>` : '<p class="points-note">You can afford every reward.</p>'}
+      <p class="points-note">No cash value; nothing here is real yet.</p>
     </section>
 
-    <h2 class="section-title">Earn</h2>
-    <ul class="earn-list">
-      <li>${icon('camera', { size: 20 })}<span>Report a bar’s line</span><b class="num">+${POINTS.REPORT}</b></li>
-      <li>${icon('check', { size: 20 })}<span>Tell us when you got in</span><b class="num">+${POINTS.GOT_IN}</b></li>
-    </ul>
-    <a class="btn btn-block" href="#/scan">${icon('camera', { size: 18 })}Report a line</a>
+    <button type="button" class="btn btn-primary btn-lg btn-block checkin-btn" data-action="open-checkin">${icon('report', { size: 20 })}Check in at a bar<span class="trail">+${POINTS.CHECKIN}</span></button>
+    <p class="hint center">Scan the Night Out QR code at the bar’s door. In this demo the scan is simulated.</p>
 
-    <h2 class="section-title">Rewards</h2>
+    <dl class="fact-strip points-stats">
+      <div><dt>Check-ins</dt><dd>${st.checkins.length}<span class="fact-sub">All time (demo)</span></dd></div>
+      <div><dt>Unique bars</dt><dd>${uniqueBars}<span class="fact-sub">of ${ctx.venues.length}</span></dd></div>
+      <div><dt>Reports</dt><dd>${st.reports.length}<span class="fact-sub">Crowd updates</span></dd></div>
+    </dl>
+
+    <div class="section-head"><h2>Earn points</h2><span class="eyebrow">How it works</span></div>
+    <ul class="earn-list">
+      <li>${icon('calendar', { size: 20 })}<span>Daily login<small>${dailyDone ? 'Collected tonight' : 'Open Night Out on a night out'}</small></span><b class="num">+${POINTS.DAILY}</b></li>
+      <li>${icon('report', { size: 20 })}<span>Bar check-in<small>Scan the QR at the door, once per bar a night</small></span><b class="num">+${POINTS.CHECKIN}</b></li>
+      <li>${icon('camera', { size: 20 })}<span>Verified crowd update<small>Photo of the line plus its size</small></span><b class="num">+${POINTS.REPORT}</b></li>
+      <li>${icon('check', { size: 20 })}<span>Tell us when you got in<small>Gives everyone a measured wait</small></span><b class="num">+${POINTS.GOT_IN}</b></li>
+    </ul>
+    <a class="btn btn-block" href="#/scan" style="margin-top:12px">${icon('camera', { size: 18 })}Report a line</a>
+
+    <div class="section-head"><h2>Rewards</h2><span class="eyebrow">Redeem points</span></div>
     <ul class="reward-grid">
       ${REWARDS.map((r) => {
         const short = r.cost - balance;
@@ -46,14 +68,42 @@ export function renderPoints(ctx) {
     </ul>
     <p class="hint">Rewards are simulated: no bar has agreed to honor them, and none can be used toward alcoholic beverages. Line cuts and VIP entry would always depend on the venue, ID checks and capacity.</p>
 
-    <h2 class="section-title">Your rewards</h2>
+    <div class="section-head"><h2>Your rewards</h2></div>
     ${vouchers.length ? `<ul class="plain-list">${vouchers.map((v) => {
       const r = REWARDS.find((x) => x.id === v.rewardId);
       return `<li><span><b>${esc(r?.title ?? 'Reward')}</b><small>Code ${esc(v.ref)} · demo, not valid · not valid toward alcoholic beverages</small></span><span class="num muted">${esc(formatTime(v.at))}</span></li>`;
     }).join('')}</ul>` : '<p class="hint">Nothing redeemed yet.</p>'}
     ${passes ? `<a class="list-link" href="#/passes">${icon('ticket', { size: 20 })}<span>Priority passes (${passes})</span>${icon('chevronRight', { size: 18 })}</a>` : ''}
 
-    <h2 class="section-title">History</h2>
+    <div class="section-head"><h2 id="history-h">Point history</h2></div>
     <ul class="plain-list">${history.map((e) => `<li><span>${esc(e.label)}${e.at != null ? `<small>${esc(formatTime(e.at))}</small>` : ''}</span><span class="num ${e.delta >= 0 ? 'plus' : 'muted'}">${e.delta >= 0 ? '+' : '−'}${fmt(Math.abs(e.delta))}</span></li>`).join('')}</ul>
   </div>`;
+}
+
+/** Check-in sheet: pick the bar, scan its door QR (simulated), done. One check-in per bar per demo night. */
+export function checkinSheet(ctx, flow) {
+  const head = (title) => `<div class="sheet-head"><span class="sheet-grabber" aria-hidden="true"></span><h2 class="sheet-title" id="picker-title">${title}</h2>
+      <button type="button" class="icon-btn sheet-close" data-action="close-picker" aria-label="Close">${icon('x')}</button></div>`;
+  const venue = ctx.venues.find((v) => v.id === flow.venueId);
+  if (flow.step === 'done' && venue) {
+    return `${head('Checked in')}<div class="sheet-body checkin-done">
+      <p class="checkin-pts num" data-autofocus tabindex="-1">+${POINTS.CHECKIN}<small>pts</small></p>
+      <p>You checked in at <b>${esc(venue.name)}</b> (demo). One check-in per bar a night.</p>
+      <button type="button" class="btn btn-primary btn-lg btn-block" data-action="close-picker">Done</button></div>`;
+  }
+  if (flow.step === 'scan' && venue) {
+    return `${head(`Check in at ${esc(venue.name)}`)}<div class="sheet-body">
+      <div class="viewfinder qr-finder"><span class="vf-corners" aria-hidden="true"></span><span class="qr-glyph" aria-hidden="true">${icon('report', { size: 44 })}</span><span class="vf-sim">${icon('lock', { size: 14 })}Demo camera · nothing is captured</span></div>
+      <p class="hint center">Point at the Night Out QR code by the door.</p>
+      <button type="button" class="btn btn-primary btn-lg btn-block" data-action="checkin-scan" data-autofocus>Simulate QR scan<span class="trail">+${POINTS.CHECKIN}</span></button>
+      <button type="button" class="btn btn-ghost btn-block" data-action="checkin-back" style="margin-top:8px">Pick another bar</button></div>`;
+  }
+  const night = ctx.state.clock.base;
+  const rows = [...ctx.venues].sort((a, b) => a.name.localeCompare(b.name)).map((v) => {
+    const done = checkedInTonight(ctx.state.checkins, v.id, night);
+    const closed = isOpenAt(v, ctx.now) === false;
+    const why = done ? 'Checked in tonight' : closed ? 'Closed now' : v.area ?? '';
+    return `<li><button type="button" class="pick-row" data-action="checkin-pick" data-id="${esc(v.id)}" ${done || closed ? 'aria-disabled="true"' : ''}><span class="bar-logo" aria-hidden="true">${venueLogo(v)}</span><span class="pick-name">${esc(v.name)}</span><span class="pick-area">${esc(why)}</span>${done ? icon('check', { size: 18 }) : icon('chevronRight', { size: 18 })}</button></li>`;
+  }).join('');
+  return `${head('Check in at a bar')}<div class="sheet-body"><p class="hint" style="margin-top:0">Which bar are you at? You can check in once per bar a night.</p><ul class="pick-list">${rows}</ul></div>`;
 }

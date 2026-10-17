@@ -1172,3 +1172,38 @@ html[data-hidden] *, html[data-hidden] *::before, html[data-hidden] *::after { a
   ::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--d-rm-in); animation-timing-function: linear; }
   .poll-opt::before { transition: none; }
 }
+
+/* ---------- Points (team ideas): head, progress to next reward, check-in, stats ---------- */
+.points-head { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.points-head .page-title { margin: 0; }
+.points-who { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: var(--t-sm); color: var(--ink-2); }
+.points-card { margin-top: 18px; }
+.points-next { margin-top: 16px; }
+.pn-track { position: relative; display: block; height: 6px; border-radius: 3px; background: var(--meter-off); overflow: hidden; }
+.pn-track i { position: absolute; inset: 0; background: var(--ink); transform: scaleX(var(--pn, 0)); transform-origin: left center; border-radius: 3px; transition: transform var(--d-fill) var(--ease-out); }
+.points-next p { margin-top: 8px; font-size: var(--t-sm); color: var(--ink-2); }
+.points-next b { font-size: 18px; color: var(--ink); }
+.checkin-btn { margin-top: 20px; }
+.checkin-btn .trail { margin-left: auto; }
+.hint.center { text-align: center; }
+.points-stats { margin-top: 18px; }
+.earn-list { display: grid; border-top: 1px solid var(--line); }
+.earn-list li { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 60px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: var(--t-base); font-weight: 600; }
+.earn-list li > span { display: grid; gap: 1px; min-width: 0; }
+.earn-list small { font-size: var(--t-xs); font-weight: 500; color: var(--ink-3); }
+.earn-list li > .ic:first-child { color: var(--ink-2); }
+.earn-list b { font-size: 22px; font-weight: 800; color: var(--ink); }
+.qr-finder { aspect-ratio: 1 / 1; max-width: 260px; margin: 6px auto 0; display: grid; place-items: center; }
+.qr-glyph { color: var(--ink-2); }
+.qr-glyph .ic { width: 44px; height: 44px; stroke-width: 1.4; }
+.checkin-done { display: grid; gap: 12px; text-align: center; padding-bottom: 28px; }
+.checkin-pts { font-family: var(--font-num); font-stretch: var(--w-cond); font-size: 72px; font-weight: 800; line-height: .9; }
+.checkin-pts small { font-family: var(--font-sans); font-stretch: var(--w-norm); font-size: 20px; font-weight: 700; color: var(--ink-2); margin-left: 6px; }
+.pick-list { display: grid; margin-top: 6px; border-top: 1px solid var(--line); }
+.pick-row { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 12px; min-height: 60px; padding: 8px 2px; border-bottom: 1px solid var(--line); text-align: left; color: var(--ink); }
+.pick-row .bar-logo { width: 32px; height: 32px; }
+.pick-row[aria-disabled="true"] { color: var(--ink-3); cursor: not-allowed; }
+.pick-name { font-size: var(--t-md); font-weight: 600; overflow-wrap: anywhere; }
+.pick-area { font-size: var(--t-xs); color: var(--ink-3); white-space: nowrap; }
+.pick-row:not([aria-disabled="true"]):active { background: var(--surface); }
+.pick-row:not(:has(.bar-logo)) { grid-template-columns: minmax(0, 1fr) auto auto; }

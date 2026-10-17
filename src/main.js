@@ -2,7 +2,7 @@
 import { load, save, clear, defaultState } from './lib/store.js';
 import { normalizeClock, demoNow, advance, formatTime } from './lib/clock.js';
 import { buildDataset, atNight } from './data/venues.js';
-import { buildGroups, POINTS, LINE_BUCKETS, REWARDS, balanceOf, validHandle } from './data/social.js';
+import { buildGroups, POINTS, LINE_BUCKETS, REWARDS, balanceOf, validHandle, checkedInTonight } from './data/social.js';
 import { resolveVenues, diffQueue } from './lib/model.js';
 import { parseHash, buildHash, exploreStateFromQuery, exploreQuery } from './lib/router.js';
 import { FILTERS, SORTS, exploreList, areaLabel } from './lib/explore.js';
@@ -13,7 +13,7 @@ import { renderExplore, exploreResults, exploreBanners, exploreChips, pinParts, 
 import { renderGroups, renderGroupNew, validateGroup } from './views/groups.js';
 import { renderEvents, eventResults } from './views/events.js';
 import { renderScan, pickListItems } from './views/scan.js';
-import { renderPoints } from './views/points.js';
+import { renderPoints, checkinSheet } from './views/points.js';
 import { renderProfile } from './views/profile.js';
 import { renderVenue, directionsSheet, pollSection } from './views/venue.js';
 import { buildEvents } from './data/events.js';
@@ -51,6 +51,7 @@ const app = {
 };
 const freshScan = () => ({ step: 'pick', venueId: null, captured: false, bucket: null, inLine: true, q: '', error: null });
 app.scan = freshScan();
+app.checkin = { step: 'pick', venueId: null };
 
 /* ---------------- state ---------------- */
 function init() {
@@ -1073,6 +1074,44 @@ function closePicker(focusAfter) {
   dlg.classList.add('is-closing');
 }
 
+/* ---------------- points: daily login and door check-ins (simulated QR) ---------------- */
+/** +5 once per demo night, after the age check. */
+function dailyLogin() {
+  const night = app.state.clock.base;
+  if (!app.state.ageConfirmed || app.state.lastDaily === night) return;
+  app.state.lastDaily = night;
+  app.state.points.push({ id: `daily-${night}`, at: now(), delta: POINTS.DAILY, label: 'Daily login' });
+  persist();
+  toast(`Daily login: +${POINTS.DAILY} demo points.`);
+  if (app.route?.name === 'points') rerenderPage();
+}
+function renderCheckin() {
+  const dlg = document.getElementById('picker');
+  dlg.innerHTML = checkinSheet(ctx(), app.checkin);
+  (dlg.querySelector('[data-autofocus]') || dlg.querySelector('.pick-row:not([aria-disabled="true"])') || dlg.querySelector('.sheet-close'))?.focus();
+}
+function openCheckin() {
+  app.checkin = { step: 'pick', venueId: null };
+  const dlg = document.getElementById('picker');
+  dlg.classList.remove('is-closing');
+  dlg.innerHTML = checkinSheet(ctx(), app.checkin);
+  if (!dlg.open) dlg.showModal();
+  renderCheckin();
+}
+function checkIn() {
+  const v = app.venues.find((x) => x.id === app.checkin.venueId);
+  if (!v) return;
+  if (checkedInTonight(app.state.checkins, v.id, app.state.clock.base)) { toast(`You already checked in at ${v.name} tonight.`); return; }
+  const id = `ci-${refCode(`${v.id}${Date.now()}`).toLowerCase()}`;
+  app.state.checkins.push({ id, venueId: v.id, at: now() });
+  app.state.points.push({ id: `p-${id}`, at: now(), delta: POINTS.CHECKIN, label: `Check-in: ${v.name}` });
+  persist();
+  app.checkin = { step: 'done', venueId: v.id };
+  if (app.route.name === 'points') rerenderPage(() => document.getElementById('page-h'));
+  renderCheckin();
+  announce(`Checked in at ${v.name}. Plus ${POINTS.CHECKIN} demo points.`);
+}
+
 /* ---------------- sort sheet ---------------- */
 function openSortSheet() {
   const dlg = document.getElementById('picker');
@@ -1297,7 +1336,12 @@ function handleAction(a, el) {
       app.state.ageConfirmed = true; persist();
       document.getElementById('age-gate').close();
       pageHeading()?.focus();
+      dailyLogin();
       return true;
+    case 'open-checkin': openCheckin(); return true;
+    case 'checkin-pick': app.checkin = { step: 'scan', venueId: el.dataset.id }; renderCheckin(); return true;
+    case 'checkin-back': app.checkin = { step: 'pick', venueId: null }; renderCheckin(); return true;
+    case 'checkin-scan': checkIn(); return true;
     case 'age-no':
       document.getElementById('age-body').innerHTML = '<h2 id="age-title" class="page-title age-title" tabindex="-1">This demo is for adults 21+</h2><p class="page-sub age-sub">It describes bars and nightlife, so it isn’t available to you. You can close this tab.</p>';
       document.getElementById('age-title').focus();
@@ -1548,6 +1592,7 @@ function boot() {
   picker.addEventListener('cancel', (e) => { e.preventDefault(); closePicker(); });
   picker.addEventListener('click', (e) => { if (e.target === picker) closePicker(); });
   route();
+  dailyLogin();
   setInterval(tick, 15_000);
   document.addEventListener('visibilitychange', () => {
     document.documentElement.toggleAttribute('data-hidden', document.hidden);

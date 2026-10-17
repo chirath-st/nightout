@@ -4,9 +4,11 @@
 import { atNight } from './venues.js';
 
 export const POINTS = Object.freeze({
-  REPORT: 50, // a line report (photo + size)
-  GOT_IN: 25, // telling us when you got in, which gives a measured wait
-  START: 300, // demo starting balance so the rewards can be tried
+  DAILY: 5, // first visit on a demo night
+  CHECKIN: 25, // scanning the bar's door QR (once per bar per night)
+  REPORT: 15, // a verified crowd update (line photo + size); verified instantly in the demo
+  GOT_IN: 10, // telling us when you got in, which gives a measured wait
+  START: 240, // demo starting balance so the rewards can be tried
 });
 
 /** Report sizes a guest can pick. Ranges become the crowd estimate for that bar. */
@@ -32,12 +34,23 @@ export function buildGroups(demoStart) {
 
 /** Rewards catalog. Simulated: no bar honors these. Nothing here is alcohol (see DRINKS_LOCK). */
 export const REWARDS = Object.freeze([
-  { id: 'cover', title: 'Cover on us', detail: 'One cover charge at a participating bar', cost: 300, icon: 'ticket' },
-  { id: 'na-drink', title: 'Non-alcoholic drink', detail: 'Soda, mocktail or water', cost: 150, icon: 'sparkle' },
-  { id: 'line-cut', title: 'Line cut', detail: 'Priority entry during a set window', cost: 500, icon: 'arrowRight' },
-  { id: 'vip', title: 'VIP entry', detail: 'Skip the line for you and one friend', cost: 1200, icon: 'star' },
-  { id: 'merch', title: 'Night Out hat', detail: 'Pick up at a pop-up', cost: 800, icon: 'shield' },
+  { id: 'na-drink', title: 'Free non-alcoholic drink', detail: 'Soda, mocktail or water', cost: 100, icon: 'sparkle' },
+  { id: 'cover', title: 'Cover on us', detail: 'One cover charge at a participating bar', cost: 200, icon: 'ticket' },
+  { id: 'line-cut', title: 'Line cut', detail: 'Priority entry during a set window', cost: 400, icon: 'arrowRight' },
+  { id: 'merch', title: 'Night Out hat', detail: 'Pick up at a pop-up', cost: 600, icon: 'shield' },
+  { id: 'vip', title: 'VIP entry', detail: 'Skip the line for you and one friend', cost: 1000, icon: 'star' },
 ]);
+
+/** The cheapest reward still out of reach, and how far away it is (null when everything is affordable). */
+export function nextReward(balance) {
+  const r = [...REWARDS].sort((a, b) => a.cost - b.cost).find((x) => x.cost > balance);
+  return r ? { reward: r, need: r.cost - balance, progress: Math.max(0, Math.min(1, balance / r.cost)) } : null;
+}
+
+/** One check-in per bar per demo night. checkins: [{ venueId, at }]; night: the demo night's start (ms). */
+export function checkedInTonight(checkins, venueId, night) {
+  return checkins.some((c) => c.venueId === venueId && c.at >= night - 6 * 60 * 60_000);
+}
 
 export const DRINKS_LOCK = 'New Jersey doesn’t allow prizes or rewards that consist of alcohol or can be redeemed for it (N.J.A.C. 13:2-23.16), so points can’t be used for drinks.';
 
