@@ -2,7 +2,7 @@
 import { load, save, clear, defaultState } from './lib/store.js';
 import { normalizeClock, demoNow, advance, formatTime } from './lib/clock.js';
 import { buildDataset, atNight } from './data/venues.js';
-import { buildGroups, POINTS, LINE_BUCKETS, REWARDS, balanceOf, validHandle, checkedInTonight } from './data/social.js';
+import { buildGroups, POINTS, LINE_BUCKETS, REWARDS, balanceOf, validHandle, checkedInTonight, PLANS, SAMPLE_BAR_CARDS } from './data/social.js';
 import { resolveVenues, diffQueue } from './lib/model.js';
 import { parseHash, buildHash, exploreStateFromQuery, exploreQuery } from './lib/router.js';
 import { FILTERS, SORTS, exploreList, areaLabel } from './lib/explore.js';
@@ -14,7 +14,7 @@ import { renderGroups, renderGroupNew, validateGroup } from './views/groups.js';
 import { renderEvents, eventResults } from './views/events.js';
 import { renderScan, pickListItems } from './views/scan.js';
 import { renderPoints, checkinSheet } from './views/points.js';
-import { renderProfile } from './views/profile.js';
+import { renderProfile, settingsSheet, manageSubSheet, helpSheet } from './views/profile.js';
 import { renderVenue, directionsSheet, pollSection } from './views/venue.js';
 import { buildEvents } from './data/events.js';
 import { renderPassSheet } from './views/passSheet.js';
@@ -969,6 +969,52 @@ function saveProfile(form) {
   toast('Profile saved.');
 }
 
+/* ---------------- my account: settings, help, subscription, VIP cards (all simulated) ---------------- */
+function openAccountSheet(html, focusSel) {
+  const dlg = document.getElementById('picker');
+  dlg.classList.remove('is-closing');
+  dlg.innerHTML = html;
+  if (!dlg.open) dlg.showModal();
+  (dlg.querySelector(focusSel) || dlg.querySelector('.sheet-close'))?.focus();
+}
+function chooseSubscription(value) {
+  const before = { ...app.state.subscription };
+  app.state.subscription = value === 'none'
+    ? { ...before, plan: 'none' }
+    : { plan: 'plus', billing: value, since: before.plan === 'plus' && before.billing === value ? before.since : now() };
+  persist();
+  closePicker(() => document.querySelector('[data-action="manage-sub"]')?.focus({ preventScroll: true }));
+  if (app.route.name === 'profile') rerenderPage();
+  const plan = PLANS.find((x) => x.id === value);
+  if (value === 'none') {
+    toast('Night Out Plus canceled (demo). Nothing was charged.', {
+      actionLabel: 'Undo',
+      onAction: () => { app.state.subscription = before; persist(); if (app.route.name === 'profile') rerenderPage(); announce('Night Out Plus restored.'); },
+    });
+  } else toast(`Night Out Plus · ${plan.label} (demo, no charge).`);
+}
+function addVipCard() {
+  const have = new Set(app.state.vipCards.map((c) => c.venueId));
+  const sample = SAMPLE_BAR_CARDS.find((c) => !have.has(c.venueId));
+  if (!sample) return;
+  app.state.vipCards.push({ id: `vip-${sample.venueId}`, venueId: sample.venueId, title: sample.title, addedAt: now() });
+  persist();
+  rerenderPage();
+  document.querySelector('[data-action="vip-add"]')?.focus({ preventScroll: true });
+  toast(`Added a sample ${sample.title} (demo). The real app would read a photo of your card; this one reads nothing.`);
+}
+function removeVipCard(id) {
+  const i = app.state.vipCards.findIndex((c) => c.id === id);
+  if (i < 0) return;
+  const [card] = app.state.vipCards.splice(i, 1);
+  persist();
+  rerenderPage(() => document.querySelector('[data-action="vip-add"]'));
+  toast(`Removed ${card.title}.`, {
+    actionLabel: 'Undo',
+    onAction: () => { app.state.vipCards.splice(i, 0, card); persist(); if (app.route.name === 'profile') rerenderPage(); announce(`${card.title} restored.`); },
+  });
+}
+
 /* ---------------- search (always on Bars; the condensed header's icon jumps to it) ---------------- */
 function focusSearch() {
   if (app.route.name !== 'tonight') { go(app.lastExploreHash); }
@@ -1406,6 +1452,13 @@ function handleAction(a, el) {
       rerenderPage();
       (app.profileEdit.editing ? document.getElementById('p-name') : document.querySelector('[data-action="edit-profile"]'))?.focus();
       return true;
+    case 'open-settings': openAccountSheet(settingsSheet(ctx()), 'input[role="switch"]'); return true;
+    case 'open-help': openAccountSheet(helpSheet(), 'summary'); return true;
+    case 'help-about': closePicker(() => go('#/about')); return true;
+    case 'manage-sub': openAccountSheet(manageSubSheet(ctx()), 'input:checked'); return true;
+    case 'vip-wallet': toast('The real app would add this to Apple Wallet or Google Wallet. This demo card isn’t a real pass, so nothing was added.'); return true;
+    case 'vip-add': addVipCard(); return true;
+    case 'vip-remove': removeVipCard(el.dataset.id); return true;
     case 'noop': return true;
     default: return false;
   }
@@ -1492,8 +1545,15 @@ function onChange(e) {
     case 'pref':
       app.state.prefs[t.dataset.key] = t.checked;
       persist();
-      toast(t.checked ? 'Wait-drop alerts on (demo: nothing is sent).' : 'Wait-drop alerts off.');
+      {
+        const label = { notifyDrops: 'Wait-drop alerts', notifyDeals: 'Deal alerts', notifyGroups: 'Group updates' }[t.dataset.key] ?? 'Alerts';
+        toast(t.checked ? `${label} on (demo: nothing is sent).` : `${label} off.`);
+        const sr = t.closest('.switch-row')?.querySelector('.sr-only');
+        if (sr) sr.textContent = `(${t.checked ? 'on' : 'off'})`;
+      }
+      if (app.route.name === 'profile') rerenderPage();
       break;
+    case 'sub-plan': chooseSubscription(t.value); break;
     case 'sim': {
       app.state.sim[t.dataset.key] = t.checked;
       persist();

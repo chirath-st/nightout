@@ -25,7 +25,9 @@ export function defaultState(realNow) {
     groups: { joined: [], created: [] },
     reports: [], // { id, venueId, at, bucket, inLine, gotInAt, waitMin }
     activeWait: null, // { reportId, venueId, startedAt }
-    prefs: { notifyDrops: false },
+    prefs: { notifyDrops: false, notifyDeals: false, notifyGroups: false },
+    vipCards: [], // sample bar cards added in My account: { id, venueId, title, addedAt } (no photo is read)
+    subscription: { plan: 'plus', billing: 'monthly', since: null }, // SIMULATED Night Out Plus: no billing exists
     savedEvents: [], // event ids (sample events, this device only)
     goingEvents: [],
     votes: {}, // venueId -> 'going' | 'maybe' | 'no' (sample poll, this device only)
@@ -60,6 +62,12 @@ export function migrate(raw, realNow) {
     checkins: arr(raw.checkins).filter((c) => c && typeof c.venueId === 'string' && Number.isFinite(c.at)).slice(0, 200),
     lastDaily: Number.isFinite(raw.lastDaily) ? raw.lastDaily : null,
     votes: raw.votes && typeof raw.votes === 'object' ? Object.fromEntries(Object.entries(raw.votes).filter(([, x]) => ['going', 'maybe', 'no'].includes(x))) : {},
+    vipCards: arr(raw.vipCards).filter((c) => c && typeof c.id === 'string' && typeof c.title === 'string' && Number.isFinite(c.addedAt)).slice(0, 20),
+    subscription: {
+      plan: raw.subscription?.plan === 'none' ? 'none' : 'plus',
+      billing: raw.subscription?.billing === 'annual' ? 'annual' : 'monthly',
+      since: Number.isFinite(raw.subscription?.since) ? raw.subscription.since : null,
+    },
     deals: arr(raw.deals).filter((d) => d && typeof d.venueId === 'string' && typeof d.title === 'string' && Number.isFinite(d.startsAt) && Number.isFinite(d.endsAt)).slice(0, 50),
   };
 }
