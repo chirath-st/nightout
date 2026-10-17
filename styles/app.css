@@ -455,8 +455,14 @@ main { min-width: 0; padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 40px
 }
 @media (prefers-reduced-transparency: reduce) { .topbar { background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 .wordmark { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink); }
-.wordmark-text { font-size: 22px; font-weight: 800; font-stretch: var(--w-exp); letter-spacing: -.045em; line-height: 1; white-space: nowrap; }
-.wordmark-text::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 2px; border-radius: 50%; background: currentColor; }
+/* Brand wordmark: Fraunces Italic (shared builds load a subset of just these letters; locally Georgia Bold Italic stands in)
+   with a crescent moon for the dot of the i and a faint moonlight glow. */
+.wordmark-text { font-family: "Fraunces", Georgia, "Times New Roman", serif; font-style: italic; font-weight: 600; font-variation-settings: "SOFT" 40, "WONK" 1, "opsz" 144; font-size: 29px; letter-spacing: -.015em; line-height: 1; white-space: nowrap; }
+.wm-i { position: relative; display: inline-block; }
+.wm-moon { position: absolute; left: 50%; top: -.04em; width: .32em; height: .32em; transform: translateX(calc(-50% + .12em)) rotate(-28deg); filter: drop-shadow(0 0 .04em rgb(255 255 255 / .9)) drop-shadow(0 0 .14em rgb(255 240 200 / .45)); }
+.wm-moon svg { display: block; width: 100%; height: 100%; fill: currentColor; }
+.age-logo { display: block; margin-bottom: 18px; font-size: 46px; }
+@media (prefers-reduced-transparency: reduce) { .wm-moon { filter: none; } }
 .topbar-spacer { flex: 1; }
 .topbar-area { display: none; align-items: center; gap: 6px; min-width: 0; min-height: 44px; color: var(--ink); font-size: 19px; font-weight: 800; letter-spacing: -.03em; white-space: nowrap; } /* [NEW] */
 .topbar-area > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -1238,8 +1244,8 @@ button.list-link { width: 100%; border: 0; border-bottom: 1px solid var(--line);
 .vip-card:not(.is-main) { aspect-ratio: auto; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-strong); gap: 12px; }
 .vip-card:not(.is-main)::before { display: none; }
 .vip-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.vip-brand { font-family: var(--font-display); font-weight: 900; font-size: 20px; letter-spacing: -0.02em; text-transform: lowercase; }
-.vip-card.is-main .vip-brand::after { content: "."; color: var(--quiet); }
+.vip-brand { font-family: var(--font-display); font-weight: 900; font-size: 20px; letter-spacing: -0.02em; }
+.vip-card.is-main .vip-brand .wordmark-text { font-size: 26px; }
 .vip-card:not(.is-main) .vip-brand { font-size: var(--t-md); text-transform: none; letter-spacing: 0; }
 .vip-tag { flex: none; padding: 3px 7px; border-radius: var(--r-xs); border: 1px dashed var(--ink-4); font-size: var(--t-2xs); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
 .vip-title { align-self: end; font-family: var(--font-display); font-weight: 800; font-size: 28px; line-height: 1; letter-spacing: -0.01em; }
@@ -1326,3 +1332,38 @@ img.real-photo { object-position: var(--pos, 50% 50%) !important; }
 .chip-x .ic { width: 14px; height: 14px; color: var(--ink-2); }
 @media (max-width: 359.98px) { .sort-seg button { padding: 0 8px; font-size: 13px; } }
 @media (prefers-reduced-motion: reduce) { .sort-seg button:active { transform: none; } }
+
+/* ---------- Splash: the wordmark writes itself in ---------- */
+.splash { position: fixed; inset: 0; z-index: 1000; display: grid; place-content: center; justify-items: center; gap: 6px; background: #000; color: #fff; cursor: pointer; animation: splash-safety 0s linear 4.5s forwards; transition: opacity .42s var(--ease-out), visibility 0s linear .42s; }
+@keyframes splash-safety { to { opacity: 0; visibility: hidden; pointer-events: none; } }
+.splash-mark { width: min(86vw, 420px); height: auto; overflow: visible; transition: transform .42s var(--ease-out), filter .42s var(--ease-out); }
+.splash text { font-family: "Fraunces", Georgia, "Times New Roman", serif; font-style: italic; font-weight: 600; font-variation-settings: "SOFT" 40, "WONK" 1, "opsz" 144; font-size: 140px; letter-spacing: -.015em; }
+.sp-outline { fill: none; stroke: #fff; stroke-width: 1.4; stroke-linejoin: round; stroke-dasharray: 900; stroke-dashoffset: 900; opacity: 0; }
+.sp-fill { fill: #fff; }
+.sp-sweep { transform: skewX(-14deg); transform-box: view-box; }
+.sp-nib { fill: #fff; opacity: 0; }
+.sp-moon-in { fill: #fff; opacity: 0; transform-box: fill-box; transform-origin: center; }
+.splash-tag { font-size: 12px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: var(--ink-3); opacity: 0; }
+
+.splash.is-playing .sp-outline { animation: sp-draw 1.15s cubic-bezier(.55,.1,.35,1) forwards, sp-outline-fade .5s ease-out 1.15s forwards; }
+.splash.is-playing .sp-sweep { animation: sp-sweep 1.05s cubic-bezier(.62,.04,.32,1) .32s forwards; }
+.splash.is-playing .sp-nib { animation: sp-nib 1.05s cubic-bezier(.62,.04,.32,1) .32s forwards; }
+.splash.is-playing .sp-moon-in { animation: sp-moon .62s cubic-bezier(.2,1.4,.4,1) 1.32s forwards; }
+.splash.is-playing .splash-tag { animation: sp-tag .5s var(--ease-out) 1.55s forwards; }
+.splash.is-out { opacity: 0; visibility: hidden; }
+.splash.is-out .splash-mark { transform: translateY(-10px) scale(.985); filter: blur(2px); }
+
+@keyframes sp-draw { 0% { opacity: 1; stroke-dashoffset: 900; } 100% { opacity: 1; stroke-dashoffset: 0; } }
+@keyframes sp-outline-fade { from { opacity: 1; } to { opacity: 0; } }
+@keyframes sp-sweep { from { transform: translateX(0) skewX(-14deg); } to { transform: translateX(1000px) skewX(-14deg); } }
+@keyframes sp-nib { 0% { opacity: 0; transform: translateX(0); } 10% { opacity: 1; } 58% { opacity: 1; } 72% { opacity: 0; } 100% { opacity: 0; transform: translateX(1000px); } }
+@keyframes sp-moon { 0% { opacity: 0; transform: scale(.3) rotate(-90deg); } 60% { opacity: 1; } 100% { opacity: 1; transform: scale(1) rotate(-28deg); } }
+@keyframes sp-tag { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .splash.is-playing .sp-outline, .splash.is-playing .sp-nib { animation: none; opacity: 0; }
+  .splash.is-playing .sp-sweep { animation: none; transform: translateX(1000px); }
+  .splash.is-playing .sp-moon-in { animation: none; opacity: 1; transform: rotate(-28deg); }
+  .splash.is-playing .splash-tag { animation: none; opacity: 1; }
+  .splash.is-out .splash-mark { transform: none; filter: none; }
+}

@@ -1676,18 +1676,55 @@ function boot() {
     document.documentElement.toggleAttribute('data-hidden', document.hidden);
     if (!document.hidden) tick();
   });
+  const splash = runSplash();
   if (!app.state.ageConfirmed) {
     const gate = document.getElementById('age-gate');
     gate.addEventListener('cancel', (e) => e.preventDefault());
     // Chromium may close a modal opened without user activation on Escape; reopen until confirmed.
     gate.addEventListener('close', () => { if (!app.state.ageConfirmed) gate.showModal(); });
-    gate.showModal();
+    splash.then(() => { if (!app.state.ageConfirmed && !gate.open) gate.showModal(); });
   }
   document.documentElement.dataset.ready = 'true';
   if (new URLSearchParams(location.search).has('qa')) {
     // QA-only hook (used by app/QA.md checks): age estimates while a page stays open.
     window.__doorlineQA = { advance: (min) => { app.state.clock = advance(app.state.clock, min); persist(); rebuild(); tick(); } };
   }
+}
+
+/* ---------------- splash: the wordmark writes itself in (about 2 s, tap to skip, a short fade under reduced motion) ---------------- */
+function runSplash() {
+  const el = document.getElementById('splash');
+  const shell = document.querySelector('.app');
+  if (!el) return Promise.resolve();
+  const remove = () => { el.remove(); shell?.removeAttribute('inert'); };
+  if (new URLSearchParams(location.search).has('qa')) { remove(); return Promise.resolve(); } // QA runs skip it
+  shell?.setAttribute('inert', '');
+  return new Promise((resolve) => {
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      el.classList.add('is-out');
+      setTimeout(() => { remove(); resolve(); }, reducedMotion() ? 160 : 420);
+    };
+    el.addEventListener('pointerdown', finish, { once: true });
+    const fontReady = Promise.race([document.fonts?.load?.('italic 600 140px Fraunces').catch(() => null), new Promise((r) => setTimeout(r, 700))]);
+    fontReady.then(() => {
+      placeSplashMoon(el);
+      el.classList.add('is-playing');
+      setTimeout(finish, reducedMotion() ? 800 : 2300);
+    });
+  });
+}
+/** Put the crescent over the dotless i of whatever font actually rendered (Fraunces, or Georgia locally). */
+function placeSplashMoon(el) {
+  const text = el.querySelector('.sp-fill');
+  const moon = el.querySelector('.sp-moon');
+  try {
+    const box = text.getExtentOfChar(1);
+    const size = parseFloat(getComputedStyle(text).fontSize) || 140;
+    moon.setAttribute('transform', `translate(${(box.x + box.width / 2 + size * 0.1).toFixed(1)} ${(142 - size * 0.66).toFixed(1)})`);
+  } catch { /* keep the default spot */ }
 }
 
 boot();

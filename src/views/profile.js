@@ -1,6 +1,6 @@
 // My account (team ideas): profile, VIP cards, subscription, notifications, help. Everything is the
 // demo user's and stays on this device. SIMULATED: no billing, no wallet pass, no photo is read.
-import { esc } from '../ui/components.js';
+import { esc, wordmark } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
 import { initials, balanceOf, PLANS, PLUS_PERKS, SAMPLE_BAR_CARDS } from '../data/social.js';
 
@@ -22,7 +22,7 @@ const barcode = (seed) => {
 export function vipCard(card, ctx, { main = false } = {}) {
   const venue = card.venueId ? ctx.venues.find((v) => v.id === card.venueId) : null;
   return `<article class="vip-card${main ? ' is-main' : ''}" aria-label="${esc(card.title)}, demo card, not valid">
-    <div class="vip-top"><span class="vip-brand">${main ? 'nightout' : esc(venue?.name ?? 'Bar card')}</span><span class="vip-tag">Demo · not valid</span></div>
+    <div class="vip-top"><span class="vip-brand">${main ? `${wordmark()}<span class="sr-only">Night Out</span>` : esc(venue?.name ?? 'Bar card')}</span><span class="vip-tag">Demo · not valid</span></div>
     <p class="vip-title">${esc(main ? 'VIP pass' : card.title)}</p>
     <div class="vip-foot"><span><b>${esc(ctx.state.profile.name)}</b><small>${main ? 'Member card' : `Added ${esc(dateFmt(card.addedAt))}`}</small></span><span class="vip-code" aria-hidden="true">${barcode(card.id)}</span></div>
   </article>`;

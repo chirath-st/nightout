@@ -365,6 +365,9 @@ export function passCard(pass, now, { headingLevel = 3 } = {}) {
   </article>`;
 }
 
+/** Brand wordmark (2026-10-17): Fraunces Italic with a crescent moon for the dot of the i. Decorative: callers label it. */
+export const wordmark = () => `<span class="wordmark-text" aria-hidden="true">n<span class="wm-i">ı<span class="wm-moon"><svg viewBox="0 0 20 20" focusable="false"><path d="M12.6 1.2a9 9 0 1 0 6.2 14.6A7.6 7.6 0 0 1 12.6 1.2Z"/></svg></span></span>ghtout</span>`;
+
 /** Top-right points chip: your demo balance, linking to Points (replaces the old "Demo data" tag; every number in the app still says "demo" where it appears). */
 export function pointsChip(balance) {
   const n = new Intl.NumberFormat('en-US').format(balance);
