@@ -1,4 +1,4 @@
-import { esc, estimateBlock, saveButton, stateBox, windowLabel, coverText, venuePhoto, venueLogo, distanceText, venueStatus } from '../ui/components.js';
+import { esc, estimateBlock, saveButton, stateBox, windowLabel, coverText, venuePhoto, venueLogo, distanceText, factStrip, howItWorks } from '../ui/components.js';
 import { formatTime } from '../lib/clock.js';
 import { VIBE, POLL } from '../data/events.js';
 import { eventWindow, isLive, pollResult } from '../lib/events.js';
@@ -69,69 +69,78 @@ export function renderVenue(ctx, id) {
   const kind = [coverText(venue), venue.tags?.join(' · ')].filter(Boolean).join(' | ');
   const hoursShort = venue.closedTonight ? 'Closed tonight' : venue.hours ? `${to12(venue.hours.open)}–${to12(venue.hours.close)}` : null;
   const ev = tonightEvent(ctx, venue);
+  const eyebrow = [venue.area, venue.tags?.[0]].filter(Boolean).join(' · ');
   return `<div class="page detail">
     <div class="detail-hero" data-hero="${esc(venue.id)}">${venuePhoto(venue, { title: true })}
       <a class="back-link hero-btn" href="${ctx.backHref}" data-action="back" aria-label="Back to ${esc(ctx.backLabel)}">${icon('chevronLeft', { size: 22 })}</a>
+      <span class="hero-caption">${icon('info', { size: 13 })}<span>${venue.photo ? esc(venue.photoCredit ? `Photo: ${venue.photoCredit}` : 'Photo used with permission') : 'Illustration, not a photo'}</span></span>
       ${saveButton(venue, saved, 'save-detail hero-btn')}
-      <span class="hero-caption">${icon('info', { size: 14, cls: 'hero-caption-icon' })}<span>${venue.photo ? esc(venue.photoCredit ? `Photo: ${venue.photoCredit}` : 'Photo used with permission') : 'Illustration, not a photo'}</span></span>
-      <div class="hero-title"><span class="bar-logo hero-logo" aria-hidden="true">${venueLogo(venue)}</span><div class="hero-text"><h1 class="hero-name" id="page-h" tabindex="-1">${esc(venue.name)}</h1>
-        <p class="hero-sub">${icon('pinFill', { size: 14 })}<span>${esc([venue.area ? 'New Brunswick' : null, distanceText(venue) ? `${distanceText(venue)} away` : null].filter(Boolean).join(' · ') || 'New Brunswick')}</span></p></div></div>
+      <div class="hero-title">
+        <span class="hero-meta"><span class="bar-logo hero-logo" aria-hidden="true">${venueLogo(venue)}</span><span class="eyebrow">${esc(eyebrow)}</span></span>
+        <h1 class="hero-name" id="page-h" tabindex="-1">${esc(venue.name)}</h1>
+        ${distanceText(venue) ? `<p class="hero-sub">${icon('nav', { size: 12 })}<span>New Brunswick · ${esc(distanceText(venue))} away</span></p>` : ''}
+      </div>
     </div>
-    ${venueStatus(venue, now)}
+    <p class="affiliation">${icon('info', { size: 14 })}<span>Independent listing. Not affiliated with the bar. Waits, events, deals, prices and polls here are simulated.</span></p>
+    ${estimateBlock(venue, now, { showHow: false })}
     <div class="venue-actions">
-      <button type="button" class="btn" data-action="directions" data-id="${esc(venue.id)}" ${venue.address ? '' : 'aria-disabled="true"'}>${icon('directions', { size: 18 })}Directions</button>
-      <button type="button" class="btn" data-action="share" data-id="${esc(venue.id)}">${icon('share', { size: 18 })}Share</button>
+      <a class="act act-primary" href="#/scan?venue=${encodeURIComponent(venue.id)}">${icon('report', { size: 22 })}<span>Report the line</span><span class="act-pts" aria-hidden="true">+${POINTS.REPORT}</span><span class="sr-only">, earn ${POINTS.REPORT} demo points</span></a>
+      <button type="button" class="act" data-action="directions" data-id="${esc(venue.id)}" ${venue.address ? '' : 'aria-disabled="true"'}>${icon('directions', { size: 22 })}<span>Directions</span></button>
+      <button type="button" class="act" data-action="share" data-id="${esc(venue.id)}">${icon('share', { size: 22 })}<span>Share</span></button>
+      <a class="act" href="#/groups/new?venue=${encodeURIComponent(venue.id)}">${icon('users', { size: 22 })}<span>Group</span></a>
     </div>
-    <div class="detail-head">
-      <p class="detail-kind">${esc(kind)}</p>
-      <p class="detail-line">${esc([venue.address, venue.area].filter(Boolean).join(' · ') || 'Address not listed')}</p>
-      <p class="detail-line"><strong>${esc(openText)}</strong>${hoursShort ? `<span class="sep" aria-hidden="true">•</span>${esc(hoursShort)} (simulated)` : ''}</p>
-      <p class="affiliation">${icon('info', { size: 14 })}<span>Not affiliated with Night Out. Waits, events, deals, prices and polls on this page are simulated.</span></p>
-    </div>
+    ${factStrip(venue, now)}
     ${tonightSection(ev, now)}
     ${vibeSection(venue)}
     ${dealsSection(venue, now)}
     ${foodSection(venue)}
     ${pollSection(venue, ctx.state.votes?.[venue.id] ?? null)}
-    <a class="btn btn-lg btn-block report-cta" href="#/scan?venue=${encodeURIComponent(venue.id)}">${icon('report', { size: 20 })}Report crowd or wait time<span class="report-pts">+${POINTS.REPORT} pts</span></a>
-    <h2 class="section-title">Wait details</h2>
-    ${estimateBlock(venue, now)}
+    ${howItWorks()}
     ${typicalStrip(venue, now)}
     ${passCta(venue, now)}
-    <h2 class="section-title">Entry details (simulated)</h2>
+    <div class="section-head"><h2>Entry details</h2><span class="eyebrow">Simulated</span></div>
     <dl class="facts">
       <div><dt>Cover</dt><dd>${esc(cover)}</dd></div>
       <div><dt>Age policy</dt><dd>21+ with valid physical ID</dd></div>
       <div><dt>Hours tonight</dt><dd>${esc(hours)}</dd></div>
+      <div><dt>Status</dt><dd>${esc(openText)}</dd></div>
       <div><dt>Priority windows</dt><dd>${esc(windows)}</dd></div>
+      <div><dt>Address</dt><dd>${esc([venue.address, venue.area].filter(Boolean).join(' · ') || 'Not listed')}</dd></div>
       ${distanceText(venue) ? `<div><dt>Distance</dt><dd>${esc(distanceText(venue))} from ${esc(DEMO_SPOT.label)} (demo spot, straight line)</dd></div>` : ''}
       ${venue.source ? `<div><dt>Name &amp; address from</dt><dd>${esc(venue.source)}</dd></div>` : ''}
     </dl>
-    <h2 class="section-title" id="menu" tabindex="-1">Illustrative menu</h2>
-    <p class="hint">Not this bar’s menu or prices.</p>
-    ${venue.menu?.length ? venue.menu.map((s) => `<div class="menu-section"><h3>${esc(s.title)}</h3>${s.items.map((it) => `<div class="menu-item"><span>${esc(it.name)}</span><span>${it.price === 0 ? 'Free' : dollars(it.price)}</span></div>`).join('')}</div>`).join('') : '<p class="hint">No sample menu for this venue.</p>'}
+    <div class="section-head"><h2 id="menu" tabindex="-1">Illustrative menu</h2><span class="eyebrow">Not this bar’s</span></div>
+    ${venue.menu?.length ? venue.menu.map((s) => `<div class="menu-section"><h3>${esc(s.title)}</h3>${s.items.map((it) => `<div class="menu-item"><span>${esc(it.name)}</span><span class="num">${it.price === 0 ? 'Free' : dollars(it.price)}</span></div>`).join('')}</div>`).join('') : '<p class="hint">No sample menu for this venue.</p>'}
     <p class="hint" style="margin-top:12px">Menus are for browsing only. This prototype has no drink ordering, pre-payment or redemption.</p>
     <section class="pass-cta" aria-labelledby="idpc-h" style="margin-top:var(--s-6)">
       <h2 id="idpc-h" style="display:flex;gap:8px;align-items:center">${icon('id')}About a future ID pre-check</h2>
       <p>A future version might help you check, ahead of time, that you’re bringing an accepted ID. It could never guarantee entry or replace the venue’s own ID check at the door. New Jersey also limits keeping data from scanned IDs. This prototype collects no ID information.</p>
     </section>
+    <p class="demo-caption">Night Out isn’t affiliated with ${esc(venue.name)}. Everything on this page except the name and address is simulated. 21+ with physical ID.</p>
   </div>`;
 }
 
-/** Tonight's deals for this bar: live first, then later, then ended. Every one is a demo deal. */
+/** Tonight's deals as tickets: live first, then later, then ended. Every one is a demo deal. */
 function dealsSection(venue, now) {
   const deals = dealsTonight(venue, now);
   if (!deals.length) return '';
+  const mins = (ms) => Math.max(0, Math.round(ms / 60000));
+  const left = (m) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m} min`);
   return `<section class="deals" aria-labelledby="deals-h">
-    <div class="sec-head"><h2 class="section-title" id="deals-h">Deals &amp; drink specials</h2><span class="demo-tag">Demo deals</span></div>
+    <div class="section-head"><h2 id="deals-h">Deals &amp; drink specials</h2><span class="eyebrow">Demo deals</span></div>
     <ul class="deal-list">${deals.map((d) => {
       const st = dealState(d, now);
       const kind = DEAL_KINDS[d.kind] ?? DEAL_KINDS.food;
+      const at = st === 'soon' ? d.startsAt : d.endsAt;
+      const [t, ap] = formatTime(at).split(/\s+/);
+      const frac = st === 'live' ? Math.max(0, Math.min(1, (d.endsAt - now) / (d.endsAt - d.startsAt))) : 0;
+      const sub = st === 'live' ? `${left(mins(d.endsAt - now))} left` : st === 'soon' ? `starts in ${left(mins(d.startsAt - now))}` : 'ended';
+      const sr = st === 'live' ? `Live now until ${formatTime(d.endsAt)}, ${left(mins(d.endsAt - now))} left.` : st === 'soon' ? `Starts at ${formatTime(d.startsAt)}.` : 'Ended.';
       return `<li class="deal-row" data-state="${st}">
         <span class="deal-icon">${icon(kind.icon, { size: 20 })}</span>
-        <span class="deal-main"><span class="deal-title">${esc(d.title)}</span>
-          <span class="deal-meta"><span class="deal-when">${esc(dealWhen(d, now))}</span><span class="sep" aria-hidden="true">•</span><span>${esc(kind.short)}</span>${kind.adults ? '<span class="sep" aria-hidden="true">•</span><span>21+</span>' : ''}</span></span>
-        <span class="deal-state">${st === 'live' ? 'Now' : st === 'soon' ? 'Later' : 'Ended'}</span>
+        <span class="deal-main"><span class="eyebrow">${esc(kind.adults ? `${kind.short} · 21+` : `Demo deal · ${kind.short}`)}</span><span class="deal-title">${esc(d.title)}</span><span class="deal-meta">Simulated, not offered by the bar</span></span>
+        <span class="deal-stub" aria-hidden="true"><span class="deal-state">${st === 'live' ? 'Live' : st === 'soon' ? 'Soon' : 'Ended'}</span><span class="deal-time num">${esc(t)}<small>${esc(ap ?? '')}</small></span><span class="deal-left"><i style="--left:${(frac * 100).toFixed(0)}%"></i></span><span class="deal-sub">${esc(sub)}</span></span>
+        <span class="sr-only">${esc(sr)}</span>
       </li>`;
     }).join('')}</ul>
     <p class="hint">${esc(venue.name)} isn’t offering these. In the real app each deal is set by the bar and valid only there; drink specials are 21+ and never below the bar’s cost.</p>
@@ -151,7 +160,7 @@ function tonightEvent(ctx, venue) {
 const dayName = (ms) => new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(ms);
 
 function tonightSection(found, now) {
-  const head = (title) => `<div class="sec-head"><h2 class="section-title" id="tonight-h">${title}</h2><span class="demo-tag">Sample event</span></div>`;
+  const head = (title) => `<div class="section-head"><h2 id="tonight-h">${title}</h2><span class="eyebrow">Sample event</span></div>`;
   if (!found) return `<section class="tonight" aria-labelledby="tonight-h">${head('Tonight')}<p class="hint">No event listed this week.</p></section>`;
   const { ev, when } = found;
   const time = `${when === 'week' ? `${dayName(ev.startsAt)} ` : ''}${formatTime(ev.startsAt)}${ev.endsAt ? `–${formatTime(ev.endsAt)}` : ' till late'}`;
@@ -176,11 +185,11 @@ function vibeSection(venue) {
   const v = VIBE[venue.id];
   if (!v) return '';
   return `<section class="vibe" aria-labelledby="vibe-h">
-    <div class="sec-head"><h2 class="section-title" id="vibe-h">The vibe</h2><span class="demo-tag">Sample</span></div>
-    <dl class="vibe-grid">
-      <div><dt>Entry</dt><dd class="num">21+</dd><span>Physical ID at the door</span></div>
-      <div><dt>Typical crowd</dt><dd class="num">${v.typicalAge[0]}–${v.typicalAge[1]}</dd><span>Most people’s age</span></div>
-      <div><dt>Drinks</dt><dd class="num">$${v.drinks[0]}–${v.drinks[1]}</dd><span>Typical price</span></div>
+    <div class="section-head"><h2 id="vibe-h">The vibe</h2><span class="eyebrow">Sample</span></div>
+    <dl class="fact-strip">
+      <div><dt>Entry</dt><dd>21+<span class="fact-sub">Physical ID</span></dd></div>
+      <div><dt>Crowd age</dt><dd>${v.typicalAge[0]}–${v.typicalAge[1]}<span class="fact-sub">Most people’s age</span></dd></div>
+      <div><dt>Drinks</dt><dd>$${v.drinks[0]}–${v.drinks[1]}<span class="fact-sub">Typical price</span></dd></div>
     </dl>
   </section>`;
 }
@@ -189,7 +198,7 @@ function foodSection(venue) {
   const food = venue.menu?.find((s) => s.title === 'Food');
   if (!food?.items.length) return '';
   return `<section class="food" aria-labelledby="food-h">
-    <h2 class="section-title" id="food-h">Food</h2>
+    <div class="section-head"><h2 id="food-h">Food</h2><span class="eyebrow">Sample menu</span></div>
     <div class="food-row"><span class="event-icon">${icon('food', { size: 22 })}</span><div class="food-main"><p class="food-title">Bar food available</p><p class="hint" style="margin:0">${esc(food.items.map((i) => i.name.replace(/\s*\(.*\)$/, '')).join(' · '))}</p></div>
       <button type="button" class="btn btn-sm" data-action="scroll-to" data-target="menu">View menu</button></div>
   </section>`;
@@ -201,7 +210,7 @@ export function pollSection(venue, vote) {
   if (!base) return '';
   const r = pollResult(base, vote);
   return `<section class="poll" id="poll-${esc(venue.id)}" aria-labelledby="poll-h">
-    <div class="sec-head"><h2 class="section-title" id="poll-h">Who’s going?</h2><span class="demo-tag">Sample poll</span></div>
+    <div class="section-head"><h2 id="poll-h">Who’s going?</h2><span class="eyebrow">Sample poll</span></div>
     <div class="poll-options" role="group" aria-label="Are you going tonight?">
       ${VOTES.map(([k, label]) => `<button type="button" class="poll-opt" data-action="vote" data-id="${esc(venue.id)}" data-vote="${k}" aria-pressed="${vote === k}" style="--p:${r.pct[k]}%">
         <span class="poll-label">${vote === k ? icon('check', { size: 16 }) : ''}${label}</span><span class="poll-pct num">${r.pct[k]}%</span></button>`).join('')}

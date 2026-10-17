@@ -1,11 +1,11 @@
 // Groups: people post plans to head out together; others join. Everything is simulated and stays on
 // this device. Hosts are fictional; Instagram handles are shown but never linked out in the demo.
-import { esc, stateBox } from '../ui/components.js';
+import { esc, stateBox, venueLogo, cardStatus, distanceText } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
 import { formatTime } from '../lib/clock.js';
 import { initials, validHandle } from '../data/social.js';
 
-const avatar = (person, size = 40) => `<span class="avatar" style="--hue:${person.hue ?? 210};--size:${size}px" aria-hidden="true">${esc(initials(person.name))}</span>`;
+const avatar = (person, size = 36) => `<span class="avatar" style="--size:${size}px" aria-hidden="true">${esc(initials(person.name))}</span>`;
 
 export function allGroups(ctx) {
   return [...ctx.state.groups.created, ...ctx.groups].sort((a, b) => a.startsAt - b.startsAt);
@@ -17,17 +17,19 @@ function groupCard(g, ctx) {
   const going = g.going + (ctx.state.groups.joined.includes(g.id) ? 1 : 0);
   const full = going >= g.spots && !joined;
   const ended = ctx.now >= g.startsAt + 3 * 60 * 60000;
-  const dots = Array.from({ length: g.spots }, (_, i) => `<span class="${i < going ? 'is-on' : ''}"></span>`).join('');
+  const crowd = ['A', 'J', 'K', 'M', 'R', 'S', 'T'].slice(0, Math.min(3, Math.max(0, going - 1))).map((ch) => `<span class="avatar" style="--size:26px" aria-hidden="true">${ch}</span>`).join('');
   const handle = g.host.handle
     ? `<button type="button" class="handle" data-action="ig-link" data-handle="${esc(g.host.handle)}" aria-label="Instagram @${esc(g.host.handle)}">${icon('at', { size: 14 })}${esc(g.host.handle)}</button>`
     : '';
+  const [t, ap] = formatTime(g.startsAt).split(/\s+/);
   return `<li class="group-card">
+    <div class="group-dest">${venue ? `<span class="bar-logo" aria-hidden="true">${venueLogo(venue)}</span>` : ''}<span><b>${esc(venue?.name ?? 'Bar not in this dataset')}</b><small>${esc([venue && distanceText(venue), 'Demo group'].filter(Boolean).join(' · '))}</small></span>${venue ? `<span class="group-wait" aria-hidden="true">${cardStatus(venue, ctx.now)}</span>` : ''}</div>
     <div class="group-host">${avatar(g.host)}<div class="group-host-text"><span class="group-host-name">${esc(g.host.name)}${g.mine ? ' <span class="mini-tag">You</span>' : ''}</span>${handle}</div></div>
     <h2 class="group-title-text">${esc(g.title)}</h2>
-    <p class="group-where">${icon('pin', { size: 14 })}<span>${esc(venue?.name ?? 'Bar not in this dataset')}</span><span class="sep" aria-hidden="true">•</span><span class="num">${esc(formatTime(g.startsAt))}</span></p>
+    <p class="group-when"><small>Leaving</small><span class="num">${esc(t)}</span><small class="ap">${esc(ap ?? '')}</small></p>
     ${g.note ? `<p class="group-note">${esc(g.note)}</p>` : ''}
     <div class="group-foot">
-      <div class="group-spots"><span class="spot-dots" aria-hidden="true">${dots}</span><span class="num">${going} of ${g.spots} going</span></div>
+      <div class="group-spots"><span class="avatars" aria-hidden="true">${avatar(g.host, 26)}${crowd}</span><span class="num">${going} of ${g.spots} going</span></div>
       ${g.mine ? '<span class="mini-tag">Your group</span>'
         : ended ? '<span class="mini-tag">Ended</span>'
         : `<button type="button" class="btn ${joined ? '' : 'btn-primary'} btn-sm" data-action="join-group" data-id="${esc(g.id)}" aria-pressed="${joined}" ${full ? 'aria-disabled="true"' : ''}>${joined ? `${icon('check', { size: 16 })}Joined` : full ? 'Full' : 'Join'}</button>`}

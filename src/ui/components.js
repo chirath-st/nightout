@@ -67,29 +67,68 @@ export function estimateCompact(venue, now) {
   </span>`;
 }
 
-/** Full estimate block for venue detail and the operator's guest preview. */
+/**
+ * Full estimate block ("Late Edition"): the range at display size, a 0–30+ scale with the range bracketed,
+ * the crowd meter + word + door status, a freshness ruler (fresh / may have changed / out of date) and one
+ * plain sentence about the source. Used on the bar page and in the operator's guest preview. Live-patched.
+ */
 export function estimateBlock(venue, now, { headingId = 'qb-h', showHow = true, headingLevel = 2 } = {}) {
   const est = estimateFor(venue, now);
+  const st = crowdStatus(est);
   const q = venue.queue;
-  const [big, unit] = /^(\d+–\d+) min$/.test(est.headline) ? [est.headline.replace(' min', ''), 'min'] : [est.headline, ''];
-  const facts = [];
-  if (est.peopleLabel && !['stale', 'unknown', 'closed'].includes(est.tone)) facts.push(['In line', est.peopleLabel.replace(' in line', '')]);
-  if (Number.isFinite(q?.admitPerMin) && q.admitPerMin > 0 && !['stale', 'unknown', 'closed'].includes(est.tone)) facts.push(['Door pace', `${q.admitPerMin}/min`]);
-  if (est.confidence) facts.push(['Confidence', est.confidence]);
-  if (est.observedAt != null) facts.push(['Source', est.shortSource === 'Venue' ? 'Venue' : est.shortSource], ['Updated', est.ageLabel]);
   const h = `h${headingLevel}`;
+  const rangeTone = ['fresh', 'aging', 'uncertain'].includes(est.tone) && est.waitLow != null;
+  const word = { stale: 'Out of date', unknown: 'No reports', closed: 'Closed', capacity: 'At capacity', paused: 'Entry paused' }[est.tone];
+  const big = rangeTone ? `${est.tone === 'fresh' ? '' : '<span class="approx">≈</span>'}${est.waitLow}–${est.waitHigh}<small>min</small>` : esc(word ?? est.headline);
+  const age = est.observedAt != null ? Math.max(0, Math.round((now - est.observedAt) / 60000)) : null;
+  const band = est.tone === 'fresh' ? 0 : est.tone === 'aging' || est.tone === 'uncertain' ? 1 : 2;
+  const people = est.peopleLabel ? est.peopleLabel.replace(' in line', '') : null;
+  const pace = Number.isFinite(q?.admitPerMin) && q.admitPerMin > 0 ? q.admitPerMin : null;
+  const door = {
+    capacity: 'Entry only as people leave. The wait can grow quickly.',
+    paused: q?.note || 'The door has paused entry.',
+    closed: est.detail || 'Not open now.',
+    stale: age != null ? `Last report ${age} min ago. The number is hidden until someone reports again.` : 'No recent report.',
+    unknown: 'No one has reported this line yet.',
+  }[est.tone] ?? [people && `About ${people.replace(/^~/, '')} in line`, pace && `door moving ~${pace} a min`].filter(Boolean).join(', ');
+  const levelGlyph = { closed: 'moon', paused: 'pause', stale: 'aging', unknown: 'help' }[est.tone];
+  const levelHead = levelGlyph ? `${icon(levelGlyph, { size: 18, cls: 'cs-glyph' })}${esc(st.label)}` : `${meter(st.level, { maybe: st.maybe, lg: true })}${esc(st.label)}`;
+  const freshLeft = est.tone === 'fresh' && age != null ? Math.max(0, FRESHNESS_MINUTES[q.sourceType].fresh - age) : null;
+  const sentence = est.observedAt != null && est.tone !== 'closed'
+    ? `<b>Updated ${esc(est.ageLabel)}</b> · ${esc(est.sourceLabel)}${est.confidence ? `, ${esc(est.confidence.toLowerCase())} confidence` : ''}.${freshLeft != null ? ` Fresh for ${Math.round(freshLeft)} more minute${Math.round(freshLeft) === 1 ? '' : 's'}; after 20 the number is hidden.` : ''}`
+    : esc(est.detail || '');
   return `<section class="queue-block" data-est="${esc(venue.id)}" data-variant="block" data-tone="${est.tone}" data-level="${headingLevel}" aria-labelledby="${headingId}">
-    <div class="qb-top">
-      <${h} class="qb-label" id="${headingId}">Estimated wait at the door</${h}>
-      <span class="qb-tags"><span class="crowd-chip" data-level="${crowdStatus(est).level}">${icon(crowdStatus(est).icon, { size: 16 })}${esc(crowdStatus(est).label)}</span>${toneBadge(est.tone)}<span class="demo-tag">Demo data</span></span>
-    </div>
-    <p class="qb-wait">${esc(big)}${unit ? `<small>${unit}</small>` : ''}</p>
-    ${est.detail ? `<p class="qb-detail">${esc(est.detail)}</p>` : ''}
-    ${q?.note && est.tone !== 'paused' && !['stale', 'unknown'].includes(est.tone) ? `<p class="qb-detail">Venue note: ${esc(q.note)}</p>` : ''}
-    ${facts.length ? `<dl class="qb-facts">${facts.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : ''}
-    ${est.observedAt != null && est.tone !== 'closed' ? `<p class="hint">${esc(est.sourceLabel)} at ${esc(formatTime(est.observedAt))} (demo time).</p>` : ''}
+    <div class="qb-top"><${h} class="qb-label" id="${headingId}">Wait at the door</${h}><span class="demo-tag">Demo estimate</span></div>
+    <p class="qb-wait"><span class="sr-only">Estimated wait </span>${big}</p>
+    ${rangeTone ? `<div class="qb-scale" aria-hidden="true" style="--lo:${Math.min(est.waitLow, 30)};--hi:${Math.min(est.waitHigh, 30)};--max:30"><span class="qb-scale-track"><b style="left:33.33%"></b><b style="left:66.66%"></b><span class="qb-scale-range"></span></span><span class="qb-scale-axis"><span style="left:0">0</span><span style="left:33.33%">10</span><span style="left:66.66%">20</span><span style="left:100%">30+ min</span></span></div>` : ''}
+    <p class="qb-level"><b>${levelHead}</b>${door ? `<span>${esc(door)}</span>` : ''}</p>
+    ${age != null && est.tone !== 'closed' ? `<div class="qb-fresh" aria-hidden="true" style="--age:${Math.min(age, 26)}"><span class="qf-track"><i class="qf-1"></i><i class="qf-2"></i><i class="qf-3"></i><b class="qf-mark"></b></span><span class="qf-legend"><span class="${band === 0 ? 'is-on' : ''}">Fresh</span><span class="${band === 1 ? 'is-on' : ''}">May have changed</span><span class="${band === 2 ? 'is-on' : ''}">Out of date</span></span></div>` : ''}
+    ${sentence ? `<p class="qb-detail">${sentence}</p>` : ''}
+    ${q?.note && !['paused', 'stale', 'unknown'].includes(est.tone) ? `<p class="qb-detail">Venue note: ${esc(q.note)}</p>` : ''}
     ${showHow ? howItWorks() : ''}
   </section>`;
+}
+
+/** The bar page's 2×3 stats: In line, Door pace, Confidence, Distance, Cover, Closes. */
+export function factStrip(venue, now) {
+  const est = estimateFor(venue, now);
+  const q = venue.queue;
+  const live = !['stale', 'unknown', 'closed'].includes(est.tone);
+  const people = live && est.peopleLabel ? est.peopleLabel.replace(' in line', '') : '—';
+  const pace = live && Number.isFinite(q?.admitPerMin) && q.admitPerMin > 0 ? `~${q.admitPerMin}<small>/min</small>` : '—';
+  const dist = distanceTo(venue, DEMO_SPOT);
+  const open = isOpenAt(venue, now);
+  const [ch] = venue.hours?.close.split(':').map(Number) ?? [];
+  const closes = venue.hours ? `${ch === 0 ? 12 : ch > 12 ? ch - 12 : ch}<small>${ch >= 12 ? 'PM' : 'AM'}</small>` : '—';
+  const cell = (dt, dd, sub) => `<div><dt>${dt}</dt><dd>${dd}<span class="fact-sub">${esc(sub)}</span></dd></div>`;
+  return `<dl class="fact-strip">
+    ${cell('In line', esc(people), 'people (demo)')}
+    ${cell('Door pace', pace, est.tone === 'paused' ? 'Paused' : est.tone === 'capacity' ? 'One in, one out' : 'Letting in')}
+    ${cell('Confidence', esc(est.confidence ?? '—'), est.tone === 'uncertain' ? 'Reports differ' : est.shortSource ?? 'No source')}
+    ${cell('Distance', dist == null ? '—' : `${esc(formatMiles(dist).replace(' mi', ''))}<small>mi</small>`, 'Straight line')}
+    ${cell('Cover', venue.cover == null ? '—' : `$${venue.cover}`, 'Simulated')}
+    ${cell('Closes', closes, venue.closedTonight ? 'Closed tonight' : open === false ? 'Closed now' : 'Open now')}
+  </dl>`;
 }
 
 export function howItWorks() {
