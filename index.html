@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#000000">
+  <meta name="robots" content="noindex">
+  <title>Night Out (demo)</title>
+  <meta name="description" content="Prototype with simulated data: estimated bar lines in New Brunswick, saved places and a simulated priority pass. Not a live service; no bar is affiliated.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='white'/%3E%3Cpath d='M18.5 8.5a8 8 0 1 0 5 13.6A6.6 6.6 0 0 1 18.5 8.5Z' fill='black'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..800&family=Playfair+Display:ital,wght@0,700..900;1,700..900&display=swap">
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/app.css">
+  <script type="module" src="src/main.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="app">
+    <header class="topbar">
+      <a class="wordmark" href="#/" aria-label="Night Out, demo: go to Tonight"><span class="wordmark-mark" aria-hidden="true"></span><span class="wordmark-text">Night Out</span></a>
+      <span class="topbar-spacer"></span>
+      <span id="demo-slot" style="display:flex;align-items:center;gap:10px"></span>
+    </header>
+    <nav class="tabbar" aria-label="Primary">
+      <a class="tab" href="#/" data-tab="bars"><span class="tab-inner"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 4h4A1.5 1.5 0 0 1 11 5.5v4A1.5 1.5 0 0 1 9.5 11h-4A1.5 1.5 0 0 1 4 9.5v-4A1.5 1.5 0 0 1 5.5 4Z"/><path d="M14.5 4h4A1.5 1.5 0 0 1 20 5.5v4a1.5 1.5 0 0 1-1.5 1.5h-4A1.5 1.5 0 0 1 13 9.5v-4A1.5 1.5 0 0 1 14.5 4Z"/><path d="M5.5 13h4a1.5 1.5 0 0 1 1.5 1.5v4A1.5 1.5 0 0 1 9.5 20h-4A1.5 1.5 0 0 1 4 18.5v-4A1.5 1.5 0 0 1 5.5 13Z"/><path d="M14.5 13h4a1.5 1.5 0 0 1 1.5 1.5v4a1.5 1.5 0 0 1-1.5 1.5h-4a1.5 1.5 0 0 1-1.5-1.5v-4a1.5 1.5 0 0 1 1.5-1.5Z"/></svg></span>Bars</a>
+      <a class="tab" href="#/groups" data-tab="groups"><span class="tab-inner"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 12.4a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z"/><path d="M3.5 19c.6-3 2.8-4.6 5.5-4.6s4.9 1.6 5.5 4.6"/><path d="M15.5 6.2a3 3 0 0 1 0 5.6M17.8 14.6c1.5.6 2.4 2 2.7 4.4"/></svg></span>Groups</a>
+      <a class="tab tab-scan" href="#/scan" data-tab="scan" aria-label="Scan a line"><span class="tab-inner"><span class="scan-disc"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.2l1.4-2h5.8l1.4 2h2.2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5v-9Z"/><circle cx="12" cy="13" r="3.5"/></svg></span></span><span class="tab-label">Scan</span></a>
+      <a class="tab" href="#/points" data-tab="points"><span class="tab-inner"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3.8 2.5 5.1 5.6.8-4 3.9.9 5.6-5-2.6-5 2.6.9-5.6-4-3.9 5.6-.8L12 3.8Z"/></svg><span class="badge num" data-pass-badge aria-hidden="true" hidden></span></span>Points<span class="sr-only" data-pass-badge-sr></span></a>
+      <a class="tab" href="#/profile" data-tab="profile"><span class="tab-inner"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M5 19.5c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/></svg></span>Profile</a>
+    </nav>
+    <main id="main" tabindex="-1">
+      <noscript><div class="page"><p>This prototype needs JavaScript. It runs entirely in your browser with simulated data.</p></div></noscript>
+    </main>
+  </div>
+  <div id="toasts" class="toast-region" role="status" aria-live="polite"></div>
+  <p id="announcer" class="sr-only" role="status" aria-live="polite"></p>
+  <dialog id="sheet" class="sheet" aria-labelledby="sheet-title"></dialog>
+  <dialog id="picker" class="sheet picker" aria-labelledby="picker-title"></dialog>
+  <dialog id="age-gate" class="sheet" aria-labelledby="age-title" style="max-width:440px">
+    <div class="sheet-body age-body" id="age-body">
+      <p class="demo-tag" style="margin-bottom:12px">Prototype with simulated data</p>
+      <h2 id="age-title" class="page-title age-title">Night Out is for adults 21+</h2>
+      <p class="page-sub age-sub">This demo shows estimated bar lines around New Brunswick. Bar names are real; every wait, price and pass is simulated, and no bar is affiliated with Night Out. We don’t ask for your birthday or ID, and nothing leaves this browser.</p>
+      <div style="display:grid;gap:8px;margin-top:20px">
+        <button type="button" class="btn btn-primary btn-lg" data-action="age-ok">I’m 21 or older</button>
+        <button type="button" class="btn btn-lg" data-action="age-no">I’m under 21</button>
+      </div>
+    </div>
+  </dialog>
+</body>
+</html>

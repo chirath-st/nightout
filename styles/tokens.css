@@ -1,0 +1,85 @@
+/* Night Out design tokens.
+   Process per anthropics/skills frontend-design @dbd4588 (token plan before UI):
+   - one accent per view (ibelick baseline-ui @f18d130), neutral canvas, no cream/terracotta default
+   - THEME (user decision, 2026-10-17): always black with white text. White is the action color;
+     green/amber appear only as freshness status and always next to words
+   - semantic freshness colors always paired with words/icons (WCAG 1.4.1)
+   - motion tokens from emilkowalski/skills animate @2d22863 + Material 3 tokens (pinned copies)
+   Text pairs were contrast-checked; see app/QA.md. */
+
+:root {
+  color-scheme: dark;
+
+  /* Display serif for titles and names only (Playfair Display via Google Fonts in the shared build;
+     high-contrast system serifs offline). Everything else: the platform grotesque, Inter as fallback. */
+  --font-display: "Playfair Display", "Bodoni 72", Didot, "Bodoni MT", "Iowan Old Style", Georgia, serif;
+  --font-serif: var(--font-display);
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --t-2xs: 0.6875rem; /* 11: tags, tab labels, axis */
+  --t-xs: 0.75rem;   /* 12 */
+  --t-sm: 0.875rem;  /* 14 */
+  --t-md: 1rem;      /* 16 */
+  --t-lg: 1.125rem;  /* 18 */
+  --t-xl: 1.375rem;  /* 22 */
+  --t-2xl: 1.75rem;  /* 28 */
+  --t-3xl: 2.125rem; /* 34 */
+  --t-display: 2.75rem; /* 44: the wait number only */
+
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px;
+
+  --r-xs: 6px; --r-sm: 10px; --r-md: 12px; --r-btn-lg: 14px; --r-lg: 16px; --r-xl: 20px; --r-pill: 999px;
+
+  /* Black canvas, white type (contrast ratios computed with the WCAG formula). */
+  --bg: #000000;
+  --surface: #0E0E0F;     /* panels, queue block, pressed rows */
+  --surface-2: #1C1C1E;   /* search fill, segmented track, tags */
+  --raised: #161618;      /* sheets, floating cards, selected row */
+  --fill-2: #2C2C2E;      /* ring track, close discs */
+  --ink: #FFFFFF;         /* 21:1 */
+  --ink-sub: #D1D1D6;     /* secondary lines, 13.8:1 */
+  --ink-2: #A1A1A6;       /* meta text, 8.2:1 on #000, 6.6:1 on #1C1C1E */
+  --ink-3: #8E8E93;       /* labels, placeholders, 6.4:1 on #000 (never text on #2C2C2E) */
+  --ink-4: #636366;       /* non-text only: dashed tracks, boundaries, data bars (3.5:1) */
+  --line: #1F1F21;        /* hairlines (decorative) */
+  --line-strong: #3A3A3C; /* card and outline-button borders */
+  --line-input: #6E6E73;  /* >=3:1 boundary for inputs, chips and selectable cards (WCAG 1.4.11) */
+  --accent: #FFFFFF;      /* the only fill: white button, black label */
+  --accent-ink: #000000;
+  --accent-soft: #1C1C1E;
+  --accent-text: #FFFFFF;
+  --fresh: #63D29C;
+  --fresh-soft: #0F2A1D;
+  --aging: #F0C062;
+  --aging-soft: #2E2410;
+  --muted-soft: #1C1C1E;
+  --danger: #FF8F86;
+  --danger-soft: #331A19;
+  --pass-bg: #0B0B0C;
+  --pass-ink: #FFFFFF;
+  --pass-ink-2: #A1A1A6;
+  --focus: #FFFFFF;
+  --scrim: rgb(0 0 0 / 0.72);
+  --shadow-float: 0 12px 32px rgb(0 0 0 / 0.6);
+  --shadow-sheet: 0 -8px 40px rgb(0 0 0 / 0.7);
+  --shadow-pin: 0 4px 12px rgb(0 0 0 / 0.55);
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
+  --d-press: 120ms;
+  --d-select: 160ms;
+  --d-sheet-in: 320ms;
+  --d-sheet-out: 220ms;
+  --d-vt: 280ms;
+  --d-toast: 220ms;
+  --d-vt-root: 200ms;
+
+  --tabbar-h: 56px;
+  --topbar-h: 52px;
+  --gutter: 16px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+}

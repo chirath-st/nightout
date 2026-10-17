@@ -1,0 +1,170 @@
+// Shared queue-estimate contract. Every screen formats estimates through this module so a
+// venue's wait means the same thing on cards, detail, Saved and the operator preview.
+// Thresholds are design hypotheses (see research/comparison.md D1), not industry standards.
+
+export const FRESHNESS_MINUTES = Object.freeze({
+  venue: { fresh: 10, stale: 20 },
+  crowd: { fresh: 10, stale: 20 },
+});
+
+const MIN = 60_000;
+
+export function ageMinutes(observedAt, now) {
+  if (observedAt == null) return null;
+  return Math.max(0, (now - observedAt) / MIN);
+}
+
+/** 'fresh' | 'aging' | 'stale' | 'unknown' */
+export function freshnessOf(q, now) {
+  if (!q || q.observedAt == null || !q.sourceType) return 'unknown';
+  if (q.sourceType === 'crowd' && !((q.reportCount ?? 0) >= 1)) return 'unknown';
+  const t = FRESHNESS_MINUTES[q.sourceType];
+  if (!t) return 'unknown';
+  const age = ageMinutes(q.observedAt, now);
+  if (age <= t.fresh) return 'fresh';
+  if (age <= t.stale) return 'aging';
+  return 'stale';
+}
+
+const round5 = (n) => Math.max(0, Math.round(n / 5) * 5);
+const usableRate = (r) => Number.isFinite(r) && r > 0;
+/** People counts are usable only as finite, non-negative, ordered numbers. */
+export const validPeople = (q) => !!q && Number.isFinite(q.peopleLow) && Number.isFinite(q.peopleHigh) && q.peopleLow >= 0 && q.peopleHigh >= q.peopleLow;
+
+/**
+ * Wait range from a people range and an admission rate (Little's law framing:
+ * wait ≈ people ahead ÷ admissions per minute). Returns null if no positive rate is known:
+ * even a short line can't be called "0–5 min" when the door isn't admitting anyone.
+ */
+export function waitRange(q) {
+  if (!q) return null;
+  // A pace that is given but unusable (0, negative, not a number) means the door isn't admitting
+  // at a known rate: no wait can be claimed, not even an explicitly reported one.
+  if (q.admitPerMin != null && !usableRate(q.admitPerMin)) return null;
+  if (Number.isFinite(q.waitLow) && Number.isFinite(q.waitHigh) && q.waitLow >= 0 && q.waitHigh >= q.waitLow) {
+    return { low: q.waitLow, high: q.waitHigh };
+  }
+  if (!validPeople(q) || !usableRate(q.admitPerMin)) return null;
+  const rate = q.admitPerMin;
+  const low = round5(q.peopleLow / rate);
+  const high = Math.max(low + 5, round5((q.peopleHigh / rate) * 1.2));
+  return { low, high };
+}
+
+export function confidenceOf(q, freshness) {
+  if (!q || freshness === 'unknown' || freshness === 'stale') return null;
+  if (q.conflict) return 'Low';
+  if (q.sourceType === 'venue') return freshness === 'fresh' ? 'High' : 'Medium';
+  if (q.sourceType === 'crowd') {
+    if (freshness === 'aging') return 'Low';
+    return (q.reportCount ?? 0) >= 3 ? 'Medium' : 'Low';
+  }
+  return null;
+}
+
+export function shortSourceLabel(q) {
+  if (!q || !q.sourceType) return null;
+  if (q.sourceType === 'venue') return 'Venue';
+  const n = q.reportCount ?? 0;
+  return `${n} report${n === 1 ? '' : 's'}`;
+}
+
+export function sourceLabel(q) {
+  if (!q || !q.sourceType) return 'No source';
+  if (q.sourceType === 'venue') return 'Venue update';
+  if (q.sourceType === 'crowd') {
+    const n = q.reportCount ?? 0;
+    return `${n} crowd report${n === 1 ? '' : 's'}`;
+  }
+  return 'Unknown source';
+}
+
+export function relativeAge(observedAt, now) {
+  const age = ageMinutes(observedAt, now);
+  if (age == null) return null;
+  if (age < 1) return 'just now';
+  if (age < 60) return `${Math.floor(age)} min ago`;
+  const h = Math.floor(age / 60);
+  const m = Math.floor(age % 60);
+  return m ? `${h} hr ${m} min ago` : `${h} hr ago`;
+}
+
+const fmtRange = (r) => `${r.low}–${r.high} min`;
+
+/**
+ * One description for every surface.
+ * tone: fresh | aging | stale | unknown | uncertain | capacity | paused | closed
+ */
+export function describeEstimate(venue, now, { isOpen = true } = {}) {
+  const q = venue?.queue ?? null;
+  const freshness = freshnessOf(q, now);
+  const age = q?.observedAt != null ? relativeAge(q.observedAt, now) : null;
+  const base = {
+    freshness,
+    ageLabel: age,
+    observedAt: q?.observedAt ?? null,
+    sourceLabel: sourceLabel(q),
+    shortSource: shortSourceLabel(q),
+    confidence: confidenceOf(q, freshness),
+    qualifiesShortWait: false,
+    waitLow: null,
+    waitHigh: null,
+    peopleLabel: null,
+  };
+
+  if (!isOpen) {
+    return { ...base, tone: 'closed', headline: 'Closed now', detail: 'Outside sample opening hours', confidence: null, ageLabel: null, observedAt: null, sortRank: 5 };
+  }
+  if (q?.doorStatus === 'closed' && freshness !== 'stale' && freshness !== 'unknown') {
+    return { ...base, tone: 'closed', headline: 'Closed now', detail: 'Venue marked entry closed', confidence: null, sortRank: 5 };
+  }
+  if (freshness === 'unknown') {
+    return { ...base, tone: 'unknown', headline: 'Wait unknown', detail: 'No current estimate for this venue', sortRank: 4 };
+  }
+  if (freshness === 'stale') {
+    return { ...base, tone: 'stale', headline: 'Current wait unavailable', detail: `Last update ${age}`, sortRank: 4 };
+  }
+
+  const people = validPeople(q)
+    ? (q.peopleLow === q.peopleHigh ? `~${q.peopleLow} in line` : `~${q.peopleLow}–${q.peopleHigh} in line`)
+    : null;
+  const range = waitRange(q);
+  const withRange = {
+    ...base,
+    peopleLabel: people,
+    waitLow: range?.low ?? null,
+    waitHigh: range?.high ?? null,
+  };
+
+  if (q.doorStatus === 'paused') {
+    return { ...withRange, tone: 'paused', headline: 'Entry paused', detail: q.note || 'The venue has paused entry', sortRank: 3 };
+  }
+  if (q.doorStatus === 'capacity') {
+    return { ...withRange, tone: 'capacity', headline: 'At capacity', detail: 'Entry only as people leave. The wait can grow quickly.', sortRank: 3 };
+  }
+  if (q.conflict) {
+    const reported = Number.isFinite(q.conflictLow) && Number.isFinite(q.conflictHigh) && q.conflictLow >= 0 && q.conflictHigh >= q.conflictLow;
+    const lo = reported ? q.conflictLow : range?.low;
+    const hi = reported ? q.conflictHigh : range?.high;
+    if (lo == null || hi == null) {
+      return { ...withRange, tone: 'uncertain', headline: 'Wait uncertain', detail: 'Recent reports disagree', waitLow: null, waitHigh: null, sortRank: 4 };
+    }
+    return { ...withRange, tone: 'uncertain', headline: `${lo}–${hi} min`, detail: 'Recent reports disagree', waitLow: lo, waitHigh: hi, sortRank: 2 };
+  }
+  if (!range) {
+    // No usable admission rate (missing or zero): the wait stays unknown and never counts as short.
+    const detail = people ? `${people.replace('~', 'About ')} reported, but no door pace to estimate a wait` : 'Report has no line size';
+    return { ...base, tone: 'unknown', headline: 'Wait unknown', detail, confidence: null, sortRank: 4 };
+  }
+  return {
+    ...withRange,
+    tone: freshness,
+    headline: fmtRange(range),
+    detail: freshness === 'aging' ? 'May have changed since this update' : null,
+    qualifiesShortWait: range.high <= 20,
+    sortRank: freshness === 'fresh' ? 0 : 1,
+  };
+}
+
+/** Typical pattern is a model of past nights — never presented as "now". */
+export const TYPICAL_LABELS = ['Quiet', 'Light', 'Steady', 'Busy', 'Very busy'];
