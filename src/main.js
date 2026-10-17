@@ -12,7 +12,7 @@ import { icon } from './ui/icons.js';
 import { renderExplore, exploreResults, exploreBanners, exploreChips, pinParts, areaSheet, sortSheet } from './views/explore.js';
 import { renderGroups, renderGroupNew, validateGroup } from './views/groups.js';
 import { renderEvents, eventResults } from './views/events.js';
-import { renderScan, pickListItems } from './views/scan.js';
+import { renderScan, pickListItems, scanEstimate, scanSubmitReady, draftQueue } from './views/scan.js';
 import { renderPoints, checkinSheet } from './views/points.js';
 import { renderProfile, settingsSheet, manageSubSheet, helpSheet } from './views/profile.js';
 import { renderVenue, directionsSheet, pollSection } from './views/venue.js';
@@ -49,7 +49,7 @@ const app = {
   scan: null,
   profileEdit: { editing: false, errors: {} },
 };
-const freshScan = () => ({ step: 'pick', venueId: null, captured: false, bucket: null, inLine: true, q: '', error: null });
+const freshScan = () => ({ step: 'pick', venueId: null, captured: false, bucket: null, door: 'moving', inLine: true, q: '', error: null });
 app.scan = freshScan();
 app.checkin = { step: 'pick', venueId: null };
 
@@ -316,6 +316,7 @@ function route({ viaPop = false } = {}) {
   if (r.name === 'console' && r.query.venue) app.console.venueId = r.query.venue;
   if (r.name === 'groupNew' && !app.groupDraft) { app.groupDraft = newGroupDraft(); app.groupErrors = {}; }
   if (r.name !== 'profile') app.profileEdit = { editing: false, errors: {} };
+  if (r.name === 'scan' && prev?.name !== 'scan') app.scanReturn = !!prev; // close returns to where Scan was opened
   if (r.name === 'scan' && r.query.venue && app.venues.some((v) => v.id === r.query.venue) && !app.state.activeWait) {
     app.scan = { ...freshScan(), venueId: r.query.venue };
     history.replaceState({ ...(history.state ?? {}), idx: histIdx() }, '', '#/scan');
@@ -873,14 +874,11 @@ function submitReport() {
   const at = now();
   const id = `r-${Date.now().toString(36)}`;
   app.state.reports.unshift({ id, venueId: v.id, at, bucket: b.id, inLine: f.inLine, gotInAt: null, waitMin: null });
-  // The report becomes this bar's crowd estimate (demo). A known door pace is kept; otherwise the wait stays unknown.
+  // The report becomes this bar's crowd estimate (demo): the line size, what the door is doing, and the
+  // bar's known door pace (or the stated assumed pace), exactly as the "Your estimate" panel showed it.
   const prev = v.queue;
-  const rate = Number.isFinite(prev?.admitPerMin) && prev.admitPerMin > 0 ? prev.admitPerMin : null;
   const recentCrowd = prev?.sourceType === 'crowd' && prev.observedAt != null && at - prev.observedAt < 20 * MIN_MS;
-  app.state.overrides[v.id] = { ...(app.state.overrides[v.id] ?? {}), queue: {
-    sourceType: 'crowd', observedAt: at, reportCount: recentCrowd ? (prev.reportCount ?? 0) + 1 : 1,
-    peopleLow: b.low, peopleHigh: b.high, admitPerMin: rate, doorStatus: 'moving',
-  } };
+  app.state.overrides[v.id] = { ...(app.state.overrides[v.id] ?? {}), queue: { ...draftQueue(v, f, at), reportCount: recentCrowd ? (prev.reportCount ?? 0) + 1 : 1 } };
   app.state.points.push({ id: `p-${id}`, at, delta: POINTS.REPORT, label: `Line report: ${v.name}` });
   if (f.inLine) app.state.activeWait = { reportId: id, venueId: v.id, startedAt: at };
   persist();
@@ -890,6 +888,14 @@ function submitReport() {
   rerenderPage();
   document.querySelector('#main [data-autofocus]')?.focus();
   announce(`Report sent. Plus ${POINTS.REPORT} points.`);
+}
+/** Bucket or door changed: update the estimate panel and the Send button in place (no re-render, no re-flash). */
+function patchScanEstimate() {
+  const panel = document.getElementById('scan-estimate');
+  if (panel) panel.innerHTML = scanEstimate(ctx(), app.scan);
+  const send = document.querySelector('[data-action="scan-submit"]');
+  if (send) { if (scanSubmitReady(app.scan)) send.removeAttribute('aria-disabled'); else send.setAttribute('aria-disabled', 'true'); }
+  document.querySelector('#main .field-error')?.remove();
 }
 function gotIn() {
   const w = app.state.activeWait;
@@ -1439,6 +1445,10 @@ function handleAction(a, el) {
       document.querySelector('.shutter')?.focus();
       return true;
     case 'scan-submit': submitReport(); return true;
+    case 'scan-close':
+      if (app.scanReturn) history.back();
+      else go('#/', { replace: true });
+      return true;
     case 'scan-in': gotIn(); return true;
     case 'scan-left': leftLine(); return true;
     case 'scan-restart':
@@ -1540,7 +1550,8 @@ function onChange(e) {
       break;
     }
     case 'area': chooseArea(t.value); break;
-    case 'scan-bucket': app.scan.bucket = t.value; app.scan.error = null; rerenderPage(); break;
+    case 'scan-bucket': app.scan.bucket = t.value; app.scan.error = null; patchScanEstimate(); break;
+    case 'scan-door': app.scan.door = t.value; patchScanEstimate(); break;
     case 'scan-inline': app.scan.inLine = t.checked; break;
     case 'pref':
       app.state.prefs[t.dataset.key] = t.checked;
