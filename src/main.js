@@ -2062,7 +2062,7 @@ function boot() {
   }
 }
 
-/* ---------------- splash: the wordmark writes itself in (about 2 s, tap to skip, a short fade under reduced motion) ---------------- */
+/* ---------------- splash: a nib writes the mark (about 2.1 s, tap to skip, a short fade under reduced motion) ---------------- */
 function runSplash() {
   const el = document.getElementById('splash');
   const shell = document.querySelector('.app');
@@ -2089,23 +2089,12 @@ function runSplash() {
     el.addEventListener('pointerdown', finish, { once: true });
     // If the CSS safety net hid the splash first (slow boot), clean up at once so the app is never stuck inert.
     el.addEventListener('animationend', (e) => { if (e.target === el && e.animationName === 'splash-safety') finish(); });
-    const fontReady = Promise.race([document.fonts?.load?.('italic 600 140px Fraunces').catch(() => null), new Promise((r) => setTimeout(r, 700))]);
-    fontReady.then(() => {
-      placeSplashMoon(el);
+    // No font to wait for: the mark is vector art. Start on the next frame so the first painted frame is black.
+    requestAnimationFrame(() => {
       el.classList.add('is-playing');
-      setTimeout(finish, reducedMotion() ? 800 : 2300);
+      setTimeout(finish, reducedMotion() ? 1100 : 2300);
     });
   });
-}
-/** Put the crescent over the dotless i of whatever font actually rendered (Fraunces, or Georgia locally). */
-function placeSplashMoon(el) {
-  const text = el.querySelector('.sp-fill');
-  const moon = el.querySelector('.sp-moon');
-  try {
-    const box = text.getExtentOfChar(1);
-    const size = parseFloat(getComputedStyle(text).fontSize) || 140;
-    moon.setAttribute('transform', `translate(${(box.x + box.width / 2 + size * 0.1).toFixed(1)} ${(142 - size * 0.66).toFixed(1)})`);
-  } catch { /* keep the default spot */ }
 }
 
 boot();

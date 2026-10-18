@@ -397,8 +397,8 @@ export function passCard(pass, now, { headingLevel = 3 } = {}) {
   </article>`;
 }
 
-/** Brand wordmark (2026-10-17): Fraunces Italic with a crescent moon for the dot of the i. Decorative: callers label it. */
-export const wordmark = () => `<span class="wordmark-text" aria-hidden="true">n<span class="wm-i">ı<span class="wm-moon"><svg viewBox="0 0 20 20" focusable="false"><path d="M12.6 1.2a9 9 0 1 0 6.2 14.6A7.6 7.6 0 0 1 12.6 1.2Z"/></svg></span></span>ghtout</span>`;
+/** Brand mark (team artwork, 2026-10-18): the hand-lettered "Night out" from the sprite in index.html. Decorative: callers label it. */
+export const wordmark = () => `<svg class="wm-logo" viewBox="0 0 722 207" aria-hidden="true" focusable="false"><use href="#nm-logo"/></svg>`;
 
 /** Top-right points chip: your balance, linking to Points. */
 export function pointsChip(balance) {
