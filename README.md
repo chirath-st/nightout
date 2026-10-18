@@ -1,4 +1,4 @@
-# Night Out (demo)
+# Night Out
 
 Prototype web app for checking bar lines in New Brunswick, NJ. Open it on a phone:
 https://chirath-st.github.io/nightout/

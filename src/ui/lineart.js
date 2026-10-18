@@ -3,7 +3,7 @@
    at 3/4, and anonymous silhouettes (no faces) in one line. The line leaves the first open door, runs
    along the wall briefly, then snakes toward the camera, growing with depth (about 2.5x from the door
    to the front row). Counted heads get a ring and a numbered badge in a .mark group (the CSS pops it);
-   "SIMULATED PHOTO" is baked in so screenshots stay honest. Pure: same inputs, same string. */
+   Pure: same inputs, same string. */
 export const DRAW_MAX = 48;
 
 const TONES = ['#112', '#122', '#222', '#223', '#233']; // night silhouettes, dark grey to blue-grey
@@ -230,6 +230,6 @@ export function lineScene({ seed, heads = 0, count = 0, newest = -1, doors = [{ 
   });
   // rim light: a top-lit gradient stroke, painted under each fill so only a thin outer edge shows
   s += `<g fill="${TONES[0]}" stroke="url(#${u}r)" stroke-width="1.2" paint-order="stroke" font-family="system-ui" font-weight="700" text-anchor="middle">${crowd}</g>`;
-  s += '<text x="160" y="128" transform="rotate(-18 160 128)" fill="#fff" fill-opacity=".12" font-family="system-ui" font-size="25" font-weight="800" letter-spacing="3" text-anchor="middle">SIMULATED PHOTO</text>';
+  
   return s + '</svg>';
 }

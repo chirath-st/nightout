@@ -18,7 +18,7 @@ export function defaultState(realNow) {
     sim: { offline: false, failNextRefresh: false, failNextPass: false },
     // Social + rewards (all simulated, this device only)
     profile: { name: 'Alex', handle: '' },
-    points: [{ id: 'start', at: null, delta: 240, label: 'Demo starting balance' }],
+    points: [{ id: 'start', at: null, delta: 240, label: 'Starting balance' }],
     checkins: [], // { id, venueId, at } (simulated door-QR check-ins)
     lastDaily: null, // demo night (ms) of the last daily-login bonus
     vouchers: [], // redeemed rewards: { id, rewardId, ref, at }

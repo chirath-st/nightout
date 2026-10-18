@@ -22,26 +22,26 @@ export function renderPoints(ctx) {
   return `<div class="page">
     <div class="points-head">
       ${personAvatar({ seed: youSeed(st.profile.name), initials: initials(st.profile.name) }, 44)}
-      <div><h1 class="page-title" id="page-h" tabindex="-1">My points</h1><p class="points-who">${esc(st.profile.name)} <span class="demo-tag">Demo points</span></p></div>
+      <div><h1 class="page-title" id="page-h" tabindex="-1">My points</h1><p class="points-who">${esc(st.profile.name)}</p></div>
     </div>
     <section class="points-card" aria-label="Your points">
       <p class="eyebrow">Your balance</p>
       <p class="points-total num">${fmt(balance)}<small>pts</small></p>
       ${next ? `<div class="points-next"><span class="pn-track" aria-hidden="true"><i style="--pn:${next.progress.toFixed(3)}"></i></span>
         <p><b class="num">${fmt(next.need)}</b> points to your next reward: ${esc(next.reward.title)}</p></div>` : '<p class="points-note">You can afford every reward.</p>'}
-      <p class="points-note">No cash value; nothing here is real yet.</p>
+      <p class="points-note">No cash value.</p>
     </section>
 
     <button type="button" class="btn btn-primary btn-lg btn-block checkin-btn" data-action="open-checkin">${icon('report', { size: 20 })}Check in at a bar<span class="trail">+${POINTS.CHECKIN}</span></button>
-    <p class="hint center">Scan the Night Out QR code at the bar’s door. In this demo the scan is simulated.</p>
+    
 
     <dl class="fact-strip points-stats">
-      <div><dt>Check-ins</dt><dd>${st.checkins.length}<span class="fact-sub">All time (demo)</span></dd></div>
+      <div><dt>Check-ins</dt><dd>${st.checkins.length}<span class="fact-sub">All time</span></dd></div>
       <div><dt>Unique bars</dt><dd>${uniqueBars}<span class="fact-sub">of ${ctx.venues.length}</span></dd></div>
       <div><dt>Reports</dt><dd>${st.reports.length}<span class="fact-sub">Crowd updates</span></dd></div>
     </dl>
 
-    <div class="section-head"><h2>Earn points</h2><span class="eyebrow">How it works</span></div>
+    <div class="section-head"><h2>Earn points</h2></div>
     <ul class="earn-list">
       <li>${icon('calendar', { size: 20 })}<span>Daily login<small>${dailyDone ? 'Collected tonight' : 'Open Night Out on a night out'}</small></span><b class="num">+${POINTS.DAILY}</b></li>
       <li>${icon('report', { size: 20 })}<span>Bar check-in<small>Scan the QR at the door, once per bar a night</small></span><b class="num">+${POINTS.CHECKIN}</b></li>
@@ -50,7 +50,7 @@ export function renderPoints(ctx) {
     </ul>
     <a class="btn btn-block" href="#/scan" style="margin-top:12px">${icon('camera', { size: 18 })}Report a line</a>
 
-    <div class="section-head"><h2>Rewards</h2><span class="eyebrow">Redeem points</span></div>
+    <div class="section-head"><h2>Rewards</h2></div>
     <ul class="reward-grid">
       ${REWARDS.map((r) => {
         const short = r.cost - balance;
@@ -67,12 +67,12 @@ export function renderPoints(ctx) {
         <span class="reward-side"><span class="reward-cost">Not available</span></span>
       </li>
     </ul>
-    <p class="hint">Rewards are simulated: no bar has agreed to honor them, and none can be used toward alcoholic beverages. Line cuts and VIP entry would always depend on the venue, ID checks and capacity.</p>
+    <p class="hint">Line cut and VIP entry still need a valid ID and depend on capacity.</p>
 
     <div class="section-head"><h2>Your rewards</h2></div>
     ${vouchers.length ? `<ul class="plain-list">${vouchers.map((v) => {
       const r = REWARDS.find((x) => x.id === v.rewardId);
-      return `<li><span><b>${esc(r?.title ?? 'Reward')}</b><small>Code ${esc(v.ref)} · demo, not valid · not valid toward alcoholic beverages</small></span><span class="num muted">${esc(formatTime(v.at))}</span></li>`;
+      return `<li><span><b>${esc(r?.title ?? 'Reward')}</b><small>Code ${esc(v.ref)} · not valid toward alcohol</small></span><span class="num muted">${esc(formatTime(v.at))}</span></li>`;
     }).join('')}</ul>` : '<p class="hint">Nothing redeemed yet.</p>'}
     ${passes ? `<a class="list-link" href="#/passes">${icon('ticket', { size: 20 })}<span>Priority passes (${passes})</span>${icon('chevronRight', { size: 18 })}</a>` : ''}
 
@@ -89,14 +89,14 @@ export function checkinSheet(ctx, flow) {
   if (flow.step === 'done' && venue) {
     return `${head('Checked in')}<div class="sheet-body checkin-done">
       <p class="checkin-pts num" data-autofocus tabindex="-1">+${POINTS.CHECKIN}<small>pts</small></p>
-      <p>You checked in at <b>${esc(venue.name)}</b> (demo). One check-in per bar a night.</p>
+      <p>You checked in at <b>${esc(venue.name)}</b>.</p>
       <button type="button" class="btn btn-primary btn-lg btn-block" data-action="close-picker">Done</button></div>`;
   }
   if (flow.step === 'scan' && venue) {
     return `${head(`Check in at ${esc(venue.name)}`)}<div class="sheet-body">
-      <div class="viewfinder qr-finder"><span class="vf-corners" aria-hidden="true"></span><span class="qr-glyph" aria-hidden="true">${icon('report', { size: 44 })}</span><span class="vf-sim">${icon('lock', { size: 14 })}Demo camera · nothing is captured</span></div>
+      <div class="viewfinder qr-finder"><span class="vf-corners" aria-hidden="true"></span><span class="qr-glyph" aria-hidden="true">${icon('report', { size: 44 })}</span></div>
       <p class="hint center">Point at the Night Out QR code by the door.</p>
-      <button type="button" class="btn btn-primary btn-lg btn-block" data-action="checkin-scan" data-autofocus>Simulate QR scan<span class="trail">+${POINTS.CHECKIN}</span></button>
+      <button type="button" class="btn btn-primary btn-lg btn-block" data-action="checkin-scan" data-autofocus>Scan QR code<span class="trail">+${POINTS.CHECKIN}</span></button>
       <button type="button" class="btn btn-ghost btn-block" data-action="checkin-back" style="margin-top:8px">Pick another bar</button></div>`;
   }
   const night = ctx.state.clock.base;
@@ -106,5 +106,5 @@ export function checkinSheet(ctx, flow) {
     const why = done ? 'Checked in tonight' : closed ? 'Closed now' : v.area ?? '';
     return `<li><button type="button" class="pick-row" data-action="checkin-pick" data-id="${esc(v.id)}" ${done || closed ? 'aria-disabled="true"' : ''}><span class="bar-logo" aria-hidden="true">${venueLogo(v)}</span><span class="pick-name">${esc(v.name)}</span><span class="pick-area">${esc(why)}</span>${done ? icon('check', { size: 18 }) : icon('chevronRight', { size: 18 })}</button></li>`;
   }).join('');
-  return `${head('Check in at a bar')}<div class="sheet-body"><p class="hint" style="margin-top:0">Which bar are you at? You can check in once per bar a night.</p><ul class="pick-list">${rows}</ul></div>`;
+  return `${head('Check in at a bar')}<div class="sheet-body"><ul class="pick-list">${rows}</ul></div>`;
 }

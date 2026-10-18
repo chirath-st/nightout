@@ -54,7 +54,7 @@ export function checkIdea(draft, venue, existing = []) {
   if (!START_TIMES.some((t) => sameTime(d.start, t)) || !END_TIMES.some((t) => sameTime(d.end, t))) errors.time = 'Pick a start and end time.';
   else if (venue.hours?.close) {
     const close = parseHHMM(venue.hours.close);
-    if (nightMin(d.end) > nightMin(close)) errors.time = `${venue.name} usually closes at ${timeLabel(close)} (simulated hours). Pick an earlier end.`;
+    if (nightMin(d.end) > nightMin(close)) errors.time = `${venue.name} usually closes at ${timeLabel(close)}. Pick an earlier end.`;
   }
   if (!errors.day) {
     const clash = existing.find((x) => x.venueId === venue.id && x.day === d.day && x.status !== 'declined');

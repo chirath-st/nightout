@@ -43,7 +43,7 @@ export function waitingCard(ctx) {
   return `<section class="waiting-card" aria-labelledby="wait-h">
     <div class="waiting-top"><span class="pulse" aria-hidden="true"></span><h2 id="wait-h">In line at ${esc(venue?.name ?? 'a bar')}</h2></div>
     <p class="waiting-time"><span class="num" data-elapsed="${w.startedAt}">${mins}</span><small>min so far</small></p>
-    <p class="hint">Since ${esc(formatTime(w.startedAt))} (demo time). Tap when you’re through the door: your real wait helps everyone.</p>
+    <p class="hint">Since ${esc(formatTime(w.startedAt))}. Tap when you’re through the door.</p>
     <div class="waiting-actions">
       <button type="button" class="btn btn-primary btn-lg" data-action="scan-in">${icon('check', { size: 18 })}I’m in · +${POINTS.GOT_IN}</button>
       <button type="button" class="btn" data-action="scan-left">I left the line</button>
@@ -61,9 +61,9 @@ export function pickListItems(ctx, query) {
 function pickStep(ctx, flow) {
   const open = ctx.venues.filter((v) => isOpenAt(v, ctx.now) !== false && distanceTo(v) != null);
   const nearest = open.sort((a, b) => distanceTo(a) - distanceTo(b))[0];
-  return `<p class="scan-lede">Snap the line at the door, say how long it is and earn <b class="num">+${POINTS.REPORT}</b>. Tell us when you get in for <b class="num">+${POINTS.GOT_IN}</b> more.</p>
+  return `<p class="scan-lede">Snap the line for <b class="num">+${POINTS.REPORT}</b>, then <b class="num">+${POINTS.GOT_IN}</b> when you get in.</p>
     ${nearest ? `<p class="eyebrow scan-label">Nearest bar</p>
-    <button type="button" class="scan-venue scan-nearest" data-action="scan-pick" data-id="${esc(nearest.id)}"><span class="bar-logo" aria-hidden="true">${venueLogo(nearest)}</span><span><span class="scan-venue-name">${esc(nearest.name)}</span><small>${esc(distanceText(nearest) ?? '')} from the demo spot</small></span><span class="btn btn-sm btn-primary" aria-hidden="true">Report</span></button>` : ''}
+    <button type="button" class="scan-venue scan-nearest" data-action="scan-pick" data-id="${esc(nearest.id)}"><span class="bar-logo" aria-hidden="true">${venueLogo(nearest)}</span><span><span class="scan-venue-name">${esc(nearest.name)}</span><small>${esc(distanceText(nearest) ?? '')} away</small></span><span class="btn btn-sm btn-primary" aria-hidden="true">Report</span></button>` : ''}
     <p class="eyebrow scan-label">Or pick a bar</p>
     <div class="search" role="search">${icon('search')}<label for="scan-q" class="sr-only">Find the bar you’re at</label>
       <input id="scan-q" type="search" autocomplete="off" spellcheck="false" placeholder="Which bar are you at?" value="${esc(flow.q || '')}" data-input="scan-q"></div>
@@ -84,7 +84,7 @@ export function scanEstimate(ctx, flow) {
   const est = describeEstimate({ queue: q }, ctx.now);
   const st = crowdStatus(est);
   const value = est.waitHigh == null ? esc(st.label) : est.waitHigh <= 5 && q.peopleHigh <= 2 ? 'No wait' : `${est.waitLow}–${est.waitHigh}<small>min wait</small>`;
-  return `<div><p class="eyebrow">Your estimate</p><p class="v num">${value}</p><p class="scan-pace">Door pace ~${paceFor(venue)} a minute${paceSuffix(venue)}</p></div>
+  return `<div><p class="eyebrow">Your estimate</p><p class="v num">${value}</p></div>
     <div class="lv"><b>${meter(st.level)}${esc(st.label)}</b><span>${esc(latestLine)}</span></div>`;
 }
 
@@ -95,11 +95,11 @@ function captureStep(ctx, flow) {
   return `<div class="scan-venue"><span class="bar-logo" aria-hidden="true">${venueLogo(venue)}</span><span><span class="scan-venue-name">${esc(venue?.name ?? '')}</span><small>${esc([distanceText(venue), venue?.area].filter(Boolean).join(' · '))}</small></span><button type="button" class="btn btn-sm" data-action="scan-change">Change</button></div>
     <div class="viewfinder ${flow.captured ? 'is-captured' : ''}">
       ${flow.captured
-        ? `${venuePhoto(venue)}<span class="vf-tag">${icon('check', { size: 14 })}Demo photo</span><button type="button" class="icon-btn vf-retake" data-action="scan-retake" aria-label="Retake photo">${icon('retake')}</button>`
+        ? `${venuePhoto(venue)}<span class="vf-tag">${icon('check', { size: 14 })}Photo taken</span><button type="button" class="icon-btn vf-retake" data-action="scan-retake" aria-label="Retake photo">${icon('retake')}</button>`
         : `<span class="vf-corners" aria-hidden="true"></span><span class="vf-tag vf-tip">Frame the line, not faces</span>`}
-      <span class="vf-sim">${icon('lock', { size: 14 })}Demo camera · nothing is uploaded</span>
+      
     </div>
-    ${flow.captured ? '' : `<div class="shutter-row"><button type="button" class="shutter" data-action="scan-shutter" aria-label="Take photo of the line (simulated)"><span></span></button></div>`}
+    ${flow.captured ? '' : `<div class="shutter-row"><button type="button" class="shutter" data-action="scan-shutter" aria-label="Take photo of the line"><span></span></button></div>`}
     <fieldset class="field-group" ${off}>
       <legend class="eyebrow">How many people are in line?</legend>
       <div class="bucket-row">${LINE_BUCKETS.map((b) => `<label class="bucket${b.id === 'none' ? ' is-wide' : ''}"><input type="radio" name="bucket" value="${b.id}" data-input="scan-bucket" ${flow.bucket === b.id ? 'checked' : ''}><span><b>${b.id === 'none' ? '0' : esc(b.label)}</b><em>${WORDS[b.id]}</em><i>${minutesFor(b, pace)}</i></span></label>`).join('')}</div>
@@ -109,7 +109,7 @@ function captureStep(ctx, flow) {
       <div class="segmented door-seg">${DOOR_STATES.map(([id, label]) => `<label><input type="radio" name="door" value="${id}" data-input="scan-door" ${(flow.door ?? 'moving') === id ? 'checked' : ''}><span>${label}</span></label>`).join('')}</div>
     </fieldset>
     <div class="scan-estimate" id="scan-estimate" role="status">${scanEstimate(ctx, flow)}</div>
-    <div class="switch-row scan-inline" ${flow.captured ? '' : 'hidden'}><label for="scan-inline"><span class="label" style="margin:0">I’m in this line</span><span class="hint">We’ll ask when you get in to measure the real wait (+${POINTS.GOT_IN}).</span></label>
+    <div class="switch-row scan-inline" ${flow.captured ? '' : 'hidden'}><label for="scan-inline"><span class="label" style="margin:0">I’m in this line</span><span class="hint">+${POINTS.GOT_IN} when you tell us you’re in</span></label>
       <span class="switch"><input id="scan-inline" type="checkbox" role="switch" data-input="scan-inline" ${flow.inLine ? 'checked' : ''}><span></span></span></div>
     ${flow.error ? `<p class="field-error" role="alert">${icon('alert')}${esc(flow.error)}</p>` : ''}`;
 }
@@ -145,7 +145,7 @@ export function renderScan(ctx, flow) {
     ${n === 1 ? waitingCard(ctx) : ''}
     <div class="scan-step">${step}</div>
     ${n === 3 ? waitingCard(ctx) : ''}
-    ${n !== 3 ? `<p class="hint scan-privacy">${icon('shield', { size: 14 })} In a real app, line photos would be used only to count the line, with faces blurred and photos deleted after review. Nothing here uses your camera or location.</p>` : ''}
+    
   </div>
-  ${n === 2 ? `<div class="scan-submit"><button type="button" class="btn btn-primary btn-lg btn-block" data-action="scan-submit" ${scanSubmitReady(flow) ? '' : 'aria-disabled="true"'}>Send report<span class="trail">+${POINTS.REPORT}</span></button><p class="hint">Demo points. Reports stay on this phone.</p></div>` : ''}`;
+  ${n === 2 ? `<div class="scan-submit"><button type="button" class="btn btn-primary btn-lg btn-block" data-action="scan-submit" ${scanSubmitReady(flow) ? '' : 'aria-disabled="true"'}>Send report<span class="trail">+${POINTS.REPORT}</span></button></div>` : ''}`;
 }

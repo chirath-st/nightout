@@ -7,7 +7,7 @@ import { eventList, isLive, PRICE_BANDS } from '../lib/events.js';
 import { GENRES, THEMES } from '../data/events.js';
 import { allGroups } from './groups.js';
 import { groupEndsAt } from '../data/social.js';
-import { ideaCard, ideasTeaser } from './ideas.js';
+import { ideaCard } from './ideas.js';
 import { ideaList } from '../lib/ideas.js';
 
 export const EVENT_VIEWS = Object.freeze([['tonight', 'Tonight'], ['week', 'This week'], ['ideas', 'Ideas'], ['saved', 'Saved']]);
@@ -15,7 +15,7 @@ const dayName = (ms) => new Intl.DateTimeFormat('en-US', { weekday: 'short' }).f
 
 function filterSelect(key, label, options, value) {
   return `<div class="select chip-select${value ? ' is-set' : ''}"><label for="ev-${key}" class="sr-only">${label}</label>
-    <select id="ev-${key}" data-input="event-filter" data-key="${key}"><option value="">${label}: any</option>${options.map(([v, l]) => `<option value="${esc(v)}" ${v === value ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>${icon('chevronDown', { size: 14 })}</div>`;
+    <select id="ev-${key}" data-input="event-filter" data-key="${key}"><option value="">${label}</option>${options.map(([v, l]) => `<option value="${esc(v)}" ${v === value ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>${icon('chevronDown', { size: 14 })}</div>`;
 }
 
 export function eventCard(ev, ctx) {
@@ -26,7 +26,7 @@ export function eventCard(ev, ctx) {
   const when = `${ctx.ui.eventsView === 'tonight' || live ? (live ? 'Now' : 'Tonight') : dayName(ev.startsAt)} · ${formatTime(ev.startsAt)}${ev.endsAt ? `–${formatTime(ev.endsAt)}` : ' till late'}`;
   return `<li class="ev-card" data-event="${esc(ev.id)}" data-starts="${ev.startsAt}">
     <a class="ev-link" href="#/venue/${encodeURIComponent(ev.venueId)}" data-nav-venue="${esc(ev.venueId)}">
-      <span class="ev-photo">${venue ? venuePhoto(venue, { anchor: 'bottom' }) : ''}${live ? '<span class="live-chip ev-live">Live</span>' : ''}<span class="ev-sample">Sample bar event</span></span>
+      <span class="ev-photo">${venue ? venuePhoto(venue, { anchor: 'bottom' }) : ''}${live ? '<span class="live-chip ev-live">Live</span>' : ''}</span>
       <span class="ev-body">
         <span class="ev-bar">${venue ? `<span class="bar-logo ev-logo" aria-hidden="true">${venueLogo(venue)}</span>` : ''}<span>${esc(venue?.name ?? 'Bar not in this dataset')}</span></span>
         <span class="ev-title">${esc(ev.title)}</span>
@@ -46,30 +46,26 @@ export function eventResults(ctx) {
   const ui = ctx.ui;
   const filters = { genre: ui.eventsGenre, theme: ui.eventsTheme, price: ui.eventsPrice };
   const filtered = ui.eventsGenre || ui.eventsTheme || ui.eventsPrice;
-  const pending = ctx.ideas.filter((x) => x.status === 'pending' && x.endsAt > ctx.now).length;
   const clearBtn = '<div class="actions"><button type="button" class="btn btn-primary" data-action="event-clear">Clear filters</button></div>';
   if (ui.eventsView === 'ideas') {
     const list = ideaList(ctx.ideas, filters, ctx.now, ctx.state.clock.base, ctx.state);
-    const yours = list.filter((x) => x.mine).length;
-    const head = `<div class="ideas-head"><p class="ideas-intro">Theme nights people want at the bars. Hype the ones you’d go to; the bar approves or passes. Mon–Wed ideas are the easiest yes.</p>${ctx.venues.length ? `<a class="btn btn-primary btn-block" href="#/events/new">${icon('plus', { size: 18 })}Propose a theme night</a>` : ''}</div>`;
+    
+    const head = `<div class="ideas-head">${ctx.venues.length ? `<a class="btn btn-primary btn-block" href="#/events/new">${icon('plus', { size: 18 })}Propose a theme night</a>` : ''}</div>`;
     if (!list.length) {
-      const body = !ctx.venues.length ? stateBox({ iconName: 'calendar', title: 'No ideas yet', body: 'This dataset has no bars. Switch back to the demo venues in About.' })
+      const body = !ctx.venues.length ? stateBox({ iconName: 'calendar', title: 'No ideas yet', body: 'No bars to show. Restore them in About.' })
         : filtered ? `<div class="state ev-empty"><div class="state-icon">${icon('calendar')}</div><h2>Nothing here yet</h2><p>No ideas match these filters.</p>${clearBtn}</div>`
-        : stateBox({ iconName: 'bolt', title: 'No ideas yet', body: 'Propose a theme night and it shows up here for people to hype.' });
+        : stateBox({ iconName: 'bolt', title: 'No ideas yet', body: 'Be the first to propose a theme night.' });
       return head + body;
     }
-    return `${head}<p class="summary-line">${list.length} idea${list.length === 1 ? '' : 's'} · made up for the demo; no bar has seen them${yours ? ` · ${yours} yours` : ''}</p><ul class="ev-list">${list.map((x) => ideaCard(x, ctx)).join('')}</ul>`;
+    return `${head}<ul class="ev-list">${list.map((x) => ideaCard(x, ctx)).join('')}</ul>`;
   }
-  const teaser = ideasTeaser(pending);
   const items = [...ctx.events, ...ctx.ideas.filter((x) => x.status !== 'declined')];
   const list = eventList(items, { view: ui.eventsView, ...filters }, ctx.now, ctx.state.clock.base, new Set(ctx.state.savedEvents));
   if (!list.length) {
     const msg = ui.eventsView === 'saved' ? 'Tap Save on an event to keep it here.' : filtered ? 'No events match these filters.' : 'No events listed for this time.';
-    return `${teaser}<div class="state ev-empty"><div class="state-icon">${icon('calendar')}</div><h2>${ui.eventsView === 'saved' ? 'No saved events' : 'Nothing here yet'}</h2><p>${esc(msg)}</p>${filtered ? clearBtn : ''}</div>`;
+    return `<div class="state ev-empty"><div class="state-icon">${icon('calendar')}</div><h2>${ui.eventsView === 'saved' ? 'No saved events' : 'Nothing here yet'}</h2><p>${esc(msg)}</p>${filtered ? clearBtn : ''}</div>`;
   }
-  const b = list.filter((e) => e.kind !== 'community').length;
-  const k = list.length - b;
-  return `${teaser}<p class="summary-line">${b} sample bar event${b === 1 ? '' : 's'}${k ? ` · ${k} community idea${k === 1 ? '' : 's'} (demo)` : ''} · not announced by the bars</p><ul class="ev-list">${list.map((e) => (e.kind === 'community' ? ideaCard(e, ctx) : eventCard(e, ctx))).join('')}</ul>`;
+  return `<ul class="ev-list">${list.map((e) => (e.kind === 'community' ? ideaCard(e, ctx) : eventCard(e, ctx))).join('')}</ul>`;
 }
 
 export function renderEvents(ctx) {
@@ -78,14 +74,13 @@ export function renderEvents(ctx) {
   const groups = allGroups(ctx).filter((g) => ctx.now < groupEndsAt(g)).length;
   return `<div class="page">
     <h1 class="page-title" id="page-h" tabindex="-1">Events</h1>
-    <p class="page-sub">${icon('pinFill', { size: 14 })} New Brunswick</p>
     <div class="segmented ev-views" role="group" aria-label="Show">${EVENT_VIEWS.map(([id, label]) => `<button type="button" data-action="event-view" data-view="${id}" aria-pressed="${ui.eventsView === id}">${label}${id === 'saved' && ctx.state.savedEvents.length ? ` <span class="num">${ctx.state.savedEvents.length}</span>` : ''}${id === 'ideas' && pendingIdeas ? ` <span class="num">${pendingIdeas}</span>` : ''}</button>`).join('')}</div>
     <div class="chips ev-filters" role="group" aria-label="Filters">
       ${filterSelect('genre', 'Music', GENRES.map((g) => [g, g]), ui.eventsGenre)}
       ${filterSelect('theme', 'Theme', THEMES.map((t) => [t, t]), ui.eventsTheme)}
       ${filterSelect('price', 'Price', PRICE_BANDS.map((b) => [b.id, b.label]), ui.eventsPrice)}
     </div>
-    <a class="list-link groups-link" href="#/groups">${icon('users', { size: 20 })}<span>Groups heading out<small>${groups} plan${groups === 1 ? '' : 's'} tonight · join people going together</small></span>${icon('chevronRight', { size: 18 })}</a>
+    <a class="groups-link" href="#/groups">${icon('users', { size: 18 })}<span>Groups heading out</span>${groups ? `<b class="num" aria-label="${groups} tonight">${groups}</b>` : ''}${icon('chevronRight', { size: 16 })}</a>
     <div id="event-results">${eventResults(ctx)}</div>
   </div>`;
 }

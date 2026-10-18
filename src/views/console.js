@@ -83,24 +83,24 @@ export function photoPanel(v, ctx) {
     <ol class="story" aria-label="Steps">${['Snap', 'Count', 'Publish'].map((w, i) => `<li class="${i + 1 < step ? 'is-done' : i + 1 === step ? 'is-now' : ''}">${i + 1 < step ? icon('check', { size: 14 }) : `<span class="num">${i + 1}</span>`}${w}${i + 1 < step ? '<span class="sr-only">, done</span>' : ''}</li>`).join('')}</ol>
     <div class="viewfinder lp-view${photo ? ' is-snapped' : ''}${photo && ctx.console.filling ? ' is-filling' : ''}"${photo && ctx.console.filling ? ` style="--from:${ctx.console.filling.from};--step:${Math.round(ctx.console.filling.step)}ms"` : ''}>
       ${photo ? `<button type="button" class="scene-btn" data-action="photo-mark" aria-label="Count one more person" aria-describedby="scene-desc count-help">${scene}</button>
-        <p class="sr-only" id="scene-desc">Drawn line scene, simulated, ${photo.heads} people, no faces, ${v.doors.length} door${v.doors.length === 1 ? '' : 's'}.</p>
-        <button type="button" class="icon-btn vf-retake" data-action="photo-retake" aria-label="Retake simulated photo">${icon('retake')}</button>` : `${scene}<span class="vf-tag vf-tip">Frame the line, not faces</span>`}
-      <span class="vf-tag lp-tag">${icon('camera', { size: 14 })}Simulated photo</span>
+        <p class="sr-only" id="scene-desc">Line photo, ${photo.heads} people, ${v.doors.length} door${v.doors.length === 1 ? '' : 's'}.</p>
+        <button type="button" class="icon-btn vf-retake" data-action="photo-retake" aria-label="Retake photo">${icon('retake')}</button>` : `${scene}<span class="vf-tag vf-tip">Frame the line, not faces</span>`}
+      
       ${photo && photo.heads > DRAW_MAX ? `<span class="beyond-tag">+${photo.heads - DRAW_MAX} beyond the frame</span>` : ''}
     </div>
-    ${photo ? `<p class="hint lp-honest">No image is analyzed. A real version would blur faces and delete the photo after counting.${photo.filled ? ` Demo count: the demo drew ${photo.heads} people, so it marks ${photo.heads}.` : ''}</p>
+    ${photo ? `
       <div class="count-row">
         <div><p class="label" id="pc-label">People counted</p><output id="photo-count" class="num" aria-labelledby="pc-label">${photo.count}</output></div>
         <div class="stepper count-step" role="group" aria-labelledby="pc-label">
           ${[[-5, '5 fewer people'], [-1, '1 fewer person'], [1, '1 more person'], [5, '5 more people']].map(([d, l]) => `<button type="button" class="icon-btn" data-action="photo-step" data-delta="${d}" aria-label="${l}" ${(d < 0 && photo.count <= 0) || (d > 0 && photo.count >= 400) ? 'disabled' : ''}><span class="num">${d > 0 ? '+' : '−'}${Math.abs(d)}</span></button>`).join('')}
         </div>
       </div>
-      <p class="hint" id="count-help">Tap the photo once for each head, or use − / +.</p>
-      <button type="button" class="btn btn-quiet btn-block" data-action="photo-fill"${busy ? ' aria-disabled="true"' : ''}>${icon('sparkle', { size: 16 })}Show demo count (simulated)</button>` : ''}
+      <p class="hint" id="count-help">Tap each head, or use − / +.</p>
+      <button type="button" class="btn btn-quiet btn-block" data-action="photo-fill"${busy ? ' aria-disabled="true"' : ''}>${icon('sparkle', { size: 16 })}Count for me</button>` : ''}
     ${mathStrip(v, ctx)}
     <div class="photo-cta">${photo
       ? `<button type="button" class="btn btn-primary btn-lg btn-block" data-action="photo-publish"${!photo.touched || busy ? ' aria-disabled="true"' : ''}>${icon('check', { size: 18 })}Publish ${photo.count}</button>`
-      : `<button type="button" class="btn btn-primary btn-lg btn-block" data-action="photo-snap">${icon('camera', { size: 18 })}Snap the line (simulated)</button>`}</div>
+      : `<button type="button" class="btn btn-primary btn-lg btn-block" data-action="photo-snap">${icon('camera', { size: 18 })}Snap the line</button>`}</div>
   </section>`;
 }
 
@@ -108,7 +108,7 @@ function doorsPanel(v, ctx) {
   const door = currentDoor(v, ctx);
   const dp = door ? doorPace(v.doors, door, ctx.now) : null;
   return `<section class="panel" aria-labelledby="doors-h">
-    <div class="section-head"><h2 id="doors-h">Doors</h2>${v.doorsSimulated ? '<span class="demo-tag">Demo layout</span>' : ''}</div>
+    <div class="section-head"><h2 id="doors-h">Doors</h2></div>
     ${v.doors.map((d) => {
       const s = door?.list?.[d.id] ?? { status: v.queue?.doorStatus ?? 'moving', pace: null };
       return `<fieldset class="field-group door-row"><legend class="label">${esc(d.label)}</legend>
@@ -116,8 +116,8 @@ function doorsPanel(v, ctx) {
         <div class="pace-row"><span class="label" id="pace-${esc(d.id)}">Pace</span><div class="segmented pace-seg" role="radiogroup" aria-labelledby="pace-${esc(d.id)}">${[1, 2, 3, 4].map((n) => `<label><input type="radio" name="door-pace-${esc(d.id)}" value="${n}" data-input="door-pace" data-door="${esc(d.id)}" ${s.pace === n ? 'checked' : ''}><span>${n}</span></label>`).join('')}</div><span class="hint" style="margin:0">a min</span></div>
       </fieldset>`;
     }).join('')}
-    <p class="door-summary">${dp?.pace != null ? `Venue pace: <b>${esc(v.doors.length > 1 ? `${dp.detail} = ${dp.pace}` : String(dp.pace))} a min</b> · ${dp.open} of ${dp.total} door${dp.total === 1 ? '' : 's'} open` : dp && dp.open === 0 ? 'No door is letting people in.' : 'No door pace yet. Set one per open door.'}</p>
-    <p class="hint">Changes go live right away. Demo: no real door is connected.</p>
+    <p class="door-summary">${dp?.pace != null ? `Venue pace: <b>${esc(v.doors.length > 1 ? `${dp.detail} = ${dp.pace}` : String(dp.pace))} a min</b> · ${dp.open} of ${dp.total} door${dp.total === 1 ? '' : 's'} open` : dp && dp.open === 0 ? 'No door is letting people in.' : 'No door pace yet.'}</p>
+    
   </section>`;
 }
 
@@ -127,7 +127,7 @@ function inputRow(u, ctx) {
   const age = relativeAge(x.at, ctx.now);
   const what = x.kind === 'photo' ? `${ROLE[x.by] ?? 'Staff'} photo · ${x.heads} heads` : x.kind === 'venue' ? `Venue update · ${x.low}–${x.high}` : x.n > 1 ? `${x.n} earlier crowd reports · ${x.low}–${x.high}` : `Guest report · ${x.low}–${x.high}`;
   const [ic, word] = CHIPS[u.outcome];
-  return `<li><span class="feed-main">${esc(what)}<small>${esc(age)} · demo</small></span><span class="feed-chip" data-outcome="${u.outcome}">${icon(ic, { size: 13 })}${word}</span></li>`;
+  return `<li><span class="feed-main">${esc(what)}<small>${esc(age)}</small></span><span class="feed-chip" data-outcome="${u.outcome}">${icon(ic, { size: 13 })}${word}</span></li>`;
 }
 
 function paceFeedRow(v, q, ctx) {
@@ -154,13 +154,13 @@ function feedPanel(v, ctx) {
   return `<section class="panel" aria-labelledby="feed-h">
     <h2 id="feed-h">Inputs right now</h2>
     ${lead || paceRow ? `<ul class="feed">${shown.join('')}</ul>${rows.length > 4 ? `<p class="hint">+${rows.length - 4} more</p>` : ''}` : '<p class="hint">Nothing in the last 20 minutes. Snap the line to start.</p>'}
-    <p class="hint">Synthetic inputs for the demo. Anything older than 20 minutes is left out.</p>
+    
   </section>`;
 }
 
 export function renderConsole(ctx) {
   const venues = ctx.venues;
-  if (!venues.length) return `<div class="page">${stateBox({ iconName: 'door', title: 'No venues to manage', body: 'Restore the demo dataset first.', actions: '<button type="button" class="btn btn-primary" data-action="dataset" data-kind="demo">Restore demo venues</button>', headingLevel: 1 })}</div>`;
+  if (!venues.length) return `<div class="page">${stateBox({ iconName: 'door', title: 'No venues to manage', body: 'Restore the venue list first.', actions: '<button type="button" class="btn btn-primary" data-action="dataset" data-kind="demo">Restore venues</button>', headingLevel: 1 })}</div>`;
   const id = ctx.console.venueId && venues.some((v) => v.id === ctx.console.venueId) ? ctx.console.venueId : venues[0].id;
   const v = venues.find((x) => x.id === id);
   const role = ctx.console.role ?? 'ambassador';
@@ -168,23 +168,23 @@ export function renderConsole(ctx) {
   const audit = ctx.state.audit.filter((a) => a.venueId === id).slice(0, 8);
   return `<div class="page console-page" style="max-width:1100px">
     <h1 class="page-title" id="page-h" tabindex="-1">Door console</h1>
-    <p class="page-sub">Demo for bar owners. Simulated photos, people and roles. No bar uses Night Out; nothing leaves this phone.</p>
-    <p class="console-lede">We count heads in a door photo, divide by how fast the door lets people in, and hide anything older than 20 minutes.</p>
+    <p class="page-sub">For bar owners and door staff.</p>
+    <p class="console-lede">Wait ≈ people in line ÷ door pace. Anything older than 20 minutes is hidden.</p>
     <div class="field-group" style="margin-top:var(--s-4)">
-      <label class="label" for="console-venue">Venue (simulated controls)</label>
+      <label class="label" for="console-venue">Venue</label>
       <div class="select"><select id="console-venue" data-input="console-venue" style="width:100%;min-height:46px">${venues.map((x) => `<option value="${x.id}" ${x.id === id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>${icon('chevronDown')}</div>
     </div>
     <div class="field-group role-group"><p class="label" id="role-label">Who’s at the door?</p>
       <div class="segmented role-seg" role="group" aria-labelledby="role-label">${Object.entries(ROLE).map(([k, w]) => `<button type="button" data-action="console-role" data-role="${k}" aria-pressed="${role === k}">${w}</button>`).join('')}</div>
-      <p class="hint">${role === 'ambassador' ? 'Night Out’s own street team (demo role).' : 'A bar’s door staff would use this free tool (demo role).'} Simulated role. Night Out never pays a bar’s staff.</p>
+      <p class="hint">${role === 'ambassador' ? 'Night Out’s street team.' : 'The bar’s door staff. Night Out never pays them.'}</p>
     </div>
     <div class="console-grid">
       ${photoPanel(v, ctx)}
       <section class="panel" aria-labelledby="prev-h">
         <h2 id="prev-h">What guests see now</h2>
-        <p class="panel-sub">The same component as the guest app.</p>
+        
         ${estimateBlock(v, ctx.now, { headingId: 'qb-console', showHow: false, headingLevel: 3 })}
-        <div class="form-actions">${cleared ? '<button type="button" class="btn" data-action="console-undo-clear">Restore previous estimate</button>' : '<button type="button" class="btn" data-action="console-clear">Clear estimate (no data)</button>'}</div>
+        <div class="form-actions">${cleared ? '<button type="button" class="btn" data-action="console-undo-clear">Restore previous estimate</button>' : '<button type="button" class="btn" data-action="console-clear">Clear estimate</button>'}</div>
       </section>
       ${doorsPanel(v, ctx)}
       ${feedPanel(v, ctx)}
@@ -193,7 +193,7 @@ export function renderConsole(ctx) {
       ${passPanel(v, ctx)}
       <section class="panel" aria-labelledby="audit-h">
         <h2 id="audit-h">Change log</h2>
-        ${audit.length ? `<ol class="audit">${audit.map((a) => `<li><time>${esc(formatTime(a.at))} · demo time</time><span>${esc(a.summary)}</span></li>`).join('')}</ol>` : '<p class="hint">Publish a count or change a door to start the log.</p>'}
+        ${audit.length ? `<ol class="audit">${audit.map((a) => `<li><time>${esc(formatTime(a.at))}</time><span>${esc(a.summary)}</span></li>`).join('')}</ol>` : '<p class="hint">No changes yet.</p>'}
       </section>
     </div>
   </div>`;

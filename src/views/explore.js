@@ -37,27 +37,31 @@ export function exploreChips(ctx) {
   return `<div class="sort-seg" role="group" aria-label="Show bars">${QUICK_VIEWS.map(([id, label]) => `<button type="button" data-action="quick-view" data-view="${id}" aria-pressed="${current === id}">${label}</button>`).join('')}</div>${extra.join('')}`;
 }
 
-/** Search field (always visible: the team's sketch puts search up top), the Map toggle and the chips. */
+/** One compact row (team ask, 2026-10-18: "smaller, take up less space"): the sort switch, a search button and the
+ *  Map toggle. Search opens in place of the row and stays open while there is a query. */
 export function exploreControls(ctx) {
   const { q, view } = ctx.explore;
-  return `<div id="explore-search" class="search-panel">
+  const open = !!(ctx.ui.searchOpen || q);
+  return `<div id="explore-search" class="search-panel${open ? ' is-open' : ''}">
+    <div class="chips">${exploreChips(ctx)}</div>
+    <button type="button" class="tool-btn search-toggle" data-action="open-search" aria-label="Search bars" aria-expanded="${open}" aria-controls="q">${icon('search')}</button>
+    <button type="button" class="tool-btn map-btn" data-action="set-view" data-view="${view === 'map' ? 'list' : 'map'}" aria-pressed="${view === 'map'}" aria-label="${view === 'map' ? 'Show list' : 'Show map'}">${icon(view === 'map' ? 'list' : 'map')}</button>
     <div class="search" role="search">
       ${icon('search')}
       <label for="q" class="sr-only">Search bars by name or street</label>
       <input id="q" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" spellcheck="false" name="q" placeholder="Search bars" value="${esc(q)}" data-input="search">
       <button type="button" class="icon-btn clear" data-action="clear-search" aria-label="Clear search" ${q ? '' : 'hidden'}>${icon('x')}</button>
     </div>
-    <button type="button" class="map-btn" data-action="set-view" data-view="${view === 'map' ? 'list' : 'map'}" aria-pressed="${view === 'map'}" aria-label="${view === 'map' ? 'Show list' : 'Show map'}">${icon(view === 'map' ? 'list' : 'map')}</button>
-  </div>
-  <div class="chips">${exploreChips(ctx)}</div>`;
+    <button type="button" class="search-cancel" data-action="close-search">Cancel</button>
+  </div>`;
 }
 
 /** Count and freshness on the left, Refresh on the right. */
-function resultsBar(ctx, { total, sortLabel, excludedStale }) {
+function resultsBar(ctx, { total, excludedStale }) {
   const { ui } = ctx;
   const refreshed = ui.loading ? 'Refreshing…' : ui.lastRefreshAt ? `Updated ${formatTime(ui.lastRefreshAt)}` : '';
   return `<div class="results-bar">
-      <p class="summary-line"><span class="sl-main">${total} bar${total === 1 ? '' : 's'} · ${sortLabel}</span>${refreshed ? `<span class="sl-upd">${refreshed}</span>` : ''}${excludedStale ? `<span>${excludedStale} out of date hidden</span>` : ''}</p>
+      <p class="summary-line"><span class="sl-main">${total} bar${total === 1 ? '' : 's'}</span>${refreshed ? `<span class="sl-upd">${refreshed}</span>` : ''}${excludedStale ? `<span>${excludedStale} out of date hidden</span>` : ''}</p>
       <button type="button" class="icon-btn refresh-btn" data-action="refresh" aria-label="Refresh estimates" aria-disabled="${ui.loading}">${icon('refresh', { size: 18 })}</button>
     </div>`;
 }
@@ -65,7 +69,7 @@ function resultsBar(ctx, { total, sortLabel, excludedStale }) {
 export function exploreBanners(ctx) {
   const out = [];
   if (ctx.offline) {
-    out.push(banner('warn', 'wifiOff', `<p><strong>You’re offline (simulated).</strong></p><p>Showing estimates from ${ctx.ui.lastRefreshAt ? formatTime(ctx.ui.lastRefreshAt) : 'the last refresh'}. They keep aging; nothing new will arrive until you reconnect.</p>`,
+    out.push(banner('warn', 'wifiOff', `<p><strong>You’re offline.</strong></p><p>Showing estimates from ${ctx.ui.lastRefreshAt ? formatTime(ctx.ui.lastRefreshAt) : 'the last refresh'}.</p>`,
       `<button type="button" class="btn" data-action="go-online">Reconnect</button>`));
   }
   if (ctx.ui.refreshError && !ctx.offline) {
@@ -84,10 +88,9 @@ export function exploreResults(ctx) {
     return `<p class="summary-line" aria-hidden="true">Loading estimates…</p><div class="bar-grid sk-group" aria-hidden="true">${'<div class="sk-card"><div class="sk sk-photo"></div><div class="sk sk-l1"></div><div class="sk sk-l2"></div></div>'.repeat(6)}</div>`;
   }
   if (venues.length === 0) {
-    return stateBox({ iconName: 'help', title: 'No venues in this dataset', body: 'The demo dataset is empty. Restore the sample venues to continue.', actions: '<button type="button" class="btn btn-primary" data-action="dataset" data-kind="demo">Restore demo venues</button>' });
+    return stateBox({ iconName: 'help', title: 'No bars to show', body: 'Restore the bar list to continue.', actions: '<button type="button" class="btn btn-primary" data-action="dataset" data-kind="demo">Restore bars</button>' });
   }
   const { results, unknown, total, excludedStale } = exploreList(venues, explore, now, savedSet);
-  const sortLabel = { near: 'nearest first', name: 'A–Z', wait: 'shortest line first' }[explore.sort] ?? 'nearest first';
   if (total === 0) {
     const bits = [];
     if (explore.q) bits.push(`“${esc(explore.q)}”`);
@@ -96,10 +99,10 @@ export function exploreResults(ctx) {
       explore.filters.length ? '<button type="button" class="btn btn-primary" data-action="clear-filters">Clear filters</button>' : '',
       explore.q ? '<button type="button" class="btn" data-action="clear-search">Clear search</button>' : '',
     ].join('');
-    const staleNote = excludedStale ? ` ${excludedStale} venue${excludedStale === 1 ? ' has' : 's have'} out-of-date estimates, so ${excludedStale === 1 ? 'it doesn’t' : 'they don’t'} count as under 20 min.` : '';
+    const staleNote = excludedStale ? ` ${excludedStale} out of date hidden.` : '';
     return stateBox({ iconName: 'search', title: 'No venues match', body: `Nothing matches ${bits.join(' + ')}.${staleNote}`, actions });
   }
-  const summary = resultsBar(ctx, { total, sortLabel, excludedStale });
+  const summary = resultsBar(ctx, { total, excludedStale });
   if (explore.view === 'map') return summary + mapView(ctx, results.concat(unknown));
   const rail = !explore.q && !explore.filters.length && explore.sort === 'near' ? dealsRail(ctx) : '';
   const list = (rows) => `<ul class="bar-grid">${rows.map((r) => venueCard(r.venue, now, { saved: savedSet.has(r.venue.id) })).join('')}</ul>`;
@@ -115,8 +118,8 @@ export function dealsRail(ctx) {
     .sort((a, b) => (distanceTo(a.v) ?? 99) - (distanceTo(b.v) ?? 99) || a.d.endsAt - b.d.endsAt);
   if (!live.length) return '';
   return `<section class="deals-rail" aria-labelledby="rail-h" data-rail-sig="${esc(live.map(({ d }) => d.id).join(','))}">
-    <div class="rail-head"><h2 id="rail-h">Deals right now</h2><span class="demo-tag">Demo deals</span><button type="button" class="rail-all" data-action="quick-view" data-view="deals">See all${icon('chevronRight', { size: 16 })}</button></div>
-    <ul class="rail-list">${live.map(({ v, d }) => `<li><a class="rail-tile" href="#/venue/${encodeURIComponent(v.id)}?deal=${encodeURIComponent(d.id)}" aria-label="${esc(`${promoLabel(d)}: ${promoItem(d)} at ${v.name}, until ${formatTime(d.endsAt)}. Demo deal`)}">
+    <div class="rail-head"><h2 id="rail-h">Deals right now</h2><button type="button" class="rail-all" data-action="quick-view" data-view="deals">See all${icon('chevronRight', { size: 16 })}</button></div>
+    <ul class="rail-list">${live.map(({ v, d }) => `<li><a class="rail-tile" href="#/venue/${encodeURIComponent(v.id)}?deal=${encodeURIComponent(d.id)}" aria-label="${esc(`${promoLabel(d)}: ${promoItem(d)} at ${v.name}, until ${formatTime(d.endsAt)}`)}">
       <span class="rail-photo">${venuePhoto(v)}<span class="promo-badge" data-type="${esc(d.promo?.type ?? 'price')}">${icon('tag', { size: 12 })}${esc(promoLabel(d))}</span></span>
       <span class="rail-name">${esc(v.name)}</span>
       <span class="rail-item">${esc(promoItem(d))} · until ${esc(formatTime(d.endsAt))}</span>
@@ -153,10 +156,10 @@ function mapView(ctx, rows, { action = 'map-select', preview = true } = {}) {
         ${mapSvg()}
         ${pins}
       </div>
-      <p class="map-caption"><span>Schematic map, not to scale. Positions are approximate.</span><span>Dashed outline: may have changed or uncertain. “?”: unknown or out of date. “—”: closed.</span></p>
+      <p class="map-caption"><span>Not to scale</span><span>? no recent report · — closed</span></p>
     </div>
     ${preview ? `<div class="map-preview">
-      ${selectedVenue ? `<ul class="venue-list">${venueRow(selectedVenue, now, { saved: savedSet.has(selectedVenue.id) })}</ul>` : '<p class="hint">Select a pin to preview a venue. The list view shows the same venues.</p>'}
+      ${selectedVenue ? `<ul class="venue-list">${venueRow(selectedVenue, now, { saved: savedSet.has(selectedVenue.id) })}</ul>` : '<p class="hint">Tap a pin to preview a bar.</p>'}
     </div>` : ''}`;
 }
 
@@ -187,7 +190,7 @@ export function renderExplore(ctx) {
     ${exploreControls(ctx)}
     <div id="explore-banners">${exploreBanners(ctx)}</div>
     <div id="results" aria-busy="${ctx.ui.loading}">${exploreResults(ctx)}</div>
-    <p class="demo-caption"><b>Example distances, waits and deals.</b> Distances are straight-line from a demo spot (${esc(DEMO_SPOT.label)}). Bar names are real; waits, deals, prices and passes are simulated, and no bar is affiliated with Night Out.</p>`;
+    `;
 }
 
 /** Area picker sheet (no GPS: Night Out never asks for your location). Counts are bars in each area. */
@@ -198,7 +201,7 @@ export function areaSheet(current, venues = []) {
     <div class="sheet-body"><fieldset><legend class="sr-only">Area</legend><div class="option-list">
       ${AREAS.map((a) => `<label class="option-row"><input type="radio" name="area" value="${a.id}" data-input="area" ${a.id === (current || '') ? 'checked' : ''}><span class="rd" aria-hidden="true">${icon('check')}</span><span>${esc(a.label)}</span><span class="n" aria-hidden="true">${n(a)}</span></label>`).join('')}
     </div></fieldset>
-    <p class="hint">${icon('pin', { size: 14 })} Night Out doesn’t use your location. Distances are measured in a straight line from a demo starting spot, ${esc(DEMO_SPOT.label)}.</p></div>`;
+    <p class="hint">${icon('pin', { size: 14 })} Distances from ${esc(DEMO_SPOT.label)}</p></div>`;
 }
 
 /** Sort sheet (replaces the native select so the chip matches the filters). */

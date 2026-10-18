@@ -201,7 +201,7 @@ const BASE = [
     cover: 5, hours: { open: '20:00', close: '02:00' }, art: 'waves',
     palette: ['#1D2B1F', '#8BC34A', '#E4EEDC', '#2C4230'],
     typical: [0, 1, 2, 4, 4, 3, 1],
-    queue: { sourceType: 'venue', ago: 1, peopleLow: 15, peopleHigh: 25, admitPerMin: 1.5, doorStatus: 'paused', note: 'Trivia final round: doors reopen at 12:30 AM (simulated)' },
+    queue: { sourceType: 'venue', ago: 1, peopleLow: 15, peopleHigh: 25, admitPerMin: 1.5, doorStatus: 'paused', note: 'Trivia final round: doors reopen at 12:30 AM' },
     menu: MENUS.pub(),
     pass: { enabled: true, paused: false, basePrice: 1000, serviceFee: 150, coverIncluded: true,
       windows: [['w1', 0, 15, 0, 45, 6], ['w2', 0, 45, 1, 15, 6]] },

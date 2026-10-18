@@ -28,7 +28,7 @@ function groupCard(g, ctx) {
     : '';
   const [t, ap] = formatTime(g.startsAt).split(/\s+/);
   return `<li class="group-card">
-    <div class="group-dest">${venue ? `<span class="bar-logo" aria-hidden="true">${venueLogo(venue)}</span>` : ''}<span><b>${esc(venue?.name ?? 'Bar not in this dataset')}</b><small>${esc([venue && distanceText(venue), 'Demo group'].filter(Boolean).join(' · '))}</small></span>${venue ? `<span class="group-wait" aria-hidden="true">${cardStatus(venue, ctx.now)}</span>` : ''}</div>
+    <div class="group-dest">${venue ? `<span class="bar-logo" aria-hidden="true">${venueLogo(venue)}</span>` : ''}<span><b>${esc(venue?.name ?? 'Bar not in this dataset')}</b><small>${esc((venue && distanceText(venue)) || '')}</small></span>${venue ? `<span class="group-wait" aria-hidden="true">${cardStatus(venue, ctx.now)}</span>` : ''}</div>
     <div class="group-host">${personAvatar(members[0], 36)}<div class="group-host-text"><span class="group-host-name">${esc(g.host.name)}${g.mine ? ' <span class="mini-tag">You</span>' : ''}</span>${handle}</div></div>
     <h2 class="group-title-text">${esc(g.title)}</h2>
     ${g.stops?.length > 1 ? hopTimeline(g, ctx) : `<p class="group-when"><small>Leaving</small><span class="num">${esc(t)}</span><small class="ap">${esc(ap ?? '')}</small></p>`}
@@ -72,7 +72,7 @@ export function membersSheet(g, ctx) {
     <div class="sheet-body">
       <p class="members-sub">${esc(g.title)} · <span class="num">${going} of ${g.spots}</span></p>
       <ul class="member-list">${members.map((m, i) => `<li><button type="button" class="member-row" data-action="member-profile" data-group="${esc(g.id)}" data-index="${i}">${personAvatar(m, 44)}<span class="member-main"><b>${esc(m.you ? `${m.name} (you)` : m.name)}</b>${m.handle ? `<small class="member-handle">@${esc(m.handle)}</small>` : ''}${tagsOf(m).length ? `<span class="member-tags">${tagsOf(m).map((x) => `<span class="mini-tag">${esc(x)}</span>`).join('')}</span>` : ''}</span>${icon('chevronRight', { size: 18 })}</button></li>`).join('')}</ul>
-      <p class="hint">${members.some((x) => x.you) ? 'Everyone here except you is a demo person' : 'Demo people'}: names, handles and years are made up, and pictures are drawn by the app. Real profiles would come from sign-up.</p>
+      
     </div>`;
 }
 
@@ -87,7 +87,7 @@ export function memberProfileSheet(g, index, ctx) {
     <div class="sheet-body member-profile">
       <div class="mp-head">${personAvatar(m, 88)}
         <div class="mp-id"><p class="mp-name">${esc(m.you ? `${m.name} (you)` : m.name)}</p>
-          ${m.handle ? `<button type="button" class="handle" data-action="ig-link" data-handle="${esc(m.handle)}" aria-label="Open @${esc(m.handle)} on Instagram (off in this demo)">${icon('at', { size: 14 })}${esc(m.handle)}</button>` : '<p class="hint" style="margin:0">No Instagram added</p>'}
+          ${m.handle ? `<button type="button" class="handle" data-action="ig-link" data-handle="${esc(m.handle)}" aria-label="Open @${esc(m.handle)} on Instagram">${icon('at', { size: 14 })}${esc(m.handle)}</button>` : '<p class="hint" style="margin:0">No Instagram added</p>'}
         </div></div>
       <dl class="fact-strip mp-facts">
         <div><dt>Year</dt><dd>${esc(m.year ?? (m.you ? 'You' : '—'))}</dd></div>
@@ -97,9 +97,9 @@ export function memberProfileSheet(g, index, ctx) {
       ${(m.vibe ?? []).length ? `<p class="eyebrow" style="margin-top:16px">Into</p><div class="member-tags mp-tags">${m.vibe.map((x) => `<span class="mini-tag">${esc(x)}</span>`).join('')}</div>` : ''}
       <p class="eyebrow" style="margin-top:16px">Going to</p>
       <div class="mp-plan">${venue ? `<span class="bar-logo" aria-hidden="true">${venueLogo(venue)}</span>` : ''}<span><b>${esc(g.title)}</b><small>${esc(venue?.name ?? '')} · ${esc(formatTime(g.startsAt))}</small></span></div>
-      ${m.handle ? `<button type="button" class="btn btn-block" data-action="ig-link" data-handle="${esc(m.handle)}" style="margin-top:16px">${icon('at', { size: 16 })}Open Instagram</button>` : ''}
+      
       <p class="hint" role="status" aria-live="polite" data-ig-note></p>
-      <p class="hint">${m.you ? 'This is your demo profile: the name and handle are what you entered, and they stay on this device. Instagram links are off in the demo.' : 'Demo person: the name, handle and picture are made up, so there’s no Instagram account to open. In the real app this opens their Instagram profile.'}</p>
+      
     </div>`;
 }
 
@@ -111,8 +111,8 @@ export function renderGroups(ctx) {
       <h1 class="page-title" id="page-h" tabindex="-1">Groups</h1>
       <a class="btn btn-primary btn-sm" href="#/groups/new">${icon('plus', { size: 16 })}Post a group</a>
     </div>
-    <p class="page-sub">Find people heading out tonight, or start your own plan.</p>
-    <div class="safety-note">${icon('shield', { size: 18 })}<p>Meet in public at the bar. Everyone must be 21+ with physical ID. Night Out never shares your location. Demo: groups and people are made up.</p></div>
+    
+    <div class="safety-note">${icon('shield', { size: 18 })}<p>Meet in public at the bar. Everyone must be 21+ with physical ID. Night Out never shares your location.</p></div>
     ${groups.length ? `<ul class="group-list">${groups.map((g) => groupCard(g, ctx)).join('')}</ul>`
       : stateBox({ iconName: 'users', title: 'No groups yet', body: 'Be the first to post a plan for tonight.', actions: '<a class="btn btn-primary" href="#/groups/new">Post a group</a>' })}
   </div>`;
@@ -125,13 +125,13 @@ export const nightMinutes = (hhmm) => { const [h, m] = hhmm.split(':').map(Numbe
 export const MAX_STOPS = 4;
 
 export function renderGroupNew(ctx, draft, errors = {}) {
-  if (!ctx.venues.length) return `<div class="page">${stateBox({ iconName: 'users', title: 'No bars to meet at', body: 'Switch back to the demo venues in About.', actions: '<a class="btn btn-primary" href="#/about">About this demo</a>', headingLevel: 1 })}</div>`;
+  if (!ctx.venues.length) return `<div class="page">${stateBox({ iconName: 'users', title: 'No bars to meet at', body: 'Restore the bars in About.', actions: '<a class="btn btn-primary" href="#/about">Open About</a>', headingLevel: 1 })}</div>`;
   const d = draft;
   const venues = [...ctx.venues].sort((a, b) => a.name.localeCompare(b.name));
   return `<div class="page">
     <div class="back-row"><a class="back-link" href="#/groups" data-action="back">${icon('chevronLeft')}Groups</a></div>
     <h1 class="page-title" id="page-h" tabindex="-1">Post a group</h1>
-    <p class="page-sub">Posted as ${esc(ctx.state.profile.name)}. Demo: it stays on this device and no one else sees it.</p>
+    <p class="page-sub">Posted as ${esc(ctx.state.profile.name)}.</p>
     <form id="group-form" class="form-stack" novalidate>
       <div class="field">
         <label class="label" for="g-title">What’s the plan?</label>
@@ -148,7 +148,7 @@ export function renderGroupNew(ctx, draft, errors = {}) {
           <div class="select"><select id="g-time" name="time" data-input="group-field" data-key="time">${timeOptions(d.time)}</select>${icon('chevronDown', { size: 14 })}</div>
         </div>
       </div>
-      <div class="switch-row hop-switch"><label for="g-hop"><span class="label" style="margin:0">Bar hop</span><span class="hint">Add more stops with times, like Huey’s at 10, then Scarlet Pub at 11.</span></label>
+      <div class="switch-row hop-switch"><label for="g-hop"><span class="label" style="margin:0">Bar hop</span><span class="hint">Add more stops.</span></label>
         <span class="switch"><input id="g-hop" type="checkbox" role="switch" data-input="group-hop" ${d.hop ? 'checked' : ''}><span></span></span></div>
       ${d.hop ? `<fieldset class="hop-edit"><legend class="label">Then</legend>
         <ol class="hop-edit-list">${d.stops.map((st, i) => `<li class="hop-edit-row">
@@ -174,7 +174,7 @@ export function renderGroupNew(ctx, draft, errors = {}) {
       <div class="field">
         <label class="label" for="g-ig">Instagram handle (optional)</label>
         <div class="input-prefix"><span aria-hidden="true">@</span><input id="g-ig" name="instagram" class="text-input" maxlength="30" autocomplete="off" autocapitalize="none" spellcheck="false" value="${esc(d.handle)}" data-input="group-field" data-key="handle" ${errors.handle ? 'aria-invalid="true" aria-describedby="err-g-ig"' : ''}></div>
-        ${errors.handle ? `<p class="field-error" id="err-g-ig">${icon('alert')}${esc(errors.handle)}</p>` : '<p class="hint">Shown on your group so people can check you out first.</p>'}
+        ${errors.handle ? `<p class="field-error" id="err-g-ig">${icon('alert')}${esc(errors.handle)}</p>` : ''}
       </div>
       <button type="submit" class="btn btn-primary btn-lg btn-block" data-action="post-group">Post group</button>
     </form>

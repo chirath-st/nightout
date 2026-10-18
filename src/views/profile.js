@@ -26,8 +26,8 @@ const BRAND_TINT = { 'scarlet-pub': '#B3122E', 'olde-queens': '#E8590C', 'pitch-
 export function vipCard(card, ctx, { main = false } = {}) {
   const venue = card.venueId ? ctx.venues.find((v) => v.id === card.venueId) : null;
   const tint = !main && card.venueId ? BRAND_TINT[card.venueId] : null;
-  return `<article class="vip-card${main ? ' is-main' : ''}${tint ? ' is-tinted' : ''}"${tint ? ` style="--tint:${tint}"` : ''} aria-label="${esc(card.title)}, demo card, not valid">
-    <div class="vip-top"><span class="vip-brand">${main ? `${wordmark()}<span class="sr-only">Night Out</span>` : esc(venue?.name ?? 'Bar card')}</span><span class="vip-tag">Demo · not valid</span></div>
+  return `<article class="vip-card${main ? ' is-main' : ''}${tint ? ' is-tinted' : ''}"${tint ? ` style="--tint:${tint}"` : ''} aria-label="${esc(card.title)}">
+    <div class="vip-top"><span class="vip-brand">${main ? `${wordmark()}<span class="sr-only">Night Out</span>` : esc(venue?.name ?? 'Bar card')}</span></div>
     <p class="vip-title">${esc(main ? 'VIP pass' : card.title)}</p>
     <div class="vip-foot"><span><b>${esc(ctx.state.profile.name)}</b><small>${main ? 'Member card' : `Added ${esc(dateFmt(card.addedAt))}`}</small></span><span class="vip-code" aria-hidden="true">${barcode(card.id)}</span></div>
   </article>`;
@@ -45,12 +45,12 @@ export function renderProfile(ctx, { editing = false, errors = {} } = {}) {
     <section class="profile-head" aria-label="Profile">
       ${personAvatar({ seed: youSeed(p.name), initials: initials(p.name) }, 72)}
       <div class="profile-id">
-        <p class="profile-name">${esc(p.name)} <span class="demo-tag">Demo account</span></p>
+        <p class="profile-name">${esc(p.name)}</p>
         ${p.handle ? `<button type="button" class="handle" data-action="ig-link" data-handle="${esc(p.handle)}" aria-label="Instagram @${esc(p.handle)}">${icon('at', { size: 14 })}${esc(p.handle)}</button>` : '<p class="hint" style="margin:0">No Instagram added</p>'}
         <button type="button" class="btn btn-sm" data-action="edit-profile" aria-expanded="${editing}">${editing ? 'Cancel' : `${icon('plus', { size: 14 })}Edit profile`}</button>
       </div>
     </section>
-    <p class="hint">Demo picture, drawn by the app. In the real app your photo would come from sign-up; this demo never reads a photo.</p>
+    
     ${editing ? `<form id="profile-form" class="form-stack panel" novalidate>
       <div class="field"><label class="label" for="p-name">Name</label><input id="p-name" name="displayname" class="text-input" maxlength="30" value="${esc(p.name)}" ${errors.name ? 'aria-invalid="true" aria-describedby="err-p-name"' : ''}>
         ${errors.name ? `<p class="field-error" id="err-p-name">${icon('alert')}${esc(errors.name)}</p>` : ''}</div>
@@ -59,7 +59,7 @@ export function renderProfile(ctx, { editing = false, errors = {} } = {}) {
       <button type="submit" class="btn btn-primary btn-block">Save profile</button>
     </form>` : ''}
     <dl class="fact-strip">
-      <div><dt>Points</dt><dd>${new Intl.NumberFormat('en-US').format(balanceOf(st.points))}<span class="fact-sub">Demo</span></dd></div>
+      <div><dt>Points</dt><dd>${new Intl.NumberFormat('en-US').format(balanceOf(st.points))}<span class="fact-sub">Balance</span></dd></div>
       <div><dt>Check-ins</dt><dd>${st.checkins.length}<span class="fact-sub">Bars visited</span></dd></div>
       <div><dt>Groups</dt><dd>${st.groups.joined.length + st.groups.created.length}<span class="fact-sub">Joined or posted</span></dd></div>
     </dl>
@@ -70,10 +70,10 @@ export function renderProfile(ctx, { editing = false, errors = {} } = {}) {
       <button type="button" class="btn" data-action="vip-wallet">${icon('ticket', { size: 18 })}Add to Wallet</button>
       <button type="button" class="btn" data-action="vip-add"${cards.length >= SAMPLE_BAR_CARDS.length ? ' aria-disabled="true"' : ''}>${icon('plus', { size: 18 })}Add a bar’s card</button>
     </div>
-    <p class="hint">Bars’ own VIP or loyalty cards go here. In the real app you’d add a photo or screenshot; this demo adds a sample card and never reads a file.</p>
+    
     ${cards.length ? `<ul class="vip-list">${cards.map((c) => `<li>${vipCard(c, ctx)}<button type="button" class="btn btn-sm btn-ghost" data-action="vip-remove" data-id="${esc(c.id)}" aria-label="Remove ${esc(c.title)}">Remove</button></li>`).join('')}</ul>` : ''}
 
-    <div class="section-head"><h2>My subscription</h2><span class="eyebrow">Demo, no billing</span></div>
+    <div class="section-head"><h2>My subscription</h2></div>
     <section class="sub-card" aria-label="Night Out Plus subscription">
       <div class="sub-top"><span class="sub-name">${icon('star', { size: 18 })}Night Out Plus</span><span class="sub-state" data-on="${sub.plan === 'plus'}">${sub.plan === 'plus' ? 'Active' : 'Off'}</span></div>
       ${sub.plan === 'plus' ? `<dl class="sub-facts">
@@ -82,21 +82,21 @@ export function renderProfile(ctx, { editing = false, errors = {} } = {}) {
       </dl>` : '<p class="hint" style="margin:0">Not subscribed.</p>'}
       <ul class="sub-perks">${PLUS_PERKS.map((x) => `<li>${icon('check', { size: 16 })}${esc(x)}</li>`).join('')}</ul>
       <button type="button" class="btn btn-block" data-action="manage-sub">Manage subscription</button>
-      <p class="hint" style="margin:8px 0 0">Prototype only: no payment method, no charges, nothing renews.</p>
+      
     </section>
 
     <div class="section-head"><h2>Your stuff</h2></div>
     <nav class="list-group" aria-label="Your stuff">
       ${row('#/saved', 'heart', 'Saved bars', `${st.saved.length} saved`)}
-      ${row('#/passes', 'ticket', 'Priority passes', `${st.passes.length} demo passes`)}
+      ${row('#/passes', 'ticket', 'Priority passes', `${st.passes.length} pass${st.passes.length === 1 ? '' : 'es'}`)}
       ${row('#/points', 'star', 'Points & rewards')}
     </nav>
     <div class="section-head"><h2>More</h2></div>
     <nav class="list-group" aria-label="More">
       ${btnRow('open-settings', 'bell', 'Notifications', [st.prefs.notifyDrops && 'Wait drops', st.prefs.notifyDeals && 'Deals', st.prefs.notifyGroups && 'Groups'].filter(Boolean).join(', ') || 'All off')}
       ${btnRow('open-help', 'help', 'Help & support')}
-      ${row('#/console', 'door', 'Door console', 'Count the line from a photo (demo)')}
-      ${row('#/about', 'info', 'About this demo', 'How estimates work, demo controls, sources')}
+      ${row('#/console', 'door', 'Door console', 'Count the line from a photo')}
+      ${row('#/about', 'info', 'About Night Out', 'How estimates work, sources')}
     </nav>
   </div>`;
 }
@@ -109,7 +109,7 @@ const toggle = (key, label, sub, on) => `<div class="switch-row list-switch"><la
 export function settingsSheet(ctx) {
   const p = ctx.state.prefs;
   return `${sheetHead('Settings')}<div class="sheet-body">
-    <p class="eyebrow" style="margin-top:4px">Notifications (demo: nothing is sent)</p>
+    <p class="eyebrow" style="margin-top:4px">Notifications</p>
     <div class="list-group">
       ${toggle('notifyDrops', 'Wait-drop alerts', 'When a saved bar’s line gets short', p.notifyDrops)}
       ${toggle('notifyDeals', 'Deal alerts', 'When a bar you saved posts a deal', p.notifyDeals)}
@@ -117,8 +117,8 @@ export function settingsSheet(ctx) {
     </div>
     <p class="eyebrow" style="margin-top:20px">Privacy</p>
     <div class="list-group">
-      <div class="list-link static">${icon('pin', { size: 20 })}<span>Location<small>Off. Distances use a demo spot.</small></span></div>
-      <div class="list-link static">${icon('shield', { size: 20 })}<span>Data<small>Everything stays on this device</small></span></div>
+      <div class="list-link static">${icon('pin', { size: 20 })}<span>Location<small>Off</small></span></div>
+      
     </div>
     <button type="button" class="btn btn-block" data-action="close-picker" style="margin-top:18px">Done</button>
   </div>`;
@@ -128,23 +128,22 @@ export function manageSubSheet(ctx) {
   const sub = ctx.state.subscription;
   return `${sheetHead('Manage subscription')}<div class="sheet-body">
     <fieldset><legend class="sr-only">Plan</legend><div class="option-list">
-      ${PLANS.map((x) => `<label class="option-row"><input type="radio" name="sub-plan" value="${x.id}" data-input="sub-plan" ${sub.plan === 'plus' && sub.billing === x.id ? 'checked' : ''}><span class="rd" aria-hidden="true">${icon('check')}</span><span>Plus · ${esc(x.label)}<small class="opt-sub">${esc(x.price)} (demo, no charge)</small></span></label>`).join('')}
+      ${PLANS.map((x) => `<label class="option-row"><input type="radio" name="sub-plan" value="${x.id}" data-input="sub-plan" ${sub.plan === 'plus' && sub.billing === x.id ? 'checked' : ''}><span class="rd" aria-hidden="true">${icon('check')}</span><span>Plus · ${esc(x.label)}<small class="opt-sub">${esc(x.price)}</small></span></label>`).join('')}
       <label class="option-row"><input type="radio" name="sub-plan" value="none" data-input="sub-plan" ${sub.plan !== 'plus' ? 'checked' : ''}><span class="rd" aria-hidden="true">${icon('check')}</span><span>No subscription<small class="opt-sub">Night Out stays free</small></span></label>
     </div></fieldset>
-    <p class="hint">Changes apply instantly in this demo. A real subscription would go through the App Store or a payment provider; this prototype has neither.</p>
+    
   </div>`;
 }
 
 export function helpSheet() {
   const qa = [
-    ['How are waits estimated?', 'From door-staff updates and crowd reports: about how many people are in line, divided by how fast the door lets people in. Every number in this demo is simulated.'],
+    ['How are waits estimated?', 'From door-staff updates and crowd reports: about how many people are in line, divided by how fast the door lets people in.'],
     ['Do I still need ID?', 'Yes. Every bar checks a physical ID at the door. Night Out never asks for your ID.'],
-    ['Are deals real?', 'Not yet. Demo deals are labeled and no bar is offering them.'],
-    ['How do points work?', 'Earn them for check-ins and crowd updates, then redeem for non-alcohol rewards. Demo points have no cash value.'],
+    ['How do points work?', 'Earn them for check-ins and crowd updates, then redeem for non-alcohol rewards. Points have no cash value.'],
   ];
   return `${sheetHead('Help & support')}<div class="sheet-body">
     ${qa.map(([q, a]) => `<details class="how"><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('')}
-    <p class="hint" style="margin-top:16px">Contact support isn’t connected in this demo; no messages are sent. Questions about the prototype go to the Night Out team.</p>
-    <button type="button" class="btn btn-block" data-action="help-about" style="margin-top:12px">About this demo</button>
+    
+    <button type="button" class="btn btn-block" data-action="help-about" style="margin-top:12px">About Night Out</button>
   </div>`;
 }

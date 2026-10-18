@@ -93,8 +93,8 @@ export function shortSourceLabel(q) {
 
 export function sourceLabel(q) {
   if (!q || !q.sourceType) return 'No source';
-  if (q.sourceType === 'photo') return `Line photo by ${ROLE_WORD[q.by] ?? 'door staff'} (demo)${guests(q.reportCount ?? 0)}`;
-  if (q.sourceType === 'venue') return `Venue update (demo)${guests(q.reportCount ?? 0)}`;
+  if (q.sourceType === 'photo') return `Line photo by ${ROLE_WORD[q.by] ?? 'door staff'}${guests(q.reportCount ?? 0)}`;
+  if (q.sourceType === 'venue') return `Venue update${guests(q.reportCount ?? 0)}`;
   if (q.sourceType === 'crowd') {
     const n = q.reportCount ?? 0;
     return `${n} crowd report${n === 1 ? '' : 's'}`;
@@ -115,7 +115,7 @@ export function relativeAge(observedAt, now) {
 const fmtRange = (r) => `${r.low}–${r.high} min`;
 export const CONFLICT_COPY = { 'photo-guests': 'Line photo and guest reports disagree', photos: 'Two line photos disagree' };
 /** Where the door pace came from, in words (shown after the pace). */
-export const PACE_COPY = { door: 'set at the door (demo)', measured: 'measured from guests’ waits', typical: 'typical here (demo)', assumed: 'assumed' };
+export const PACE_COPY = { door: 'set at the door', measured: 'measured from guests’ waits', typical: 'typical here', assumed: 'assumed' };
 
 /**
  * One description for every surface.
@@ -139,16 +139,16 @@ export function describeEstimate(venue, now, { isOpen = true } = {}) {
   };
 
   if (!isOpen) {
-    return { ...base, tone: 'closed', headline: 'Closed now', detail: 'Outside sample opening hours', confidence: null, ageLabel: null, observedAt: null, sortRank: 5 };
+    return { ...base, tone: 'closed', headline: 'Closed now', detail: 'Outside opening hours', confidence: null, ageLabel: null, observedAt: null, sortRank: 5 };
   }
   if (q?.doorStatus === 'closed' && freshness !== 'stale' && freshness !== 'unknown') {
-    return { ...base, tone: 'closed', headline: 'Closed now', detail: 'Entry marked closed at the door (demo)', confidence: null, sortRank: 5 };
+    return { ...base, tone: 'closed', headline: 'Closed now', detail: 'Entry closed at the door', confidence: null, sortRank: 5 };
   }
   // A door status set in the last 30 minutes still reaches guests when no people count is live.
   if (q?.doorFresh && (freshness === 'stale' || freshness === 'unknown') && ['closed', 'paused', 'capacity'].includes(q.doorStatus)) {
-    const door = { ...base, observedAt: q.doorAt ?? null, ageLabel: q.doorAt != null ? relativeAge(q.doorAt, now) : null, sourceLabel: 'Door status (demo)', shortSource: 'Door', confidence: null };
-    if (q.doorStatus === 'closed') return { ...door, tone: 'closed', headline: 'Closed now', detail: 'Entry marked closed at the door (demo)', sortRank: 5 };
-    if (q.doorStatus === 'paused') return { ...door, tone: 'paused', headline: 'Entry paused', detail: q.note || 'Entry paused at the door (demo)', sortRank: 3 };
+    const door = { ...base, observedAt: q.doorAt ?? null, ageLabel: q.doorAt != null ? relativeAge(q.doorAt, now) : null, sourceLabel: 'Door status', shortSource: 'Door', confidence: null };
+    if (q.doorStatus === 'closed') return { ...door, tone: 'closed', headline: 'Closed now', detail: 'Entry closed at the door', sortRank: 5 };
+    if (q.doorStatus === 'paused') return { ...door, tone: 'paused', headline: 'Entry paused', detail: q.note || 'Entry paused at the door', sortRank: 3 };
     return { ...door, tone: 'capacity', headline: 'At capacity', detail: 'Entry only as people leave. The wait can grow quickly.', sortRank: 3 };
   }
   if (freshness === 'unknown') {
@@ -172,7 +172,7 @@ export function describeEstimate(venue, now, { isOpen = true } = {}) {
   };
 
   if (q.doorStatus === 'paused') {
-    return { ...withRange, tone: 'paused', headline: 'Entry paused', detail: q.note || 'Entry paused at the door (demo)', sortRank: 3 };
+    return { ...withRange, tone: 'paused', headline: 'Entry paused', detail: q.note || 'Entry paused at the door', sortRank: 3 };
   }
   if (q.doorStatus === 'capacity') {
     return { ...withRange, tone: 'capacity', headline: 'At capacity', detail: 'Entry only as people leave. The wait can grow quickly.', sortRank: 3 };

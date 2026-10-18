@@ -167,7 +167,7 @@ export function scanOutcome(venue, reportId) {
   const q = venue.queue ?? {};
   return {
     kind: mine.outcome === 'backs' ? 'backs' : 'against',
-    leadNoun: lead.input.kind === 'photo' ? 'line photo' : lead.input.kind === 'venue' ? 'demo venue update' : 'crowd report',
+    leadNoun: lead.input.kind === 'photo' ? 'line photo' : lead.input.kind === 'venue' ? 'venue update' : 'crowd report',
     leadAt: lead.input.at, staffLead: !!lead.input.staff,
     conflict: !!q.conflict && q.conflictWhy !== 'photos', photosDisagree: q.conflictWhy === 'photos',
   };

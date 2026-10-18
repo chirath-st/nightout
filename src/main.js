@@ -93,7 +93,7 @@ function maybeStartNewNight() {
   persist();
   rebuild();
   render({ focus: 'none' });
-  toast('The demo night ended, so a new one started at midnight.');
+  toast('A new night started at midnight.');
   return true;
 }
 const now = () => demoNow(app.state.clock, Date.now());
@@ -256,7 +256,7 @@ function mainHtml() {
     case 'points': return renderPoints(c);
     case 'profile': return renderProfile(c, app.profileEdit);
     default:
-      return `<div class="page"><div class="state"><div class="state-icon">${icon('help')}</div><h1 id="page-h" tabindex="-1">Page not found</h1><p>That link doesn’t match anything in this demo.</p><div class="actions"><a class="btn btn-primary" href="#/">Go to bars</a></div></div></div>`;
+      return `<div class="page"><div class="state"><div class="state-icon">${icon('help')}</div><h1 id="page-h" tabindex="-1">Page not found</h1><p>That link doesn’t match anything.</p><div class="actions"><a class="btn btn-primary" href="#/">Go to bars</a></div></div></div>`;
   }
 }
 
@@ -271,7 +271,7 @@ function render({ focus = 'heading', scroll = 'keep' } = {}) {
   const banners = document.getElementById('explore-banners');
   if (banners) banners.dataset.sig = exploreBanners(ctx());
   const h1 = main.querySelector('h1');
-  document.title = `${h1 ? `${h1.textContent.trim()} · ` : ''}Night Out (demo)`;
+  document.title = `${h1 ? `${h1.textContent.trim()} · ` : ''}Night Out`;
   syncSheet();
   if (scroll === 'restore') window.scrollTo(0, app.scroll.get(app.renderedHash) ?? 0);
   else if (scroll === 'top') window.scrollTo(0, 0);
@@ -308,7 +308,7 @@ function renderResultsOnly({ announceCount = true } = {}) {
     if (clearBtn) clearBtn.hidden = !app.explore.q;
     const chips = document.querySelector('.chips');
     if (chips) chips.innerHTML = exploreChips(ctx());
-    const mapBtn = document.querySelector('.map-btn');
+    const mapBtn = document.querySelector('#explore-search .map-btn');
     if (mapBtn) {
       const onMap = app.explore.view === 'map';
       mapBtn.dataset.view = onMap ? 'list' : 'map';
@@ -346,6 +346,8 @@ function route({ viaPop = false } = {}) {
   // follows a popstate must not route a second time.
   app.renderedHash = location.hash || '#/';
   app.route = parseHash(location.hash);
+  // An empty search closes when you leave Bars, so the sort row is back next time.
+  if (app.route.name !== 'tonight' && !app.explore.q) app.ui.searchOpen = false;
   const r = app.route;
   const entry = history.state ?? {};
   const isListRoute = (name) => ['tonight', 'venue', 'pass'].includes(name);
@@ -445,7 +447,7 @@ function simulateFetch({ initial = false } = {}) {
     app.ui.loading = false;
     if (initial) app.ui.lastRefreshAt = app.ui.lastRefreshAt ?? app.state.syncAt ?? null;
     renderResultsOnly();
-    if (!initial) toast('You’re offline (simulated). Showing the last estimates; they keep aging.');
+    if (!initial) toast('You’re offline. Showing the last estimates.');
     return;
   }
   app.ui.loading = true;
@@ -637,7 +639,7 @@ function submitPass() {
     f.errors.window = win ? 'That window is no longer available. Choose another.' : 'Choose an entry window.';
     f.windowId = win && purchasable(windowState(v.pass, win, now())) ? f.windowId : null;
   }
-  if (!f.ack) f.errors.ack = 'Check the box to confirm this is a demo pass.';
+  if (!f.ack) f.errors.ack = 'Check the box to continue.';
   if (Object.keys(f.errors).length) {
     renderSheet();
     const first = document.querySelector(f.errors.window ? '#sheet input[name="win"]:not(:disabled)' : '#sheet [data-input="pass-ack"]');
@@ -673,7 +675,7 @@ function runPassRequest() {
       f.errorKind = isOffline() ? 'offline' : 'server';
       if (f.errorKind === 'server') { app.state.sim.failNextPass = false; persist(); }
       f.step = 'error';
-      if (inSheet()) { renderSheet(); focusSheetResult(); } else finishAway(`The demo pass for ${v?.name ?? 'that venue'} wasn’t created (simulated failure). Nothing was charged.`);
+      if (inSheet()) { renderSheet(); focusSheetResult(); } else finishAway(`The pass for ${v?.name ?? 'that venue'} wasn’t created. Nothing was charged.`);
       return;
     }
     const win = v?.pass?.windows.find((w) => w.id === f.windowId);
@@ -684,7 +686,7 @@ function runPassRequest() {
       if (inSheet()) {
         renderSheet();
         (document.querySelector('#sheet input[name="win"]:not(:disabled)') || document.querySelector('#sheet [data-notice]'))?.focus();
-      } else finishAway('That priority window filled up before the demo pass was created. Nothing was charged.');
+      } else finishAway('That window filled up before the pass was created. Nothing was charged.');
       return;
     }
     const pass = createPass({ opId: f.opId, venue: v, win, party: f.party, now: now() });
@@ -695,7 +697,7 @@ function runPassRequest() {
     f.step = 'done';
     updateBadge();
     if (inSheet()) { renderSheet(); focusSheetResult(); return; }
-    finishAway(`Demo pass created for ${v.name}. No charge. Not valid for entry.`, { actionLabel: 'View pass', onAction: () => go(buildHash('passDetail', { id: pass.id })) });
+    finishAway(`Pass created for ${v.name}.`, { actionLabel: 'View pass', onAction: () => go(buildHash('passDetail', { id: pass.id })) });
     if (app.route.name === 'passes') render({ focus: 'none' });
   }, 900);
 }
@@ -802,7 +804,7 @@ function snapPhoto() {
   if (view && !reducedMotion()) { view.classList.add('is-flash'); setTimeout(() => view.classList.remove('is-flash'), 420); }
   document.getElementById('line-photo')?.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' });
   document.querySelector('#line-photo .scene-btn')?.focus({ preventScroll: true });
-  announce('Simulated photo taken. Tap the photo for each head, or use the buttons.');
+  announce('Photo taken. Tap each head, or use the buttons.');
 }
 let fillTimer = null;
 function fillPhoto() {
@@ -824,7 +826,7 @@ function fillPhoto() {
     app.console.busyUntil = 0;
     rerenderPhoto();
     document.querySelector('#line-photo [data-action="photo-publish"]')?.focus({ preventScroll: true });
-    announce(`${p.count} people counted (demo count). Ready to publish.`);
+    announce(`${p.count} people counted. Ready to publish.`);
   };
   if (ms) fillTimer = setTimeout(done, ms); else done();
 }
@@ -833,7 +835,7 @@ function publishPhoto(btn) {
   const p = app.console.photo;
   if (!v || !p || p.venueId !== v.id) return;
   if (!p.touched) {
-    toast('Count the line first: tap the photo once for each head, or use − / +.');
+    toast('Count the line first.');
     document.querySelector('#line-photo .scene-btn')?.focus();
     return;
   }
@@ -842,7 +844,7 @@ function publishPhoto(btn) {
   const id = `count-${refCode(`${v.id}${p.seed}${Date.now()}`).toLowerCase()}`;
   app.state.counts.unshift({ id, venueId: v.id, at: now(), night: app.state.clock.realStart, by: role, heads: p.count, seed: p.seed, method: p.filled && p.count === p.heads ? 'demo-fill' : 'tap' });
   app.state.counts = app.state.counts.slice(0, 100);
-  audit(v, `${ROLE_NAME[role]} photo count: ${p.count} (simulated photo)`);
+  audit(v, `${ROLE_NAME[role]} photo count: ${p.count}`);
   app.console.photo = null;
   app.ui.clearedQueue = null;
   persist(); rebuild(); rerenderConsole();
@@ -873,7 +875,7 @@ function setDoor(t, key) {
   list[doorId] = { ...list[doorId], [key]: value };
   app.state.doors[v.id] = { at: now(), by: app.console.role, list };
   const what = key === 'pace' ? `${label} pace → ${value} a min` : `${label} → ${DOOR_WORD[value]}`;
-  audit(v, `${what} (${ROLE_NAME[app.console.role]}, demo)`);
+  audit(v, `${what} (${ROLE_NAME[app.console.role]})`);
   app.console.lastDoorEdit = { venueId: v.id, doorId, key, prev, t: performance.now(), summary: app.state.audit[0].summary };
   persist(); rebuild(); rerenderConsole();
   const msg = key === 'pace' ? `${label} pace: ${value} a min is live for ${v.name}.` : `${label}: ${DOOR_WORD[value]} is live for ${v.name}.`;
@@ -893,7 +895,7 @@ function postDeal() {
   const { errors, title } = checkDeal(d);
   const startsAt = atNight(app.state.clock.base, d.start[0], d.start[1]);
   const endsAt = atNight(app.state.clock.base, d.end[0], d.end[1]);
-  if (!errors.time && endsAt <= now()) errors.time = 'That end time has already passed tonight (demo time).';
+  if (!errors.time && endsAt <= now()) errors.time = 'That end time has already passed tonight.';
   app.console.dealErrors = errors;
   if (Object.keys(errors).length) {
     rerenderConsole();
@@ -910,7 +912,7 @@ function postDeal() {
   rebuild();
   app.console.dealDraft = { ...newDealDraft(), kind: d.kind };
   rerenderConsole();
-  toast(`Deal posted for ${v.name} (demo). Guests see it on the card while it runs.`);
+  toast(`Deal posted for ${v.name}. Guests see it on the card while it runs.`);
 }
 function removeDeal(id) {
   const i = app.state.deals.findIndex((x) => x.id === id);
@@ -941,7 +943,7 @@ function setDataset(kind) {
   rebuild();
   app.ui.mapSelected = null;
   preserveFocus(() => render({ focus: 'none' }));
-  toast(kind === 'demo' ? 'Demo venues restored' : kind === 'worst' ? 'Worst-case data loaded' : 'Empty dataset loaded');
+  toast(kind === 'demo' ? 'Bars restored' : kind === 'worst' ? 'Worst-case data loaded' : 'Empty dataset loaded');
 }
 function resetDemo() {
   const snapshot = structuredClone(app.state);
@@ -960,7 +962,7 @@ function resetDemo() {
   app.profileEdit = { editing: false, errors: {} };
   app.ui = { loading: false, refreshError: false, lastRefreshAt: now(), searchOpen: false, eventsView: 'tonight', eventsGenre: '', eventsTheme: '', eventsPrice: '', mapSelected: null, staleNotice: null, lastRemoved: null, clearedQueue: null, resetSnapshot: { state: snapshot, visit: app.visit } };
   render({ focus: 'heading' });
-  toast('Demo reset: saved venues, passes, console changes and the demo clock are back to the start.', { actionLabel: 'Undo', onAction: undoReset });
+  toast('Reset. Everything is back to the start.', { actionLabel: 'Undo', onAction: undoReset });
 }
 function undoReset() {
   const snap = app.ui.resetSnapshot?.state;
@@ -971,7 +973,7 @@ function undoReset() {
   persist();
   rebuild();
   render({ focus: 'heading' });
-  toast('Reset undone. Your demo data is back.');
+  toast('Reset undone.');
 }
 
 function restorePass(id) {
@@ -982,7 +984,7 @@ function restorePass(id) {
   const w = v?.pass?.windows.find((x) => x.id === p.windowId);
   if (!w || w.remaining < p.party || now() >= p.windowEnd) { toast('Can’t restore: that window has ended or filled up.'); return; }
   p.cancelledAt = null; persist(); rebuild(); render({ focus: 'heading' });
-  toast(`Demo pass for ${p.venueName} restored.`);
+  toast(`Pass for ${p.venueName} restored.`);
 }
 function undoClear() {
   const c = app.ui.clearedQueue;
@@ -1044,7 +1046,7 @@ function postGroup() {
   app.groupDraft = null;
   app.groupErrors = {};
   go('#/groups', { replace: true });
-  toast('Group posted. Demo: it stays on this device and no one else sees it.');
+  toast('Group posted.');
 }
 function toggleJoin(id) {
   const joined = app.state.groups.joined;
@@ -1052,7 +1054,7 @@ function toggleJoin(id) {
   const g = app.groups.find((x) => x.id === id);
   if (i === -1) {
     joined.push(id);
-    toast(`You joined ${g ? `${g.host.name.split(' ')[0]}’s group` : 'the group'}. Demo: no one is notified.`);
+    toast(`You joined ${g ? `${g.host.name.split(' ')[0]}’s group` : 'the group'}.`);
   } else {
     joined.splice(i, 1);
     toast('You left the group.');
@@ -1079,7 +1081,7 @@ function toggleIdea(key, id) {
   if (counter && !reducedMotion()) counter.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.12)' }, { transform: 'scale(1)' }], { duration: 320, easing: 'cubic-bezier(.2,.8,.2,1)' });
   const bar = app.venues.find((v) => v.id === x.venueId)?.name ?? 'the bar';
   if (key === 'joined') {
-    toast(on ? (x.status === 'approved' ? `You’re in for ${x.title} on ${nightLabel(x.startsAt).split(',')[0]}. Demo: no one is notified.` : `You’re in for ${x.title} if ${bar} approves it. Demo: no one is notified.`) : `You’re out of ${x.title}.`);
+    toast(on ? (x.status === 'approved' ? `You’re in for ${x.title} on ${nightLabel(x.startsAt).split(',')[0]}.` : `You’re in for ${x.title} if ${bar} approves it.`) : `You’re out of ${x.title}.`);
   } else {
     announce(on ? `Hyped ${x.title}. ${ideaCounts(x, app.state).hype} hype.` : `Hype removed from ${x.title}.`);
   }
@@ -1089,7 +1091,7 @@ function postIdea() {
   const venue = app.venues.find((v) => v.id === d.venueId) ?? null;
   const existing = [...app.events, ...app.ideas.filter((x) => x.status !== 'declined')];
   let { errors, clean } = checkIdea(d, venue, existing);
-  if (app.state.ideas.created.length >= 20) errors = { ...errors, limit: 'This demo keeps up to 20 of your ideas. Reset the demo in About to start over.' };
+  if (app.state.ideas.created.length >= 20) errors = { ...errors, limit: 'You can have up to 20 ideas. Reset in About to start over.' };
   if (Object.keys(errors).length) {
     app.ideaErrors = errors;
     rerenderPage();
@@ -1114,7 +1116,7 @@ function postIdea() {
   app.ui.eventsView = 'ideas';
   go('#/events?view=ideas', { replace: true });
   document.querySelector(`[data-idea="${CSS.escape(idea.id)}"] .idea-link`)?.focus();
-  toast(`Idea posted. Demo: only you can see it, and ${venue.name} hasn’t been contacted.`, { actionLabel: 'Review as the bar', onAction: () => go(`#/console?venue=${encodeURIComponent(venue.id)}`) });
+  toast(`Idea posted.`, { actionLabel: 'Review as the bar', onAction: () => go(`#/console?venue=${encodeURIComponent(venue.id)}`) });
 }
 function decideIdea(id, status) {
   const x = app.ideas.find((i) => i.id === id);
@@ -1126,7 +1128,7 @@ function decideIdea(id, status) {
   audit(v, status === 'approved' ? `Approved community idea: ${x.title} (${day} ${formatTime(x.startsAt)}, ${coverLabel(cover)})` : `Declined community idea: ${x.title} (${day} ${formatTime(x.startsAt)})`);
   persist(); rebuild(); rerenderConsole();
   document.getElementById('ideas-h')?.focus();
-  toast(status === 'approved' ? `Approved in the demo console: ${x.title} shows as ${day}’s theme event. ${v.name} hasn’t seen it.` : `Declined in the demo console. ${x.title} stays on Ideas as “Bar passed”.`,
+  toast(status === 'approved' ? `Approved: ${x.title} is now ${day}’s theme event.` : `Declined: ${x.title}.`,
     { actionLabel: 'Undo', onAction: () => undoDecision(id) });
 }
 function undoDecision(id) {
@@ -1218,7 +1220,7 @@ function redeem(id) {
   app.state.points.push(entry);
   persist();
   rerenderPage();
-  toast(`Redeemed ${r.title}. Demo code ${voucher.ref}: not valid anywhere.`, {
+  toast(`Redeemed ${r.title}. Code ${voucher.ref}.`, {
     actionLabel: 'Undo',
     onAction: () => {
       app.state.vouchers = app.state.vouchers.filter((x) => x.id !== vid);
@@ -1269,11 +1271,11 @@ function chooseSubscription(value) {
   if (app.route.name === 'profile') rerenderPage();
   const plan = PLANS.find((x) => x.id === value);
   if (value === 'none') {
-    toast('Night Out Plus canceled (demo). Nothing was charged.', {
+    toast('Night Out Plus canceled.', {
       actionLabel: 'Undo',
       onAction: () => { app.state.subscription = before; persist(); if (app.route.name === 'profile') rerenderPage(); announce('Night Out Plus restored.'); },
     });
-  } else toast(`Night Out Plus · ${plan.label} (demo, no charge).`);
+  } else toast(`Night Out Plus · ${plan.label}.`);
 }
 function addVipCard() {
   const have = new Set(app.state.vipCards.map((c) => c.venueId));
@@ -1283,7 +1285,7 @@ function addVipCard() {
   persist();
   rerenderPage();
   document.querySelector('[data-action="vip-add"]')?.focus({ preventScroll: true });
-  toast(`Added a sample ${sample.title} (demo). The real app would read a photo of your card; this one reads nothing.`);
+  toast(`Added ${sample.title}.`);
 }
 function removeVipCard(id) {
   const i = app.state.vipCards.findIndex((c) => c.id === id);
@@ -1301,10 +1303,20 @@ function removeVipCard(id) {
 function focusSearch() {
   if (app.route.name !== 'tonight') { go(app.lastExploreHash); }
   window.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
-  document.getElementById('q')?.focus({ preventScroll: true });
+  setSearchOpen(true);
+}
+/** The search field opens in place of the sort row; Cancel clears the query and brings the row back. */
+function setSearchOpen(open) {
+  app.ui.searchOpen = open;
+  const panel = document.getElementById('explore-search');
+  if (!panel) return;
+  panel.classList.toggle('is-open', open);
+  panel.querySelector('.search-toggle')?.setAttribute('aria-expanded', String(open));
+  if (open) document.getElementById('q')?.focus({ preventScroll: true });
+  else panel.querySelector('.search-toggle')?.focus({ preventScroll: true });
 }
 let condenseObserver = null;
-/** The masthead condenses to "New Brunswick ⌄ · search · Demo" once the area title scrolls away (Bars only). */
+/** The masthead condenses to "New Brunswick ⌄ · search · points" once the area title scrolls away (Bars only). */
 function watchMasthead() {
   condenseObserver?.disconnect();
   const bar = document.querySelector('.topbar');
@@ -1336,7 +1348,7 @@ function toggleEventList(key, id) {
   // Saved view: unsaving removes the card, so re-render the list and keep focus nearby.
   if (key === 'savedEvents' && app.ui.eventsView === 'saved' && !on) { renderEventResults(); document.getElementById('page-h')?.focus({ preventScroll: true }); }
   else renderEventResults();
-  const msg = key === 'savedEvents' ? (on ? `Saved ${ev?.title}.` : `Removed ${ev?.title} from saved.`) : (on ? `You’re going to ${ev?.title}. Demo: no one is notified.` : `Not going to ${ev?.title}.`);
+  const msg = key === 'savedEvents' ? (on ? `Saved ${ev?.title}.` : `Removed ${ev?.title} from saved.`) : (on ? `You’re going to ${ev?.title}.` : `Not going to ${ev?.title}.`);
   if (key === 'goingEvents') toast(msg); else announce(msg);
   const count = app.state.savedEvents.length;
   const savedTab = document.querySelector('[data-action="event-view"][data-view="saved"]');
@@ -1366,7 +1378,7 @@ function castVote(venueId, vote) {
     box.querySelector(`.poll-opt[data-vote="${CSS.escape(vote)}"]`)?.focus({ preventScroll: true });
   }
   const label = { going: 'Going', maybe: 'Maybe', no: 'Not tonight' }[vote];
-  announce(votes[venueId] ? `Your answer: ${label}. Sample poll.` : 'Your answer was cleared.');
+  announce(votes[venueId] ? `Your answer: ${label}.` : 'Your answer was cleared.');
 }
 function openDirections(id) {
   const v = app.venues.find((x) => x.id === id);
@@ -1381,9 +1393,9 @@ async function shareVenue(id) {
   if (!v) return;
   const url = `${location.href.split('#')[0]}#/venue/${encodeURIComponent(v.id)}`;
   const est = estimateFor(v, now());
-  const text = `${v.name}: ${est.headline} (Night Out demo, simulated wait)`;
+  const text = `${v.name}: ${est.headline} on Night Out`;
   try {
-    if (navigator.share) { await navigator.share({ title: `${v.name} · Night Out (demo)`, text, url }); return; }
+    if (navigator.share) { await navigator.share({ title: `${v.name} · Night Out`, text, url }); return; }
     await navigator.clipboard.writeText(url);
     toast('Link copied.');
   } catch (err) {
@@ -1412,7 +1424,7 @@ function dailyLogin() {
   app.state.lastDaily = night;
   app.state.points.push({ id: `daily-${night}`, at: now(), delta: POINTS.DAILY, label: 'Daily login' });
   persist();
-  toast(`Daily login: +${POINTS.DAILY} demo points.`);
+  toast(`Daily login: +${POINTS.DAILY} points.`);
   if (app.route?.name === 'points') rerenderPage();
 }
 function renderCheckin() {
@@ -1439,7 +1451,7 @@ function checkIn() {
   app.checkin = { step: 'done', venueId: v.id };
   if (app.route.name === 'points') rerenderPage(() => document.getElementById('page-h'));
   renderCheckin();
-  announce(`Checked in at ${v.name}. Plus ${POINTS.CHECKIN} demo points.`);
+  announce(`Checked in at ${v.name}. Plus ${POINTS.CHECKIN} points.`);
 }
 
 /* ---------------- area picker ---------------- */
@@ -1530,6 +1542,11 @@ function handleAction(a, el) {
       renderResultsOnly();
       return true;
     case 'focus-search': focusSearch(); return true;
+    case 'open-search': setSearchOpen(true); return true;
+    case 'close-search':
+      if (app.explore.q) { app.explore.q = ''; const input = document.getElementById('q'); if (input) input.value = ''; updateExploreUrl(); renderResultsOnly(); }
+      setSearchOpen(false);
+      return true;
     case 'clear-all':
       app.explore.q = '';
       app.explore.filters = [];
@@ -1545,7 +1562,7 @@ function handleAction(a, el) {
       document.querySelectorAll('.map-pin-btn[data-action="map-select"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.id === app.ui.mapSelected)));
       const preview = document.querySelector('.map-preview');
       const v = app.venues.find((x) => x.id === app.ui.mapSelected);
-      if (preview) preview.innerHTML = v ? `<ul class="venue-list">${venueRow(v, now(), { saved: app.state.saved.includes(v.id) })}</ul>` : '<p class="hint">Select a pin to preview a venue. The list view shows the same venues.</p>';
+      if (preview) preview.innerHTML = v ? `<ul class="venue-list">${venueRow(v, now(), { saved: app.state.saved.includes(v.id) })}</ul>` : '<p class="hint">Tap a pin to preview a bar.</p>';
       announce(v ? `${v.name}: ${estimateFor(v, now()).headline}. Preview below the map.` : 'Selection cleared');
       return true;
     }
@@ -1588,14 +1605,14 @@ function handleAction(a, el) {
       p.cancelledAt = now();
       persist(); rebuild(); render({ focus: 'none' });
       (document.querySelector(`[data-action="restore-pass"][data-id="${CSS.escape(p.id)}"]`) || pageHeading())?.focus({ preventScroll: true });
-      toast(`Demo pass for ${p.venueName} cancelled. Its spot went back to the venue’s inventory.`, { actionLabel: 'Undo', onAction: () => restorePass(p.id) });
+      toast(`Pass for ${p.venueName} cancelled.`, { actionLabel: 'Undo', onAction: () => restorePass(p.id) });
       return true;
     }
     case 'restore-pass': restorePass(el.dataset.id); return true;
     case 'console-role':
       app.console.role = el.dataset.role === 'bouncer' ? 'bouncer' : 'ambassador';
       rerenderConsole();
-      announce(`${ROLE_NAME[app.console.role]} (demo role)`);
+      announce(`${ROLE_NAME[app.console.role]} selected`);
       return true;
     case 'photo-snap': case 'photo-retake': snapPhoto(); return true;
     case 'photo-mark': case 'photo-step': {
@@ -1651,7 +1668,7 @@ function handleAction(a, el) {
       rebuild();
       tick();
       if (app.route.name === 'about') rerenderConsole();
-      toast('Demo clock moved forward 10 minutes. Estimates aged accordingly.');
+      toast('Clock moved forward 10 minutes.');
       return true;
     case 'reset-demo': resetDemo(); return true;
     case 'age-ok':
@@ -1665,21 +1682,21 @@ function handleAction(a, el) {
     case 'checkin-back': app.checkin = { step: 'pick', venueId: null }; renderCheckin(); return true;
     case 'checkin-scan': checkIn(); return true;
     case 'age-no':
-      document.getElementById('age-body').innerHTML = '<h2 id="age-title" class="page-title age-title" tabindex="-1">This demo is for adults 21+</h2><p class="page-sub age-sub">It describes bars and nightlife, so it isn’t available to you. You can close this tab.</p>';
+      document.getElementById('age-body').innerHTML = '<h2 id="age-title" class="page-title age-title" tabindex="-1">Night Out is for adults 21+</h2><p class="page-sub age-sub">It describes bars and nightlife, so it isn’t available to you. You can close this tab.</p>';
       document.getElementById('age-title').focus();
       return true;
     case 'open-area': openAreaPicker(); return true;
     case 'close-picker': closePicker(); return true;
     case 'vote': castVote(el.dataset.id, el.dataset.vote); return true;
     case 'event-view': {
-      const fromTeaser = !el.closest('.ev-views');
+      
       app.ui.eventsView = el.dataset.view;
       document.querySelectorAll('.ev-views [data-action="event-view"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === app.ui.eventsView)));
       const hash = buildHash('events', {}, app.ui.eventsView === 'tonight' ? {} : { view: app.ui.eventsView });
       history.replaceState(history.state, '', hash);
       app.renderedHash = hash;
       renderEventResults();
-      if (fromTeaser) document.querySelector('.ev-views [data-view="ideas"]')?.focus();
+      
       return true;
     }
     case 'idea-hype': toggleIdea('hyped', el.dataset.id); return true;
@@ -1731,8 +1748,8 @@ function handleAction(a, el) {
       return true;
     }
     case 'ig-link': {
-      // Seeded handles contain hyphens (impossible on Instagram): say there's no account. Your own handle: links are off.
-      const msg = el.dataset.handle.includes('-') ? `@${el.dataset.handle} is a made-up demo handle, so there’s no Instagram account to open.` : `Opens instagram.com/${el.dataset.handle} in the real app. Links are off in this demo.`;
+      // Instagram links are off in the prototype, for seeded handles and your own.
+      const msg = 'Instagram links aren’t available yet.';
       const note = el.closest('dialog')?.querySelector('[data-ig-note]');
       if (note) note.textContent = msg; else toast(msg);
       return true;
@@ -1760,7 +1777,7 @@ function handleAction(a, el) {
       app.scan.error = null;
       rerenderPage();
       document.querySelector('input[name="bucket"]')?.focus();
-      announce('Photo captured (simulated). Now pick about how many people are in line.');
+      announce('Photo captured. Now pick about how many people are in line.');
       return true;
     case 'scan-retake':
       app.scan.captured = false;
@@ -1789,7 +1806,7 @@ function handleAction(a, el) {
     case 'open-help': openAccountSheet(helpSheet(), 'summary'); return true;
     case 'help-about': closePicker(() => go('#/about')); return true;
     case 'manage-sub': openAccountSheet(manageSubSheet(ctx()), 'input:checked'); return true;
-    case 'vip-wallet': toast('The real app would add this to Apple Wallet or Google Wallet. This demo card isn’t a real pass, so nothing was added.'); return true;
+    case 'vip-wallet': toast('Adding to Wallet isn’t available yet.'); return true;
     case 'vip-add': addVipCard(); return true;
     case 'vip-remove': removeVipCard(el.dataset.id); return true;
     case 'noop': return true;
@@ -1914,7 +1931,7 @@ function onChange(e) {
       persist();
       {
         const label = { notifyDrops: 'Wait-drop alerts', notifyDeals: 'Deal alerts', notifyGroups: 'Group updates' }[t.dataset.key] ?? 'Alerts';
-        toast(t.checked ? `${label} on (demo: nothing is sent).` : `${label} off.`);
+        toast(t.checked ? `${label} on.` : `${label} off.`);
         const sr = t.closest('.switch-row')?.querySelector('.sr-only');
         if (sr) sr.textContent = `(${t.checked ? 'on' : 'off'})`;
       }
@@ -1924,7 +1941,7 @@ function onChange(e) {
     case 'sim': {
       app.state.sim[t.dataset.key] = t.checked;
       persist();
-      const labels = { offline: ['Offline simulation on', 'Back online (simulation off)'], failNextRefresh: ['Next refresh will fail', 'Refresh failure cleared'], failNextPass: ['Next pass request will fail', 'Pass failure cleared'] };
+      const labels = { offline: ['Offline mode on', 'Back online'], failNextRefresh: ['Next refresh will fail', 'Refresh failure cleared'], failNextPass: ['Next pass request will fail', 'Pass failure cleared'] };
       toast(labels[t.dataset.key][t.checked ? 0 : 1]);
       break;
     }
@@ -2004,6 +2021,8 @@ function boot() {
   if (history.state?.idx == null) history.replaceState({ idx: 0 }, '', location.hash || '#/');
   document.addEventListener('click', onClick);
   document.addEventListener('input', onInput);
+  // Escape in the Bars search closes it (and clears the query), like Cancel.
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && e.target.id === 'q') { e.preventDefault(); handleAction('close-search', e.target); } });
   document.addEventListener('change', onChange);
   document.addEventListener('submit', onSubmit);
   window.addEventListener('popstate', () => { rememberScroll(); route({ viaPop: true }); });

@@ -48,7 +48,7 @@ export function estimateRing(venue, now, { size = 56 } = {}) {
     : `<circle class="ring-arc" cx="30" cy="30" r="27" pathLength="100" stroke-dasharray="${(life * 100).toFixed(1)} 100" transform="rotate(-90 30 30)"/>`;
   return `<span class="ring" data-est="${esc(venue.id)}" data-variant="ring" data-size="${size}" data-tone="${est.tone}" style="--ring:${size}px" aria-hidden="true">
     <svg viewBox="0 0 60 60" width="${size}" height="${size}" focusable="false"><circle class="ring-track" cx="30" cy="30" r="27"/>${arc}</svg>
-    <span class="ring-text">${center}</span><span class="ring-tag">Demo</span>
+    <span class="ring-text">${center}</span>
   </span>`;
 }
 
@@ -56,7 +56,7 @@ export function estimateRing(venue, now, { size = 56 } = {}) {
 export function estimateCompact(venue, now) {
   const est = estimateFor(venue, now);
   const showPeople = est.peopleLabel && !['stale', 'unknown', 'closed'].includes(est.tone);
-  const srSummary = `${est.headline}. ${showPeople ? `${est.peopleLabel}. ` : ''}${est.detail ? `${est.detail}. ` : ''}${est.observedAt != null ? `${est.sourceLabel}, ${est.ageLabel}.` : ''} Demo data.`;
+  const srSummary = `${est.headline}. ${showPeople ? `${est.peopleLabel}. ` : ''}${est.detail ? `${est.detail}. ` : ''}${est.observedAt != null ? `${est.sourceLabel}, ${est.ageLabel}.` : ''}`;
   const parts = [`<span class="tone-word tw-${est.tone}">${icon(TONE_ICON[est.tone], { size: 14 })}${TONE_LABEL[est.tone]}</span>`];
   if (!RANGE_TONES.includes(est.tone) && est.tone !== 'capacity' && est.detail && est.tone !== 'stale') parts.push(`<span>${esc(est.detail)}</span>`);
   if (est.observedAt != null && est.tone !== 'closed') parts.push(`<span>${esc(est.shortSource)}</span>`, `<span><time datetime="${new Date(est.observedAt).toISOString()}">${esc(est.ageLabel)}</time></span>`);
@@ -88,20 +88,17 @@ export function estimateBlock(venue, now, { headingId = 'qb-h', showHow = true, 
     capacity: 'Entry only as people leave. The wait can grow quickly.',
     paused: q?.note || 'The door has paused entry.',
     closed: est.detail || 'Not open now.',
-    stale: age != null ? `Last report ${age} min ago. The number is hidden until someone reports again.` : 'No recent report.',
+    stale: age != null ? `Last report ${age} min ago.` : 'No recent report.',
     unknown: 'No one has reported this line yet.',
   }[est.tone] ?? [people && `About ${people.replace(/^~/, '')} in line`, pace && `door moving ~${pace} a min${q?.doorsTotal > 1 ? ` (${q.doorsOpen} of ${q.doorsTotal} doors)` : ''}${q?.paceSource === 'measured' ? ' (measured)' : q?.paceSource === 'assumed' ? ' (assumed)' : ''}`].filter(Boolean).join(', ');
   const doorLine = est.tone === 'uncertain' && est.detail ? [`${est.detail}.`, door].filter(Boolean).join(' ') : door;
   const levelGlyph = { closed: 'moon', paused: 'pause', stale: 'aging', unknown: 'help' }[est.tone];
   const levelHead = levelGlyph ? `${icon(levelGlyph, { size: 18, cls: 'cs-glyph' })}${esc(st.label)}` : `${meter(st.level, { maybe: st.maybe, lg: true })}${esc(st.label)}`;
-  // Only promise "fresh for N more minutes" when the leading count itself is recent (a guest backing up an old count
-  // refreshes the time shown, not the count).
-  const freshLeft = est.tone === 'fresh' && age != null && q?.photoFresh !== false ? Math.max(0, FRESHNESS_MINUTES[q.sourceType].fresh - age) : null;
   const sentence = est.observedAt != null && est.tone !== 'closed'
-    ? `<b>Updated ${esc(est.ageLabel)}</b> · ${esc(est.sourceLabel)}${est.confidence ? `, ${esc(est.confidence.toLowerCase())} confidence` : ''}.${freshLeft != null ? ` Fresh for ${Math.round(freshLeft)} more minute${Math.round(freshLeft) === 1 ? '' : 's'}; after 20 the number is hidden.` : ''}`
+    ? `<b>Updated ${esc(est.ageLabel)}</b> · ${esc(est.sourceLabel)}${est.confidence ? `, ${esc(est.confidence.toLowerCase())} confidence` : ''}.`
     : esc(est.detail || '');
   return `<section class="queue-block" data-est="${esc(venue.id)}" data-variant="block" data-tone="${est.tone}" data-level="${headingLevel}" aria-labelledby="${headingId}">
-    <div class="qb-top"><${h} class="qb-label" id="${headingId}">Wait at the door</${h}><span class="demo-tag">Demo estimate</span></div>
+    <div class="qb-top"><${h} class="qb-label" id="${headingId}">Wait at the door</${h}></div>
     <p class="qb-wait"><span class="sr-only">Estimated wait </span>${big}</p>
     ${rangeTone ? `<div class="qb-scale" aria-hidden="true" style="--lo:${Math.min(est.waitLow, 30)};--hi:${Math.min(est.waitHigh, 30)};--max:30"><span class="qb-scale-track"><b style="left:33.33%"></b><b style="left:66.66%"></b><span class="qb-scale-range"></span></span><span class="qb-scale-axis"><span style="left:0">0</span><span style="left:33.33%">10</span><span style="left:66.66%">20</span><span style="left:100%">30+ min</span></span></div>` : ''}
     <p class="qb-level"><b>${levelHead}</b>${doorLine ? `<span>${esc(doorLine)}</span>` : ''}</p>
@@ -125,11 +122,11 @@ export function factStrip(venue, now) {
   const closes = venue.hours ? `${ch === 0 ? 12 : ch > 12 ? ch - 12 : ch}<small>${ch >= 12 ? 'PM' : 'AM'}</small>` : '—';
   const cell = (dt, dd, sub) => `<div><dt>${dt}</dt><dd>${dd}<span class="fact-sub">${esc(sub)}</span></dd></div>`;
   return `<dl class="fact-strip">
-    ${cell('In line', esc(people), 'people (demo)')}
+    ${cell('In line', esc(people), 'people')}
     ${cell('Door pace', pace, est.tone === 'paused' ? 'Paused' : est.tone === 'capacity' ? 'One in, one out' : q?.paceSource === 'assumed' ? 'Assumed' : q?.doorsTotal > 1 ? `${q.doorsOpen} of ${q.doorsTotal} doors` : q?.paceSource === 'measured' ? 'Measured' : 'Letting in')}
     ${cell('Confidence', esc(est.confidence ?? '—'), est.tone === 'uncertain' ? 'Reports differ' : est.shortSource ?? 'No source')}
     ${cell('Distance', dist == null ? '—' : `${esc(formatMiles(dist).replace(' mi', ''))}<small>mi</small>`, 'Straight line')}
-    ${cell('Cover', venue.cover == null ? '—' : `$${venue.cover}`, 'Simulated')}
+    ${cell('Cover', venue.cover == null ? '—' : `$${venue.cover}`, 'At the door')}
     ${cell('Closes', closes, venue.closedTonight ? 'Closed tonight' : open === false ? 'Closed now' : 'Open now')}
   </dl>`;
 }
@@ -137,11 +134,11 @@ export function factStrip(venue, now) {
 export function howItWorks() {
   const v = FRESHNESS_MINUTES.venue;
   return `<details class="how"><summary>How this estimate works</summary>
-    <p>Estimates are ranges, never exact times. In this prototype every number is simulated; none comes from the bar.</p>
+    <p>Estimates are ranges, never exact times.</p>
     <ul>
-      <li><strong>Line photo</strong>: a Night Out ambassador, or a bar’s bouncer, photographs the line and counts the heads (demo: drawn photos, simulated roles). Wait ≈ people in line ÷ door pace, widened for uncertainty.</li>
-      <li><strong>Door pace</strong> comes from the door (added up over open doors), from guests’ measured waits (people ahead ÷ minutes waited), or is assumed at 2 a minute and labeled.</li>
-      <li><strong>Guest reports</strong> back a photo up. Two that disagree with a photo under 10 minutes old mark the wait uncertain; after that, the newest guest report sets the line.</li>
+      <li><strong>Line photo</strong>: a Night Out ambassador, or a bar’s bouncer, photographs the line and counts the heads. Wait ≈ people in line ÷ door pace, widened for uncertainty.</li>
+      <li><strong>Door pace</strong> comes from the door, from guests’ measured waits, or is assumed at 2 a minute.</li>
+      <li><strong>Guest reports</strong> confirm a photo; two that disagree mark the wait uncertain.</li>
       <li>Fresh for ${v.fresh} minutes, then marked “may have changed”. After ${v.stale} minutes the number is hidden and we say the wait is unavailable.</li>
       <li>“At capacity” means entry only as people leave, so the wait can grow quickly regardless of line length.</li>
       <li>Typical patterns describe past nights and are never shown as the current wait.</li>
@@ -204,7 +201,7 @@ export function venueStatus(venue, now) {
     <h2 class="sr-only" id="vs-h">Line right now</h2>
     <div class="vs-crowd"><span class="vs-icon">${icon(st.icon, { size: 28 })}</span><span class="vs-word">${esc(st.label)}</span></div>
     <div class="vs-wait">${range ? `<span class="vs-num num">${est.waitLow}–${est.waitHigh}</span><span class="vs-unit">min wait</span>` : `<span class="vs-text">${esc(st.sub)}</span>`}</div>
-    <p class="vs-fresh"><span class="demo-tag">Demo</span><span>${esc(fresh)}</span></p>
+    <p class="vs-fresh"><span>${esc(fresh)}</span></p>
   </section>`;
 }
 
@@ -239,12 +236,12 @@ export function cardFresh(venue, now) {
   const est = estimateFor(venue, now);
   const age = est.observedAt != null ? Math.max(0, Math.round((now - est.observedAt) / 60000)) : null;
   const text = {
-    aging: `${icon('aging', { size: 12 })}Demo · ${age}m ago · may have changed`,
-    uncertain: 'Demo · reports differ',
-    unknown: 'Demo · be first to report',
-    stale: `${icon('aging', { size: 12 })}Demo · last report ${age}m ago`,
-    closed: 'Demo data',
-  }[est.tone] ?? `Demo · updated ${age ?? 0}m ago`;
+    aging: `${icon('aging', { size: 12 })}${age}m ago · may have changed`,
+    uncertain: 'Reports differ',
+    unknown: 'Be first to report',
+    stale: `${icon('aging', { size: 12 })}Last report ${age}m ago`,
+    closed: '',
+  }[est.tone] ?? `Updated ${age ?? 0}m ago`;
   return `<span class="card-fresh" data-est="${esc(venue.id)}" data-variant="fresh" data-tone="${est.tone}">${text}</span>`;
 }
 
@@ -293,7 +290,7 @@ export function srSummary(venue, now) {
   const next = deal ? null : nextDeal(venue, now);
   const L = lineInfo(venue, now);
   const lineWords = L.n != null && ['line', 'full', 'clear'].includes(L.state) ? (L.n === 0 ? 'No line. ' : `About ${L.n} in line${L.state === 'full' ? ', at capacity' : `, ${L.level}`}. `) : '';
-  const text = `${lineWords}${st.label}: ${est.headline}. ${est.tone === 'aging' ? 'May have changed. ' : ''}${showPeople ? `${est.peopleLabel}. ` : ''}${est.detail ? `${est.detail}. ` : ''}${est.observedAt != null ? `${est.sourceLabel}, ${est.ageLabel}.` : ''}${dist ? ` ${dist} from the demo spot, about ${walkMinutes(distanceTo(venue))} min walk.` : ''}${deal ? ` Demo deal: ${promoLabel(deal)}, ${promoItem(deal)}, until ${formatTime(deal.endsAt)}.` : next ? ` Demo deal later: ${promoLabel(next)}, ${promoItem(next)}, from ${formatTime(next.startsAt)}.` : ''} Demo data.`;
+  const text = `${lineWords}${st.label}: ${est.headline}. ${est.tone === 'aging' ? 'May have changed. ' : ''}${showPeople ? `${est.peopleLabel}. ` : ''}${est.detail ? `${est.detail}. ` : ''}${est.observedAt != null ? `${est.sourceLabel}, ${est.ageLabel}.` : ''}${dist ? ` ${dist} away, about ${walkMinutes(distanceTo(venue))} min walk.` : ''}${deal ? ` Deal: ${promoLabel(deal)}, ${promoItem(deal)}, until ${formatTime(deal.endsAt)}.` : next ? ` Deal later: ${promoLabel(next)}, ${promoItem(next)}, from ${formatTime(next.startsAt)}.` : ''}`;
   return `<span class="sr-only" data-est="${esc(venue.id)}" data-variant="sr" data-tone="${est.tone}">${esc(text)}</span>`;
 }
 
@@ -384,28 +381,28 @@ export function windowLabel(start, end) {
 export function passCard(pass, now, { headingLevel = 3 } = {}) {
   const status = passStatus(pass, now);
   const h = `h${headingLevel}`;
-  const wm = Array.from({ length: 9 }, () => '<span>DEMO · NOT VALID FOR ENTRY · DEMO · NOT VALID FOR ENTRY</span>').join('');
-  return `<article class="pass-card" data-status="${status}" aria-label="Demo pass for ${esc(pass.venueName)}, not valid for entry">
+  const wm = Array.from({ length: 9 }, () => '<span>NOT VALID FOR ENTRY · NOT VALID FOR ENTRY</span>').join('');
+  return `<article class="pass-card" data-status="${status}" aria-label="Pass for ${esc(pass.venueName)}, not valid for entry">
     <div class="pass-watermark" aria-hidden="true"><div>${wm}</div></div>
-    <div class="pass-top"><div><p class="qb-label" style="color:var(--pass-ink-2)">Demo priority pass</p><${h} class="pass-venue">${esc(pass.venueName)}</${h}></div><span class="pass-status">${esc(PASS_STATUS_COPY[status])}</span></div>
+    <div class="pass-top"><div><p class="qb-label" style="color:var(--pass-ink-2)">Priority pass</p><${h} class="pass-venue">${esc(pass.venueName)}</${h}></div><span class="pass-status">${esc(PASS_STATUS_COPY[status])}</span></div>
     <dl class="pass-grid">
       <div><dt>Entry window</dt><dd>${esc(windowLabel(pass.windowStart, pass.windowEnd))}</dd></div>
       <div><dt>Party</dt><dd>${pass.party} ${pass.party === 1 ? 'person' : 'people'}</dd></div>
-      <div><dt>Demo total</dt><dd>${money(pass.total)} <span style="font-weight:500;color:var(--pass-ink-2)">(no charge)</span></dd></div>
-      <div><dt>Reference</dt><dd class="pass-ref">${esc(pass.ref)}</dd></div>
+      <div><dt>Total</dt><dd>${money(pass.total)} <span style="font-weight:500;color:var(--pass-ink-2)">(no charge)</span></dd></div>
+      <div><dt>Reference</dt><dd class="pass-ref">${esc(String(pass.ref).replace(/^DEMO-/, ''))}</dd></div>
       <div><dt>Cover</dt><dd>${esc(pass.coverNote)}</dd></div>
       <div><dt>ID</dt><dd>Physical ID checked at the door</dd></div>
     </dl>
-    <p class="pass-invalid">${icon('alert')}Demo pass. No charge. Not valid for entry.</p>
+    <p class="pass-invalid">${icon('alert')}No charge. Not valid for entry.</p>
   </article>`;
 }
 
 /** Brand wordmark (2026-10-17): Fraunces Italic with a crescent moon for the dot of the i. Decorative: callers label it. */
 export const wordmark = () => `<span class="wordmark-text" aria-hidden="true">n<span class="wm-i">ı<span class="wm-moon"><svg viewBox="0 0 20 20" focusable="false"><path d="M12.6 1.2a9 9 0 1 0 6.2 14.6A7.6 7.6 0 0 1 12.6 1.2Z"/></svg></span></span>ghtout</span>`;
 
-/** Top-right points chip: your demo balance, linking to Points (replaces the old "Demo data" tag; every number in the app still says "demo" where it appears). */
+/** Top-right points chip: your balance, linking to Points. */
 export function pointsChip(balance) {
   const n = new Intl.NumberFormat('en-US').format(balance);
-  return `<a class="pts-chip" href="#/points" aria-label="${n} demo points. Open Points">${icon('star', { size: 15 })}<span class="num" data-pts-value>${n}</span></a>`;
+  return `<a class="pts-chip" href="#/points" aria-label="${n} points. Open Points">${icon('star', { size: 15 })}<span class="num" data-pts-value>${n}</span></a>`;
 }
 

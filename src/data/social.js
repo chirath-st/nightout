@@ -23,16 +23,16 @@ export const PEOPLE = Object.freeze([
   ['Ravi J.', 'Grad student', ['Sports fan']], ['Hannah O.', 'Senior', ['Birthday crew']], ['Diego Q.', 'Senior', ['DJ fan']], ['Imani Y.', 'Senior', ['Dancer']],
   ['Noah Z.', 'Grad student', ['Chill', 'Trivia nerd']], ['Grace E.', 'Senior', ['New to Easton Ave']], ['Ethan U.', 'Senior', ['Trivia nerd']], ['Sofia R.', 'Senior', ['Live music']],
   ['Malik P.', 'Senior', ['Sports fan']], ['Lily K.', 'Senior', ['Karaoke', 'Dancer']], ['Sam O.', 'Alum', ['Chill']], ['Aisha L.', 'Senior', ['DJ fan', 'Bar hop']],
-].map(([name, year, vibe]) => ({ name, year, vibe, handle: `${name.split(' ')[0].toLowerCase()}-${name.split(' ')[1][0].toLowerCase()}-demo`, seed: `p-${name}` })));
+].map(([name, year, vibe]) => ({ name, year, vibe, handle: `${name.split(' ')[0].toLowerCase()}-${name.split(' ')[1][0].toLowerCase()}`, seed: `p-${name}` })));
 
 const GROUPS = [
-  { id: 'g1', title: 'Pregame then Olde Queens', venueId: 'olde-queens', at: [0, 0], spots: 6, going: 3, host: { name: 'Maya R.', handle: 'maya-r-demo', hue: 18, year: 'Senior' }, note: 'Chill group, mostly seniors. Meeting outside at 11:55.', tags: ['Chill', 'Seniors'] },
-  { id: 'g2', title: 'Late trivia crew needs two more', venueId: 'ale-n-wich', at: [0, 30], spots: 5, going: 3, host: { name: 'Dev P.', handle: 'dev-trivia-demo', hue: 205, year: 'Grad student' }, note: 'We lose every week. Come lose with us.', tags: ['Trivia'] },
-  { id: 'g3', title: 'Birthday at Scarlet Pub', venueId: 'scarlet-pub', at: [23, 30], spots: 10, going: 7, host: { name: 'Sam K.', handle: 'sam-k-demo', hue: 340, year: 'Senior' }, note: 'Turning 22. Everyone welcome, bring good energy.', tags: ['Birthday'] },
+  { id: 'g1', title: 'Pregame then Olde Queens', venueId: 'olde-queens', at: [0, 0], spots: 6, going: 3, host: { name: 'Maya R.', handle: 'maya-r', hue: 18, year: 'Senior' }, note: 'Chill group, mostly seniors. Meeting outside at 11:55.', tags: ['Chill', 'Seniors'] },
+  { id: 'g2', title: 'Late trivia crew needs two more', venueId: 'ale-n-wich', at: [0, 30], spots: 5, going: 3, host: { name: 'Dev P.', handle: 'dev-trivia', hue: 205, year: 'Grad student' }, note: 'We lose every week. Come lose with us.', tags: ['Trivia'] },
+  { id: 'g3', title: 'Birthday at Scarlet Pub', venueId: 'scarlet-pub', at: [23, 30], spots: 10, going: 7, host: { name: 'Sam K.', handle: 'sam-k', hue: 340, year: 'Senior' }, note: 'Turning 22. Everyone welcome, bring good energy.', tags: ['Birthday'] },
   { id: 'g4', title: 'Late night at PITCH', venueId: 'pitch-social', at: [0, 30], spots: 4, going: 2, host: { name: 'Jordan L.', handle: '', hue: 140, year: 'Senior' }, note: 'Going for the DJ. One more and we’re a crew.', tags: ['DJ'] },
-  { id: 'g5', title: 'Easton Ave bar walk', venueId: 'hueys-knight-club', at: [23, 30], spots: 8, going: 5, host: { name: 'Priya S.', handle: 'priya-walks-demo', hue: 270, year: 'Senior' }, note: 'Three stops, one block. We move on when the next line is short.', tags: ['Bar hop'],
+  { id: 'g5', title: 'Easton Ave bar walk', venueId: 'hueys-knight-club', at: [23, 30], spots: 8, going: 5, host: { name: 'Priya S.', handle: 'priya-walks', hue: 270, year: 'Senior' }, note: 'Three stops, one block. We move on when the next line is short.', tags: ['Bar hop'],
     stops: [['hueys-knight-club', 23, 30], ['scarlet-pub', 0, 15], ['olde-queens', 1, 0]] },
-  { id: 'g6', title: 'Hamilton to Easton hop', venueId: 'ale-n-wich', at: [23, 0], spots: 6, going: 4, host: { name: 'Luis F.', handle: 'luis-hops-demo', hue: 30, year: 'Grad student' }, note: 'Wings and trivia first, then dancing.', tags: ['Bar hop'],
+  { id: 'g6', title: 'Hamilton to Easton hop', venueId: 'ale-n-wich', at: [23, 0], spots: 6, going: 4, host: { name: 'Luis F.', handle: 'luis-hops', hue: 30, year: 'Grad student' }, note: 'Wings and trivia first, then dancing.', tags: ['Bar hop'],
     stops: [['ale-n-wich', 23, 0], ['pitch-social', 0, 45]] },
 ];
 
@@ -75,7 +75,7 @@ export function currentStop(stops, now) {
 /** Rewards catalog. Simulated: no bar honors these. Nothing here is alcohol (see DRINKS_LOCK). */
 export const REWARDS = Object.freeze([
   { id: 'na-drink', title: 'Free non-alcoholic drink', detail: 'Soda, mocktail or water', cost: 100, icon: 'sparkle' },
-  { id: 'cover', title: 'Cover on us', detail: 'One cover charge at a participating bar', cost: 200, icon: 'ticket' },
+  { id: 'cover', title: 'Cover on us', detail: 'One cover charge', cost: 200, icon: 'ticket' },
   { id: 'line-cut', title: 'Line cut', detail: 'Priority entry during a set window', cost: 400, icon: 'arrowRight' },
   { id: 'merch', title: 'Night Out hat', detail: 'Pick up at a pop-up', cost: 600, icon: 'shield' },
   { id: 'vip', title: 'VIP entry', detail: 'Skip the line for you and one friend', cost: 1000, icon: 'star' },

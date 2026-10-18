@@ -6,8 +6,8 @@
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#000000">
   <meta name="robots" content="noindex">
-  <title>Night Out (demo)</title>
-  <meta name="description" content="Night Out prototype with simulated data: bar lines, distances and deals around New Brunswick, groups heading out, line reports and rewards. Not a live service; no bar is affiliated.">
+  <title>Night Out</title>
+  <meta name="description" content="Bar lines, deals and groups heading out around New Brunswick. Sample data; no bar is affiliated.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='white'/%3E%3Cpath d='M18.5 8.5a8 8 0 1 0 5 13.6A6.6 6.6 0 0 1 18.5 8.5Z' fill='black'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap">
@@ -36,7 +36,7 @@
   <a class="skip" href="#main">Skip to content</a>
   <div class="app">
     <header class="topbar">
-      <a class="wordmark" href="#/" aria-label="Night Out (demo): go to bars"><span class="wordmark-text" aria-hidden="true">n<span class="wm-i">ı<span class="wm-moon"><svg viewBox="0 0 20 20" focusable="false"><path d="M12.6 1.2a9 9 0 1 0 6.2 14.6A7.6 7.6 0 0 1 12.6 1.2Z"/></svg></span></span>ghtout</span></a>
+      <a class="wordmark" href="#/" aria-label="Night Out: go to bars"><span class="wordmark-text" aria-hidden="true">n<span class="wm-i">ı<span class="wm-moon"><svg viewBox="0 0 20 20" focusable="false"><path d="M12.6 1.2a9 9 0 1 0 6.2 14.6A7.6 7.6 0 0 1 12.6 1.2Z"/></svg></span></span>ghtout</span></a>
       <button type="button" class="topbar-area" data-action="open-area" aria-haspopup="dialog" aria-label="Area: New Brunswick. Change area"><span data-area-label>New Brunswick</span><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg></button>
       <span class="topbar-spacer"></span>
       <button type="button" class="icon-btn top-search" data-action="focus-search" aria-label="Search bars"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m15.6 15.6 4.4 4.4"/></svg></button>
@@ -50,7 +50,7 @@
       <a class="tab" href="#/profile" data-tab="profile"><span class="tab-inner"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.8"/><circle class="fl" cx="12" cy="9.9" r="3.1"/><path class="fl" d="M6.6 18.3c1.1-2 3-3.1 5.4-3.1s4.3 1.1 5.4 3.1A8.7 8.7 0 0 1 12 20.8a8.7 8.7 0 0 1-5.4-2.5Z"/></svg></span><span class="tab-label">Profile</span></a>
     </nav>
     <main id="main" tabindex="-1">
-      <noscript><div class="page"><p>This prototype needs JavaScript. It runs entirely in your browser with simulated data.</p></div></noscript>
+      <noscript><div class="page"><p>Night Out needs JavaScript.</p></div></noscript>
     </main>
   </div>
   <div id="toasts" class="toast-region" role="status" aria-live="polite"></div>
@@ -59,10 +59,10 @@
   <dialog id="picker" class="sheet picker" aria-labelledby="picker-title"></dialog>
   <dialog id="age-gate" class="sheet" aria-labelledby="age-title" style="max-width:440px">
     <div class="sheet-body age-body" id="age-body">
-      <p class="demo-tag" style="margin-bottom:12px">Prototype with simulated data</p>
+      
       <p class="wordmark-text age-logo" aria-hidden="true">n<span class="wm-i">ı<span class="wm-moon"><svg viewBox="0 0 20 20" focusable="false"><path d="M12.6 1.2a9 9 0 1 0 6.2 14.6A7.6 7.6 0 0 1 12.6 1.2Z"/></svg></span></span>ghtout</p>
       <h2 id="age-title" class="page-title age-title">Night Out is for adults 21+</h2>
-      <p class="page-sub age-sub">This demo shows estimated bar lines around New Brunswick. Bar names are real; every wait, price and pass is simulated, and no bar is affiliated with Night Out. We don’t ask for your birthday or ID, and nothing leaves this browser.</p>
+      <p class="page-sub age-sub">Waits, deals and people are sample data. No bar is affiliated with Night Out.</p>
       <div style="display:grid;gap:8px;margin-top:20px">
         <button type="button" class="btn btn-primary btn-lg" data-action="age-ok">I’m 21 or older</button>
         <button type="button" class="btn btn-lg" data-action="age-no">I’m under 21</button>

@@ -2,7 +2,7 @@
 // Money is integer cents. Party size is capped at 4 and by real remaining inventory.
 
 export const MAX_PARTY = 4;
-export const DEMO_OUTCOME = 'Demo pass created. No charge. Not valid for entry.';
+export const DEMO_OUTCOME = 'Pass created';
 
 export function priceFor(offer, party) {
   const perPerson = offer.basePrice + offer.serviceFee;
@@ -66,7 +66,7 @@ export function refCode(opId) {
     out += alphabet[h % alphabet.length];
     h = Math.floor(h / alphabet.length) + 7919 * (i + 1);
   }
-  return `DEMO-${out}`;
+  return `NO-${out}`;
 }
 
 export function createPass({ opId, venue, win, party, now }) {
@@ -101,5 +101,5 @@ export const PASS_STATUS_COPY = Object.freeze({
   upcoming: 'Window not open yet',
   active: 'Entry window open',
   expired: 'Window ended',
-  cancelled: 'Cancelled (demo)',
+  cancelled: 'Cancelled',
 });
