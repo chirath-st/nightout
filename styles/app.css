@@ -1538,3 +1538,25 @@ section.ideas { margin-top: 28px; display: grid; gap: 10px; }
 .line-badge { gap: 7px; }
 .lb-dot { width: 12px; height: 12px; }
 .lb-word { font-size: 10px; }
+
+/* ---------- Member profiles (demo people) and brand-tinted bar cards ---------- */
+button.member-row { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 8px 0; border: 0; border-bottom: 1px solid var(--line); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.member-list li { display: block; min-height: 0; padding: 0; border: 0; }
+.member-main { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.member-main b { font-size: var(--t-md); font-weight: 700; }
+.member-handle { font-size: var(--t-xs); color: var(--ink-2); }
+button.member-row > .ic:last-child { flex: none; color: var(--ink-3); }
+button.member-row:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; border-radius: 8px; }
+.sheet-back { margin-right: 2px; }
+.mp-head { display: flex; align-items: center; gap: 16px; }
+.mp-id { display: grid; gap: 4px; min-width: 0; }
+.mp-name { font-family: var(--font-display); font-size: 26px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; overflow-wrap: anywhere; }
+.mp-facts { margin-top: 16px; }
+.mp-tags { margin-top: 6px; }
+.mp-plan { display: flex; align-items: center; gap: 12px; margin-top: 6px; padding: 12px; border-radius: var(--r-md); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.mp-plan > span:last-child { display: grid; gap: 2px; min-width: 0; }
+.mp-plan small { font-size: var(--t-xs); color: var(--ink-2); }
+.vip-card.is-tinted { background: linear-gradient(150deg, color-mix(in srgb, var(--tint) 62%, #111) 0%, color-mix(in srgb, var(--tint) 22%, #0d0d0d) 48%, #070707 100%); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tint) 55%, #333); }
+.vip-card.is-tinted .vip-brand { color: #fff; }
+.sheet-head:has(.sheet-back) { grid-template-columns: 44px minmax(0, 1fr) 44px; padding-left: 8px; }
+.sheet-head:has(.sheet-back) .sheet-title { grid-column: 2; }

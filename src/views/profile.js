@@ -2,7 +2,8 @@
 // demo user's and stays on this device. SIMULATED: no billing, no wallet pass, no photo is read.
 import { esc, wordmark } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
-import { initials, balanceOf, PLANS, PLUS_PERKS, SAMPLE_BAR_CARDS } from '../data/social.js';
+import { initials, balanceOf, youSeed, PLANS, PLUS_PERKS, SAMPLE_BAR_CARDS } from '../data/social.js';
+import { personAvatar } from '../ui/avatars.js';
 
 const row = (href, iconName, label, sub) => `<a class="list-link" href="${href}">${icon(iconName, { size: 20 })}<span>${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ''}</span>${icon('chevronRight', { size: 18 })}</a>`;
 const btnRow = (action, iconName, label, sub) => `<button type="button" class="list-link" data-action="${action}">${icon(iconName, { size: 20 })}<span>${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ''}</span>${icon('chevronRight', { size: 18 })}</button>`;
@@ -19,9 +20,13 @@ const barcode = (seed) => {
   return Array.from({ length: 42 }, (_, i) => { h = Math.imul(h ^ (h >>> 13), 2246822507) >>> 0; return `<i style="--w:${1 + (h % 3)}px"></i>`; }).join('');
 };
 
+// Bar cards take a tint from the bar's brand color (team ask: "a little bit of a red tint" for Scarlet Pub).
+const BRAND_TINT = { 'scarlet-pub': '#B3122E', 'olde-queens': '#E8590C', 'pitch-social': '#D7263D' };
+
 export function vipCard(card, ctx, { main = false } = {}) {
   const venue = card.venueId ? ctx.venues.find((v) => v.id === card.venueId) : null;
-  return `<article class="vip-card${main ? ' is-main' : ''}" aria-label="${esc(card.title)}, demo card, not valid">
+  const tint = !main && card.venueId ? BRAND_TINT[card.venueId] : null;
+  return `<article class="vip-card${main ? ' is-main' : ''}${tint ? ' is-tinted' : ''}"${tint ? ` style="--tint:${tint}"` : ''} aria-label="${esc(card.title)}, demo card, not valid">
     <div class="vip-top"><span class="vip-brand">${main ? `${wordmark()}<span class="sr-only">Night Out</span>` : esc(venue?.name ?? 'Bar card')}</span><span class="vip-tag">Demo · not valid</span></div>
     <p class="vip-title">${esc(main ? 'VIP pass' : card.title)}</p>
     <div class="vip-foot"><span><b>${esc(ctx.state.profile.name)}</b><small>${main ? 'Member card' : `Added ${esc(dateFmt(card.addedAt))}`}</small></span><span class="vip-code" aria-hidden="true">${barcode(card.id)}</span></div>
@@ -38,14 +43,14 @@ export function renderProfile(ctx, { editing = false, errors = {} } = {}) {
     <div class="title-row account-title"><h1 class="page-title" id="page-h" tabindex="-1">My account</h1>
       <button type="button" class="icon-btn settings-btn" data-action="open-settings" aria-label="Settings">${icon('sliders', { size: 22 })}</button></div>
     <section class="profile-head" aria-label="Profile">
-      <span class="avatar avatar-lg" style="--size:72px" aria-hidden="true">${esc(initials(p.name))}</span>
+      ${personAvatar({ seed: youSeed(p.name), initials: initials(p.name) }, 72)}
       <div class="profile-id">
         <p class="profile-name">${esc(p.name)} <span class="demo-tag">Demo account</span></p>
         ${p.handle ? `<button type="button" class="handle" data-action="ig-link" data-handle="${esc(p.handle)}" aria-label="Instagram @${esc(p.handle)}">${icon('at', { size: 14 })}${esc(p.handle)}</button>` : '<p class="hint" style="margin:0">No Instagram added</p>'}
         <button type="button" class="btn btn-sm" data-action="edit-profile" aria-expanded="${editing}">${editing ? 'Cancel' : `${icon('plus', { size: 14 })}Edit profile`}</button>
       </div>
     </section>
-    <p class="hint">Your photo would come from sign-up in the real app. The demo shows initials and never reads a photo.</p>
+    <p class="hint">Demo picture, drawn by the app. In the real app your photo would come from sign-up; this demo never reads a photo.</p>
     ${editing ? `<form id="profile-form" class="form-stack panel" novalidate>
       <div class="field"><label class="label" for="p-name">Name</label><input id="p-name" name="displayname" class="text-input" maxlength="30" value="${esc(p.name)}" ${errors.name ? 'aria-invalid="true" aria-describedby="err-p-name"' : ''}>
         ${errors.name ? `<p class="field-error" id="err-p-name">${icon('alert')}${esc(errors.name)}</p>` : ''}</div>

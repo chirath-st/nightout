@@ -10,7 +10,7 @@ import { windowState, purchasable, createPass, maxPartyFor, passStatus, money, r
 import { estimateCompact, estimateBlock, estimateRing, estimateFor, pointsChip, esc, venueRow, cardStatus, cardFresh, srSummary, dealTag, venueStatus } from './ui/components.js';
 import { icon } from './ui/icons.js';
 import { renderExplore, exploreResults, exploreBanners, exploreChips, pinParts, areaSheet } from './views/explore.js';
-import { renderGroups, renderGroupNew, validateGroup, membersSheet, nightMinutes, MAX_STOPS } from './views/groups.js';
+import { renderGroups, renderGroupNew, validateGroup, membersSheet, memberProfileSheet, nightMinutes, MAX_STOPS } from './views/groups.js';
 import { renderEvents, eventResults } from './views/events.js';
 import { renderScan, pickListItems, scanEstimate, scanSubmitReady, draftQueue } from './views/scan.js';
 import { renderPoints, checkinSheet } from './views/points.js';
@@ -1558,7 +1558,16 @@ function handleAction(a, el) {
     case 'join-group': toggleJoin(el.dataset.id); return true;
     case 'group-members': {
       const g = [...app.state.groups.created, ...app.groups].find((x) => x.id === el.dataset.id);
-      if (g) openAccountSheet(membersSheet(g, ctx()), '.sheet-close');
+      const fromProfile = el.classList.contains('sheet-back') ? document.querySelector('#picker .member-profile')?.dataset.index : null;
+      if (g) openAccountSheet(membersSheet(g, ctx()), fromProfile != null ? `[data-action="member-profile"][data-index="${fromProfile}"]` : '.sheet-close');
+      return true;
+    }
+    case 'member-profile': {
+      const g = [...app.state.groups.created, ...app.groups].find((x) => x.id === el.dataset.group);
+      if (g) {
+        openAccountSheet(memberProfileSheet(g, Number(el.dataset.index), ctx()), '.sheet-back');
+        document.querySelector('#picker .member-profile')?.setAttribute('data-index', el.dataset.index);
+      }
       return true;
     }
     case 'hop-add': {
@@ -1580,7 +1589,7 @@ function handleAction(a, el) {
       announce('Stop removed');
       return true;
     }
-    case 'ig-link': toast(`Opens instagram.com/${el.dataset.handle} in the real app. Links are off in this demo.`); return true;
+    case 'ig-link': toast(`Opens instagram.com/${el.dataset.handle} in the real app. Handles here are made up, so links are off in this demo.`); return true;
     case 'group-spots': {
       const d = app.groupDraft ?? (app.groupDraft = newGroupDraft());
       d.spots = Math.max(2, Math.min(12, d.spots + Number(el.dataset.delta)));

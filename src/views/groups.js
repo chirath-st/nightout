@@ -24,7 +24,7 @@ function groupCard(g, ctx) {
   const more = members.length > MAX_FACES ? `<span class="avatar avatar-more" style="--size:30px">+${members.length - MAX_FACES}</span>` : '';
   const open = Math.max(0, g.spots - going);
   const handle = g.host.handle
-    ? `<button type="button" class="handle" data-action="ig-link" data-handle="${esc(g.host.handle)}" aria-label="Instagram @${esc(g.host.handle)}">${icon('at', { size: 14 })}${esc(g.host.handle)}</button>`
+    ? `<button type="button" class="handle" data-action="member-profile" data-group="${esc(g.id)}" data-index="0" aria-haspopup="dialog" aria-label="@${esc(g.host.handle)}: see ${esc(g.host.name)}’s profile">${icon('at', { size: 14 })}${esc(g.host.handle)}</button>`
     : '';
   const [t, ap] = formatTime(g.startsAt).split(/\s+/);
   return `<li class="group-card">
@@ -60,16 +60,45 @@ function hopTimeline(g, ctx) {
     }).join('')}</ol></div>`;
 }
 
-/** "Who's going" sheet: everyone in the group with their picture and vibe (demo people). */
+const tagsOf = (m) => [m.role, m.year, ...(m.vibe ?? [])].filter(Boolean);
+const sheetHead = (title, back) => `<div class="sheet-head"><span class="sheet-grabber" aria-hidden="true"></span>${back ? `<button type="button" class="icon-btn sheet-back" data-action="group-members" data-id="${esc(back)}" aria-label="Back to who’s going">${icon('chevronLeft')}</button>` : ''}<h2 class="sheet-title" id="picker-title">${title}</h2>
+      <button type="button" class="icon-btn sheet-close" data-action="close-picker" aria-label="Close">${icon('x')}</button></div>`;
+
+/** "Who's going" sheet: everyone in the group with their picture, handle and tags; tap one to see their profile. */
 export function membersSheet(g, ctx) {
   const members = membersFor(g, ctx);
   const going = g.going + (ctx.state.groups.joined.includes(g.id) ? 1 : 0);
-  return `<div class="sheet-head"><span class="sheet-grabber" aria-hidden="true"></span><h2 class="sheet-title" id="picker-title">Who’s going</h2>
-      <button type="button" class="icon-btn sheet-close" data-action="close-picker" aria-label="Close">${icon('x')}</button></div>
+  return `${sheetHead('Who’s going')}
     <div class="sheet-body">
       <p class="members-sub">${esc(g.title)} · <span class="num">${going} of ${g.spots}</span></p>
-      <ul class="member-list">${members.map((m) => `<li>${personAvatar(m, 44)}<span><b>${esc(m.you ? `${m.name} (you)` : m.name)}</b>${m.vibe?.length || m.role ? `<span class="member-tags">${[m.role, ...(m.vibe ?? [])].filter(Boolean).map((x) => `<span class="mini-tag">${esc(x)}</span>`).join('')}</span>` : ''}</span></li>`).join('')}</ul>
-      <p class="hint">Demo people: names are made up and pictures are drawn by the app. Real profiles would come from sign-up.</p>
+      <ul class="member-list">${members.map((m, i) => `<li><button type="button" class="member-row" data-action="member-profile" data-group="${esc(g.id)}" data-index="${i}">${personAvatar(m, 44)}<span class="member-main"><b>${esc(m.you ? `${m.name} (you)` : m.name)}</b>${m.handle ? `<small class="member-handle">@${esc(m.handle)}</small>` : ''}${tagsOf(m).length ? `<span class="member-tags">${tagsOf(m).map((x) => `<span class="mini-tag">${esc(x)}</span>`).join('')}</span>` : ''}</span>${icon('chevronRight', { size: 18 })}</button></li>`).join('')}</ul>
+      <p class="hint">Demo people: names, handles and years are made up, and pictures are drawn by the app. Real profiles would come from sign-up.</p>
+    </div>`;
+}
+
+/** One member's profile, Instagram-style: picture, handle, year, interests and where they're going (all demo). */
+export function memberProfileSheet(g, index, ctx) {
+  const members = membersFor(g, ctx);
+  const m = members[index];
+  if (!m) return membersSheet(g, ctx);
+  const venue = ctx.venues.find((v) => v.id === g.venueId);
+  const plans = allGroups(ctx).filter((x) => membersFor(x, ctx).some((p) => p.name === m.name)).length;
+  return `${sheetHead(m.you ? 'Your profile' : 'Profile', g.id)}
+    <div class="sheet-body member-profile">
+      <div class="mp-head">${personAvatar(m, 88)}
+        <div class="mp-id"><p class="mp-name">${esc(m.you ? `${m.name} (you)` : m.name)}</p>
+          ${m.handle ? `<button type="button" class="handle" data-action="ig-link" data-handle="${esc(m.handle)}" aria-label="Open @${esc(m.handle)} on Instagram (off in this demo)">${icon('at', { size: 14 })}${esc(m.handle)}</button>` : '<p class="hint" style="margin:0">No Instagram added</p>'}
+        </div></div>
+      <dl class="fact-strip mp-facts">
+        <div><dt>Year</dt><dd>${esc(m.year ?? (m.you ? 'You' : '—'))}</dd></div>
+        <div><dt>Plans</dt><dd class="num">${plans}<span class="fact-sub">this week</span></dd></div>
+        <div><dt>Role</dt><dd>${esc(m.role ?? 'Going')}</dd></div>
+      </dl>
+      ${(m.vibe ?? []).length ? `<p class="eyebrow" style="margin-top:16px">Into</p><div class="member-tags mp-tags">${m.vibe.map((x) => `<span class="mini-tag">${esc(x)}</span>`).join('')}</div>` : ''}
+      <p class="eyebrow" style="margin-top:16px">Going to</p>
+      <div class="mp-plan">${venue ? `<span class="bar-logo" aria-hidden="true">${venueLogo(venue)}</span>` : ''}<span><b>${esc(g.title)}</b><small>${esc(venue?.name ?? '')} · ${esc(formatTime(g.startsAt))}</small></span></div>
+      ${m.handle ? `<button type="button" class="btn btn-block" data-action="ig-link" data-handle="${esc(m.handle)}" style="margin-top:16px">${icon('at', { size: 16 })}Open Instagram</button>` : ''}
+      <p class="hint">Demo person: the name, handle and picture are made up, so Instagram links are off. In the real app this opens their Instagram profile.</p>
     </div>`;
 }
 

@@ -4,7 +4,8 @@
 import { esc, venueLogo } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
 import { formatTime } from '../lib/clock.js';
-import { REWARDS, DRINKS_LOCK, POINTS, balanceOf, nextReward, initials, checkedInTonight } from '../data/social.js';
+import { REWARDS, DRINKS_LOCK, POINTS, balanceOf, nextReward, initials, checkedInTonight, youSeed } from '../data/social.js';
+import { personAvatar } from '../ui/avatars.js';
 import { isOpenAt } from '../lib/explore.js';
 
 const fmt = (n) => new Intl.NumberFormat('en-US').format(n);
@@ -20,7 +21,7 @@ export function renderPoints(ctx) {
   const dailyDone = st.lastDaily === st.clock.base;
   return `<div class="page">
     <div class="points-head">
-      <span class="avatar" style="--size:44px" aria-hidden="true">${esc(initials(st.profile.name))}</span>
+      ${personAvatar({ seed: youSeed(st.profile.name), initials: initials(st.profile.name) }, 44)}
       <div><h1 class="page-title" id="page-h" tabindex="-1">My points</h1><p class="points-who">${esc(st.profile.name)} <span class="demo-tag">Demo points</span></p></div>
     </div>
     <section class="points-card" aria-label="Your points">
