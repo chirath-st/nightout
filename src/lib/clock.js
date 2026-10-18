@@ -28,5 +28,9 @@ export const advance = (clock, minutes) => ({ ...clock, offsetMin: clock.offsetM
 export const formatTime = (ms) =>
   new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(new Date(ms));
 
+/** [h, m] → '0:30' (select values) and → '12:30 AM' (labels); hours before noon are after midnight. */
+export const hhmm = ([h, m]) => `${h}:${String(m).padStart(2, '0')}`;
+export const timeLabel = ([h, m]) => formatTime(new Date(2000, 0, h < 12 ? 2 : 1, h, m).getTime());
+
 export const formatDayTime = (ms) =>
   new Intl.DateTimeFormat('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(ms));

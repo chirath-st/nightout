@@ -11,6 +11,8 @@ import { isOpenAt } from '../lib/explore.js';
 import { offerSummary, money, dollars } from '../lib/pass.js';
 import { TYPICAL_LABELS } from '../lib/queue.js';
 import { TYPICAL_HOURS } from '../data/venues.js';
+import { ideasSection } from './ideas.js';
+import { coverLabel } from '../lib/ideas.js';
 
 function to12(hhmm) {
   const [h, m] = hhmm.split(':').map(Number);
@@ -81,7 +83,7 @@ export function renderVenue(ctx, id) {
         ${distanceText(venue) ? `<p class="hero-sub">${icon('nav', { size: 12 })}<span>New Brunswick · ${esc(distanceText(venue))} away</span></p>` : ''}
       </div>
     </div>
-    <p class="affiliation">${icon('info', { size: 14 })}<span>Independent listing. Not affiliated with the bar. Waits, events, deals, prices and polls here are simulated.</span></p>
+    <p class="affiliation">${icon('info', { size: 14 })}<span>Independent listing. Not affiliated with the bar. Waits, events, community ideas, deals, prices and polls here are simulated.</span></p>
     ${estimateBlock(venue, now, { showHow: false })}
     <div class="venue-actions">
       <a class="act act-primary" href="#/scan?venue=${encodeURIComponent(venue.id)}">${icon('report', { size: 22 })}<span>Report the line</span><span class="act-pts" aria-hidden="true">+${POINTS.REPORT}</span><span class="sr-only">, earn ${POINTS.REPORT} demo points</span></a>
@@ -91,6 +93,7 @@ export function renderVenue(ctx, id) {
     </div>
     ${factStrip(venue, now)}
     ${tonightSection(ev, now)}
+    ${ideasSection(venue, ctx)}
     ${vibeSection(venue)}
     ${dealsSection(venue, now)}
     ${foodSection(venue)}
@@ -116,7 +119,7 @@ export function renderVenue(ctx, id) {
       <h2 id="idpc-h" style="display:flex;gap:8px;align-items:center">${icon('id')}About a future ID pre-check</h2>
       <p>A future version might help you check, ahead of time, that you’re bringing an accepted ID. It could never guarantee entry or replace the venue’s own ID check at the door. New Jersey also limits keeping data from scanned IDs. This prototype collects no ID information.</p>
     </section>
-    <p class="demo-caption">Night Out isn’t affiliated with ${esc(venue.name)}. Everything on this page except the name and address is simulated. 21+ with physical ID.</p>
+    <p class="demo-caption">Night Out isn’t affiliated with ${esc(venue.name)}. Everything on this page except the name and address is simulated, including community ideas and the people who proposed them. 21+ with physical ID.</p>
   </div>`;
 }
 
@@ -149,7 +152,8 @@ function dealsSection(venue, now) {
 
 /** Tonight's event at this bar (live or later tonight); otherwise the next one this week. */
 function tonightEvent(ctx, venue) {
-  const mine = (ctx.events ?? []).filter((e) => e.venueId === venue.id).sort((a, b) => a.startsAt - b.startsAt);
+  // Approved community ideas count as events; pending and declined ones never do.
+  const mine = [...(ctx.events ?? []), ...(ctx.ideas ?? []).filter((x) => x.status === 'approved')].filter((e) => e.venueId === venue.id).sort((a, b) => a.startsAt - b.startsAt);
   const night = ctx.state.clock.base;
   const tonight = mine.find((e) => eventWindow(e, ctx.now, night) === 'tonight');
   if (tonight) return { ev: tonight, when: 'tonight' };
@@ -160,11 +164,12 @@ function tonightEvent(ctx, venue) {
 const dayName = (ms) => new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(ms);
 
 function tonightSection(found, now) {
-  const head = (title) => `<div class="section-head"><h2 id="tonight-h">${title}</h2><span class="eyebrow">Sample event</span></div>`;
+  const head = (title, community = false) => `<div class="section-head"><h2 id="tonight-h">${title}</h2><span class="eyebrow">${community ? 'Community idea (demo)' : 'Sample bar event'}</span></div>`;
   if (!found) return `<section class="tonight" aria-labelledby="tonight-h">${head('Tonight')}<p class="hint">No event listed this week.</p></section>`;
   const { ev, when } = found;
   const time = `${when === 'week' ? `${dayName(ev.startsAt)} ` : ''}${formatTime(ev.startsAt)}${ev.endsAt ? `–${formatTime(ev.endsAt)}` : ' till late'}`;
-  return `<section class="tonight" aria-labelledby="tonight-h">${head(when === 'tonight' ? 'Tonight' : 'Next event')}
+  const community = ev.kind === 'community';
+  return `<section class="tonight" aria-labelledby="tonight-h">${head(when === 'tonight' ? 'Tonight' : 'Next event', community)}
     <article class="event-card">
       <span class="event-icon">${icon('music', { size: 22 })}</span>
       <div class="event-main">
@@ -173,8 +178,8 @@ function tonightSection(found, now) {
       </div>
       <dl class="event-facts">
         <div><dt>Music</dt><dd>${esc(ev.music)}</dd></div>
-        ${ev.host ? `<div><dt>Host</dt><dd>${esc(ev.host)}</dd></div>` : ''}
-        <div><dt>Cover</dt><dd>${ev.cover ? `$${ev.cover}` : 'Free'}</dd></div>
+        ${community ? `<div><dt>From</dt><dd>Community idea, approved in the demo console</dd></div><div><dt>Idea by</dt><dd>${esc(ev.by.name)} (demo person)</dd></div>` : ev.host ? `<div><dt>Host</dt><dd>${esc(ev.host)}</dd></div>` : ''}
+        <div><dt>Cover</dt><dd>${community ? esc(coverLabel(ev.cover)) : ev.cover ? `$${ev.cover}` : 'Free'}</dd></div>
         <div><dt>Age</dt><dd>21+</dd></div>
       </dl>
     </article>

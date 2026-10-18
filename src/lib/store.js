@@ -31,11 +31,36 @@ export function defaultState(realNow) {
     savedEvents: [], // event ids (sample events, this device only)
     goingEvents: [],
     votes: {}, // venueId -> 'going' | 'maybe' | 'no' (sample poll, this device only)
+    ideas: { joined: [], hyped: [], created: [], decisions: {} }, // community theme-night ideas (demo; this device only)
     deals: [], // deals posted from the venue console: { id, venueId, kind, title, short, startsAt, endsAt, postedAt }
   };
 }
 
 const arr = (v) => (Array.isArray(v) ? v : []);
+const strs = (v, max = 100) => arr(v).filter((s) => typeof s === 'string').slice(0, max);
+const count = (n) => (Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
+
+/** A created community idea as stored; anything malformed is dropped (null). */
+function normIdea(c) {
+  if (!c || typeof c !== 'object') return null;
+  if (![c.id, c.venueId, c.title, c.theme, c.pitch].every((x) => typeof x === 'string')) return null;
+  if (!Number.isFinite(c.startsAt) || !Number.isFinite(c.endsAt) || c.startsAt >= c.endsAt) return null;
+  if (!Number.isInteger(c.day) || c.day < 1 || c.day > 6) return null;
+  return {
+    ...c, genres: strs(c.genres, 6), joins: count(c.joins), hype: count(c.hype),
+    by: { name: typeof c.by?.name === 'string' ? c.by.name : 'You' }, postedAt: Number.isFinite(c.postedAt) ? c.postedAt : c.startsAt,
+    kind: 'community', cover: null, adults: true, synthetic: true, mine: true,
+  };
+}
+function normDecisions(d) {
+  if (!d || typeof d !== 'object') return {};
+  const out = {};
+  for (const [id, x] of Object.entries(d)) {
+    if (!x || !['approved', 'declined'].includes(x.status) || !Number.isFinite(x.at)) continue;
+    out[id] = { status: x.status, at: x.at, cover: x.status === 'approved' ? ([0, 5, 10].includes(x.cover) ? x.cover : 0) : null };
+  }
+  return out;
+}
 
 export function migrate(raw, realNow) {
   const base = defaultState(realNow);
@@ -67,6 +92,10 @@ export function migrate(raw, realNow) {
       plan: raw.subscription?.plan === 'none' ? 'none' : 'plus',
       billing: raw.subscription?.billing === 'annual' ? 'annual' : 'monthly',
       since: Number.isFinite(raw.subscription?.since) ? raw.subscription.since : null,
+    },
+    ideas: {
+      joined: strs(raw.ideas?.joined), hyped: strs(raw.ideas?.hyped),
+      created: arr(raw.ideas?.created).map(normIdea).filter(Boolean).slice(0, 20), decisions: normDecisions(raw.ideas?.decisions),
     },
     deals: arr(raw.deals).filter((d) => d && typeof d.venueId === 'string' && typeof d.title === 'string' && Number.isFinite(d.startsAt) && Number.isFinite(d.endsAt)).slice(0, 50),
   };

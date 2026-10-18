@@ -1,7 +1,7 @@
 // SIMULATED events, vibe and "who's going" numbers for the demo. No bar has announced these events,
 // set these prices or shared crowd ages; every one is shown with a "sample" label. Times are on the demo
 // week: day 0 is the demo night (hours < 12 are after midnight), days 1–6 are the following nights.
-import { atNight } from './venues.js';
+import { atNight, atNightOn } from './venues.js';
 
 const DAY = 24 * 60 * 60_000;
 
@@ -30,8 +30,38 @@ export function buildEvents(demoStart) {
   return EVENTS.map(({ day, at, until, ...e }) => {
     const startsAt = atNight(demoStart, at[0], at[1]) + day * DAY;
     const endsAt = until ? atNight(demoStart, until[0], until[1]) + day * DAY : null;
-    return { ...e, day, startsAt, endsAt: endsAt != null && endsAt <= startsAt ? endsAt + DAY : endsAt, adults: true, synthetic: true };
+    return { ...e, kind: 'bar', day, startsAt, endsAt: endsAt != null && endsAt <= startsAt ? endsAt + DAY : endsAt, adults: true, synthetic: true };
   });
+}
+
+// SIMULATED community ideas: fictional people, made-up counts. No bar has seen, hosted or approved any of them;
+// approval exists only in the demo venue console on this device. dows = [preferred weekday, fallback] (0 = Sun).
+const COMMUNITY = [
+  { id: 'ci-y2k', venueId: 'scarlet-pub', dows: [2, 3], at: [21, 0], until: [1, 0], title: 'Y2K Night', theme: 'Theme night', genres: ['Throwbacks', 'Top 40'], music: '2000s pop, R&B and hip-hop', pitch: 'Butterfly clips, frosted tips and a 2000s-only playlist. Dress up if you want to.', by: 'Nina V.', joins: 38, hype: 64, postedH: 30 },
+  { id: 'ci-emo', venueId: 'olde-queens', dows: [1, 3], at: [21, 0], until: [0, 0], title: 'Emo Karaoke', theme: 'Karaoke', genres: ['Karaoke', 'Throwbacks'], music: 'Pop-punk and emo sing-alongs', pitch: 'Pop-punk and emo only. Sign-up sheet at the door; bring your loudest friends.', by: 'Marcus T.', joins: 29, hype: 41, postedH: 52 },
+  { id: 'ci-trivia', venueId: 'the-vine', dows: [3, 1], at: [21, 0], until: [23, 0], title: 'Sitcom Trivia', theme: 'Trivia', genres: [], music: 'Background playlist', pitch: 'Teams of up to four, three rounds of sitcom questions. Bragging rights, plus a food voucher if the bar agrees.', by: 'Dana K.', joins: 24, hype: 30, postedH: 20 },
+  { id: 'ci-hoops', venueId: 'hueys-knight-club', dows: [4, 0], at: [20, 0], until: [23, 0], title: 'Hoops Watch Night', theme: 'Game day', genres: [], music: 'Game audio on the big screens', pitch: 'Every game on the big screens with the sound up for the late one. Wear your team’s colors.', by: 'Andre M.', joins: 17, hype: 22, postedH: 14 },
+  { id: 'ci-dj', venueId: 'pitch-social', dows: [3, 1], at: [22, 0], until: [2, 0], title: 'Student DJ Takeover', theme: 'DJ night', genres: ['House & EDM'], music: 'House and Afro house', pitch: 'Three student DJs, 40-minute sets each. House and Afro house all night.', by: 'Theo W.', joins: 12, hype: 19, postedH: 8 },
+  { id: 'ci-poetry', venueId: 'evelyns', dows: [1, 2], at: [20, 0], until: [22, 30], title: 'Poetry & Open Mic', theme: 'Live music', genres: ['Live music'], music: 'Spoken word and acoustic sets', pitch: 'Five-minute slots for poems, stories and acoustic songs. Sign up when you arrive.', by: 'Lena B.', joins: 6, hype: 9, postedH: 4 },
+];
+const HOUR = 60 * 60_000;
+
+/** Each idea goes on the first of its weekdays that is 1–6 nights out and has no bar event at that bar (same `day`). */
+export function buildIdeas(demoStart, barEvents = buildEvents(demoStart)) {
+  const baseDow = new Date(demoStart).getDay();
+  return COMMUNITY.map(({ dows, at, until, by, postedH, ...c }) => {
+    const free = (d) => !barEvents.some((e) => e.venueId === c.venueId && e.day === d);
+    let day = null;
+    for (const dow of dows) {
+      for (let d = 1; d <= 6 && day == null; d += 1) if ((baseDow + d) % 7 === dow && free(d)) day = d;
+      if (day != null) break;
+    }
+    if (day == null) return null;
+    return {
+      ...c, kind: 'community', day, startsAt: atNightOn(demoStart, day, at[0], at[1]), endsAt: atNightOn(demoStart, day, until[0], until[1]),
+      by: { name: by }, postedAt: demoStart - postedH * HOUR, cover: null, adults: true, synthetic: true,
+    };
+  }).filter(Boolean);
 }
 
 /** Sample "vibe" per bar: entry age, the age most of the crowd is, and a typical drink price range. */

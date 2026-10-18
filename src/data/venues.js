@@ -13,6 +13,14 @@ export function atNight(demoStart, hh, mm = 0) {
   return d.getTime();
 }
 
+/** Absolute time `day` nights after the demo night (calendar math, so a DST change can't shift it). */
+export function atNightOn(demoStart, day, hh, mm = 0) {
+  const d = new Date(demoStart);
+  d.setDate(d.getDate() + day + (hh < 12 ? 1 : 0));
+  d.setHours(hh, mm, 0, 0);
+  return d.getTime();
+}
+
 const menu = (food, zero, drinks) => [
   { title: 'Food', items: food },
   { title: 'Zero-proof', items: zero },

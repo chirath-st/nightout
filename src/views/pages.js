@@ -7,7 +7,8 @@ import { passStatus, money } from '../lib/pass.js';
 import { FRESHNESS_MINUTES, describeEstimate, validPeople } from '../lib/queue.js';
 import { offerSummary } from '../lib/pass.js';
 import { TONE_LABEL } from '../ui/icons.js';
-import { formatTime } from '../lib/clock.js';
+import { formatTime, hhmm, timeLabel } from '../lib/clock.js';
+import { ideaPanel } from './ideas.js';
 
 /* ---------- Saved ---------- */
 export function renderSaved(ctx) {
@@ -120,6 +121,7 @@ export function renderConsole(ctx) {
         ${estimateBlock(v, ctx.now, { headingId: 'qb-console', showHow: false, headingLevel: 3 })}
       </section>
       ${dealPanel(v, ctx)}
+      ${ideaPanel(v, ctx)}
       ${passPanel(v, ctx)}
       <section class="panel" aria-labelledby="audit-h">
         <h2 id="audit-h">Change log</h2>
@@ -180,7 +182,7 @@ export function renderAbout(ctx) {
     <h1 class="page-title" id="page-h" tabindex="-1">About this demo</h1>
     <p class="page-sub">Night Out is a prototype with simulated data.</p>
     <div class="prose" style="margin-top:var(--s-4)">
-      <p><strong>Bar names and street addresses are real. Everything else is simulated.</strong> Waits, line sizes, reports, passes, prices, covers, hours, menus and typical patterns are made up for this demo and don’t describe how these bars operate. No bar is affiliated with Night Out or has endorsed it, and no line is live.</p>
+      <p><strong>Bar names, street addresses, logos and photos are real. Everything else is simulated.</strong> Waits, line sizes, reports, passes, prices, covers, hours, menus, typical patterns, community ideas and the people who proposed them are made up for this demo and don’t describe how these bars operate. No bar is affiliated with Night Out or has endorsed it, and no line is live.</p>
       <p>The list is the student bars around Easton Ave, checked in October 2026 against the New Jersey ABC retail license list (October 1, 2026), New Brunswick council license records, the September 2026 Rutgers bar-crawl stops and the bars’ own websites: Olde Queens Tavern, Scarlet Pub, Huey’s Knight Club, PITCH Social, The Vine, The Olive Branch, Stuff Yer Face, 30 Burgers &amp; Brews and Evelyn’s, plus Ale ’N ’Wich on Hamilton St. Left out: Knights Public House (closed in 2026), and downtown restaurants with bars that aren’t student line spots. Distances are straight-line from a demo spot, ${esc(DEMO_SPOT.label)}, using OpenStreetMap, New Jersey address points and the US Census geocoder.</p>
       <p>This isn’t the first nightlife app around Rutgers. LineLeap already runs New Brunswick bar crawls, and at least one Easton Ave bar sells skip-the-line tickets on another platform. This demo explores a different promise: <em>trustworthy line information and a fair, transparent priority pass</em>.</p>
     </div>
@@ -194,7 +196,7 @@ export function renderAbout(ctx) {
     </tbody></table>
     <p class="hint" style="margin-top:8px">These thresholds are our design assumptions, not an industry standard. A real pilot would tune them against observed waits.</p>
     <h2 class="section-title">What this prototype never does</h2>
-    <ul class="prose"><li>Take payments or card details</li><li>Collect, upload or scan IDs, or ask for a date of birth</li><li>Sell, order or redeem alcohol; points are never tied to drinks</li><li>Request your location or send your data anywhere: what you save stays in this browser</li><li>Use Rutgers names or marks, or imply any venue partnership</li></ul>
+    <ul class="prose"><li>Take payments or card details</li><li>Collect, upload or scan IDs, or ask for a date of birth</li><li>Sell, order or redeem alcohol; points are never tied to drinks</li><li>Request your location or send your data anywhere: what you save stays in this browser</li><li>Use Rutgers names or marks, or imply any venue partnership</li><li>Contact a bar or tell it about an idea; approvals happen only in the demo console</li></ul>
     <h2 class="section-title">Demo controls</h2>
     <div class="panel">
       ${toggle('offline', 'Simulate offline', 'Estimates keep aging; refresh is unavailable.')}
@@ -221,8 +223,6 @@ export function renderAbout(ctx) {
 /* ---------- Console: post a deal (structured fields only; see lib/deals.js) ---------- */
 const DEAL_TIMES = [[21, 0], [21, 30], [22, 0], [22, 30], [23, 0], [23, 30], [0, 0], [0, 30], [1, 0], [1, 30], [2, 0]];
 const PLACEHOLDER = { entry: 'No cover before 11', food: '$5 wings till midnight', na: '$3 mocktails all night', event: 'Trivia at 11 (food voucher prize)' };
-const hhmm = ([h, m]) => `${h}:${String(m).padStart(2, '0')}`;
-const timeLabel = ([h, m]) => formatTime(new Date(2000, 0, h < 12 ? 2 : 1, h, m).getTime());
 const errP = (id, msg) => `<p class="field-error" id="${id}">${icon('alert')}${esc(msg)}</p>`;
 const invalid = (msg, id) => (msg ? ` aria-invalid="true" aria-describedby="${id}"` : '');
 
@@ -246,7 +246,7 @@ function dealPanel(v, ctx) {
       <p class="hint">One drink, its standard size and one price. Shown only to guests who confirmed they’re 21+, with no “was” price.</p>`
     : `<div class="field"><label class="label" for="deal-title">Headline</label><input id="deal-title" class="text-input" maxlength="${DEAL_TITLE_MAX}" autocomplete="off" value="${esc(d.title)}" data-input="deal-field" data-key="title" placeholder="${esc(PLACEHOLDER[d.kind] ?? '')}"${invalid(e.title, 'err-deal-title')}>${e.title ? errP('err-deal-title', e.title) : `<p class="hint">Up to ${DEAL_TITLE_MAX} characters. Shown on the bar’s card while the deal runs.</p>`}</div>`;
   return `<section class="panel" aria-labelledby="deal-h">
-    <h2 id="deal-h">Post a deal</h2>
+    <h2 id="deal-h" tabindex="-1">Post a deal</h2>
     <p class="panel-sub">Bring people in during slow hours.${slow.length ? ` Typically quiet here: ${esc(slow.join(', '))} (simulated pattern).` : ''} Guests see it on the bar’s card and page while it runs.</p>
     <form id="deal-form" class="form-stack" novalidate style="margin-top:0">
       <fieldset class="field-group"><legend>Type</legend>

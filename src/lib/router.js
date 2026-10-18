@@ -21,7 +21,7 @@ export function parseHash(hash) {
     case 'about':
       return { name: 'about', params: {}, query };
     case 'events':
-      return { name: 'events', params: {}, query };
+      return id === 'new' ? { name: 'ideaNew', params: {}, query } : { name: 'events', params: {}, query };
     case 'groups':
       return id === 'new' ? { name: 'groupNew', params: {}, query } : { name: 'groups', params: {}, query };
     case 'scan':
@@ -47,6 +47,7 @@ export function buildHash(name, params = {}, query = {}) {
     case 'console': path = '/console'; break;
     case 'about': path = '/about'; break;
     case 'events': path = '/events'; break;
+    case 'ideaNew': path = '/events/new'; break;
     case 'groups': path = '/groups'; break;
     case 'groupNew': path = '/groups/new'; break;
     case 'scan': path = '/scan'; break;

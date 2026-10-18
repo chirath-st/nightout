@@ -24,8 +24,8 @@ export const DRINK_ITEMS = Object.freeze([
 
 export const DEAL_TITLE_MAX = 32;
 
-const BANNED = /\b(2|two)\s*-?\s*(for|4)\s*-?\s*(1|one)\b|\bbogo\b|buy\s+(one|1|\d+)\s+get|bottomless|unlimited|all[\s-]*you[\s-]*can[\s-]*drink|open\s*bar|free\s+(shots?|drinks?|beers?|rounds?|pitchers?|cocktails?)|\bladies\b|\bgirls?\b|\bguys\b|\bmen\b|\bwomen\b|\bupsize\b|\bupgrade\b|\bdoubles?\s+for\b|\bdrink\s+tickets?\b|\bbuckets?\b|\bpitchers?\s+for\b|\bwas\s+\$/i;
-const ALCOHOL = /\b(beers?|drafts?|shots?|cocktails?|wines?|liquor|margaritas?|pitchers?|seltzers?|vodka|tequila|whiske?y|rum|gin|ipas?|lagers?|sangria|mimosas?|well\s+drinks?|booze|happy\s+hour)\b/i;
+export const BANNED = /\b(2|two)\s*-?\s*(for|4)\s*-?\s*(1|one)\b|\bbogo\b|buy\s+(one|1|\d+)\s+get|bottomless|unlimited|all[\s-]*you[\s-]*can[\s-]*drink|open\s*bar|free\s+(shots?|drinks?|beers?|rounds?|pitchers?|cocktails?)|\bladies\b|\bgirls?\b|\bguys\b|\bmen\b|\bwomen\b|\bupsize\b|\bupgrade\b|\bdoubles?\s+for\b|\bdrink\s+tickets?\b|\bbuckets?\b|\bpitchers?\s+for\b|\bwas\s+\$/i;
+export const ALCOHOL = /\b(beers?|drafts?|shots?|cocktails?|wines?|liquor|margaritas?|pitchers?|seltzers?|vodka|tequila|whiske?y|rum|gin|ipas?|lagers?|sangria|mimosas?|well\s+drinks?|booze|happy\s+hour)\b/i;
 const NA_WORDS = /non-?alcoholic|mocktails?|soda|soft\s+drinks?|zero-?proof|red\s*bull|coffee|water|juice|lemonade/i;
 
 const toMin = ([h, m]) => (h < 12 ? h + 24 : h) * 60 + m; // hours before noon count as after midnight

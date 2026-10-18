@@ -1,7 +1,7 @@
 // Night Out prototype controller (codename in storage and QA hook: doorline). Local only: no network requests, no payments, no ID data.
 import { load, save, clear, defaultState } from './lib/store.js';
 import { normalizeClock, demoNow, advance, formatTime } from './lib/clock.js';
-import { buildDataset, atNight } from './data/venues.js';
+import { buildDataset, atNight, atNightOn } from './data/venues.js';
 import { buildGroups, POINTS, LINE_BUCKETS, REWARDS, balanceOf, validHandle, checkedInTonight, PLANS, SAMPLE_BAR_CARDS } from './data/social.js';
 import { resolveVenues, diffQueue } from './lib/model.js';
 import { parseHash, buildHash, exploreStateFromQuery, exploreQuery } from './lib/router.js';
@@ -16,7 +16,9 @@ import { renderScan, pickListItems, scanEstimate, scanSubmitReady, draftQueue } 
 import { renderPoints, checkinSheet } from './views/points.js';
 import { renderProfile, settingsSheet, manageSubSheet, helpSheet } from './views/profile.js';
 import { renderVenue, directionsSheet, pollSection } from './views/venue.js';
-import { buildEvents } from './data/events.js';
+import { buildEvents, buildIdeas } from './data/events.js';
+import { resolveIdeas, checkIdea, defaultNight, defaultCover, coverLabel, nightLabel, ideaCounts } from './lib/ideas.js';
+import { renderIdeaNew } from './views/ideas.js';
 import { renderPassSheet } from './views/passSheet.js';
 import { renderSaved, renderPasses, renderPassDetail, renderConsole, renderAbout, draftFrom, rangeFor, consoleHint, draftReady, newDealDraft } from './views/pages.js';
 import { checkDeal } from './lib/deals.js';
@@ -36,7 +38,10 @@ const app = {
   lastVenueId: null,
   ui: { loading: true, refreshError: false, lastRefreshAt: null, searchOpen: false, eventsView: 'tonight', eventsGenre: '', eventsTheme: '', eventsPrice: '', mapSelected: null, staleNotice: null, lastRemoved: null, resetSnapshot: null, clearedQueue: null },
   firstFetchStarted: false,
-  console: { venueId: null, drafts: {}, dealDraft: null, dealErrors: {} },
+  console: { venueId: null, drafts: {}, dealDraft: null, dealErrors: {}, ideaCover: {} },
+  ideas: [],
+  ideaDraft: null,
+  ideaErrors: {},
   passFlow: null,
   venueBack: null, // where the venue page's Back link returns to (Tonight, Saved, Passes…)
   scroll: new Map(),
@@ -68,6 +73,7 @@ function rebuild() {
   app.venues = resolveVenues(base, app.state.overrides, app.state.passes, app.state.deals);
   app.groups = buildGroups(app.state.clock.base);
   app.events = buildEvents(app.state.clock.base);
+  app.ideas = resolveIdeas(buildIdeas(app.state.clock.base, app.events), app.state.ideas.created, app.state.ideas.decisions, new Set(app.venues.map((v) => v.id)));
 }
 const isOffline = () => app.state.sim.offline || navigator.onLine === false;
 const savedSet = () => new Set(app.state.saved);
@@ -75,7 +81,7 @@ const savedSet = () => new Set(app.state.saved);
 function ctx(extra = {}) {
   return {
     venues: app.venues, now: now(), state: app.state, explore: app.explore, ui: app.ui, savedSet: savedSet(),
-    offline: isOffline(), console: app.console, visit: app.visit, groups: app.groups, events: app.events,
+    offline: isOffline(), console: app.console, visit: app.visit, groups: app.groups, events: app.events, ideas: app.ideas,
     backHref: app.venueBack?.href ?? app.lastExploreHash, backLabel: app.venueBack?.label ?? 'Bars', ...extra,
   };
 }
@@ -166,7 +172,7 @@ function pageHeading() {
 /* ---------------- rendering ---------------- */
 function renderShell() {
   const r = app.route;
-  const tabFor = { tonight: 'bars', venue: 'bars', pass: 'bars', events: 'events', groups: 'events', groupNew: 'events', scan: 'scan', points: 'points', passes: 'points', passDetail: 'points', profile: 'profile', saved: 'profile', console: 'profile', about: 'profile' };
+  const tabFor = { tonight: 'bars', venue: 'bars', pass: 'bars', events: 'events', ideaNew: 'events', groups: 'events', groupNew: 'events', scan: 'scan', points: 'points', passes: 'points', passDetail: 'points', profile: 'profile', saved: 'profile', console: 'profile', about: 'profile' };
   document.querySelectorAll('[data-tab]').forEach((a) => {
     if (a.dataset.tab === tabFor[r.name]) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   });
@@ -212,6 +218,7 @@ function mainHtml() {
     case 'events': return renderEvents(c);
     case 'groups': return renderGroups(c);
     case 'groupNew': return renderGroupNew(c, app.groupDraft ?? newGroupDraft(), app.groupErrors);
+    case 'ideaNew': return renderIdeaNew(c, app.ideaDraft ?? newIdeaDraft(), app.ideaErrors);
     case 'scan': return renderScan(c, app.scan);
     case 'points': return renderPoints(c);
     case 'profile': return renderProfile(c, app.profileEdit);
@@ -318,13 +325,22 @@ function route({ viaPop = false } = {}) {
     app.venueBack = entry.back ?? null;
   } else if (r.name === 'venue') {
     if (!isListRoute(prev.name)) {
-      const labels = { saved: 'Saved', passes: 'Passes', passDetail: 'Pass', console: 'Console', about: 'About' };
+      const labels = { saved: 'Saved', passes: 'Passes', passDetail: 'Pass', console: 'Console', about: 'About', events: 'Events' };
       app.venueBack = labels[prev.name] ? { label: labels[prev.name], href: buildHash(prev.name, prev.params, prev.query) } : null;
     } else if (prev.name === 'tonight') app.venueBack = null;
   }
   if (isListRoute(r.name)) history.replaceState({ ...(history.state ?? {}), idx: histIdx(), back: r.name === 'tonight' ? null : app.venueBack ?? null, explore: { ...app.explore } }, '');
   if (r.name === 'console' && r.query.venue) app.console.venueId = r.query.venue;
   if (r.name === 'groupNew' && !app.groupDraft) { app.groupDraft = newGroupDraft(); app.groupErrors = {}; }
+  if (r.name === 'events' && ['tonight', 'week', 'ideas', 'saved'].includes(r.query.view)) app.ui.eventsView = r.query.view;
+  if (r.name === 'ideaNew') {
+    const valid = r.query.venue && app.venues.some((v) => v.id === r.query.venue);
+    if (!app.ideaDraft) { app.ideaDraft = newIdeaDraft(valid ? r.query.venue : null); app.ideaErrors = {}; }
+    else if (valid && app.ideaDraft.venueId !== r.query.venue) {
+      app.ideaDraft.venueId = r.query.venue;
+      if (!app.ideaDraft.dayPicked) app.ideaDraft.day = defaultNight(app.state.clock.base, r.query.venue, [...app.events, ...app.ideas]);
+    }
+  }
   if (r.name !== 'profile') app.profileEdit = { editing: false, errors: {} };
   if (r.name === 'scan' && prev?.name !== 'scan') app.scanReturn = !!prev; // close returns to where Scan was opened
   if (r.name === 'scan' && r.query.venue && app.venues.some((v) => v.id === r.query.venue) && !app.state.activeWait) {
@@ -784,7 +800,9 @@ function resetDemo() {
   persist();
   rebuild();
   app.passFlow = null;
-  app.console = { venueId: null, drafts: {}, dealDraft: null, dealErrors: {} };
+  app.console = { venueId: null, drafts: {}, dealDraft: null, dealErrors: {}, ideaCover: {} };
+  app.ideaDraft = null;
+  app.ideaErrors = {};
   app.scan = freshScan();
   app.groupDraft = null;
   app.profileEdit = { editing: false, errors: {} };
@@ -883,6 +901,86 @@ function toggleJoin(id) {
   }
   persist();
   rerenderPage();
+}
+
+/* ---------------- community theme-night ideas (demo; nothing leaves this device) ---------------- */
+function newIdeaDraft(venueId = null) {
+  const byName = [...app.venues].sort((a, b) => a.name.localeCompare(b.name));
+  const id = venueId ?? (app.venues.some((v) => v.id === app.lastVenueId) ? app.lastVenueId : byName[0]?.id ?? '');
+  return { venueId: id, day: defaultNight(app.state.clock.base, id, [...app.events, ...app.ideas]), dayPicked: false, start: [21, 0], end: [0, 0], theme: 'Theme night', genre: '', title: '', pitch: '', ack: false };
+}
+function toggleIdea(key, id) {
+  const x = app.ideas.find((i) => i.id === id);
+  if (!x) return;
+  const list = app.state.ideas[key];
+  const on = !list.includes(id);
+  app.state.ideas[key] = on ? [...list, id] : list.filter((i) => i !== id);
+  persist();
+  if (app.route.name === 'events') renderEventResults({ quiet: true }); else rerenderPage();
+  const counter = document.querySelector(`[data-idea-counts="${CSS.escape(id)}"]`);
+  if (counter && !reducedMotion()) counter.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.12)' }, { transform: 'scale(1)' }], { duration: 320, easing: 'cubic-bezier(.2,.8,.2,1)' });
+  const bar = app.venues.find((v) => v.id === x.venueId)?.name ?? 'the bar';
+  if (key === 'joined') {
+    toast(on ? (x.status === 'approved' ? `You’re in for ${x.title} on ${nightLabel(x.startsAt).split(',')[0]}. Demo: no one is notified.` : `You’re in for ${x.title} if ${bar} approves it. Demo: no one is notified.`) : `You’re out of ${x.title}.`);
+  } else {
+    announce(on ? `Hyped ${x.title}. ${ideaCounts(x, app.state).hype} hype.` : `Hype removed from ${x.title}.`);
+  }
+}
+function postIdea() {
+  const d = app.ideaDraft ?? (app.ideaDraft = newIdeaDraft());
+  const venue = app.venues.find((v) => v.id === d.venueId) ?? null;
+  const existing = [...app.events, ...app.ideas.filter((x) => x.status !== 'declined')];
+  let { errors, clean } = checkIdea(d, venue, existing);
+  if (app.state.ideas.created.length >= 20) errors = { ...errors, limit: 'This demo keeps up to 20 of your ideas. Reset the demo in About to start over.' };
+  if (Object.keys(errors).length) {
+    app.ideaErrors = errors;
+    rerenderPage();
+    const order = [['venue', '#idea-venue'], ['day', 'input[name="idea-night"]:checked, input[name="idea-night"]'], ['time', '#idea-end'], ['theme', 'input[name="idea-theme"]'], ['title', '#idea-title'], ['pitch', '#idea-pitch'], ['ack', '#idea-ack'], ['limit', '[data-action="idea-post"]']];
+    const first = order.find(([k]) => errors[k]);
+    if (first) { document.querySelector(first[1])?.focus(); announce(errors[first[0]]); }
+    return;
+  }
+  const base = app.state.clock.base;
+  const idea = {
+    id: `u-${Date.now().toString(36)}`, kind: 'community', venueId: d.venueId, day: d.day,
+    startsAt: atNightOn(base, d.day, ...d.start), endsAt: atNightOn(base, d.day, ...d.end),
+    title: clean.title, theme: d.theme, genres: clean.genre ? [clean.genre] : [], music: clean.genre || 'The bar’s usual playlist', pitch: clean.pitch,
+    by: { name: app.state.profile.name }, joins: 0, hype: 0, postedAt: now(), mine: true,
+  };
+  app.state.ideas.created.unshift(idea);
+  app.state.ideas.joined.push(idea.id);
+  persist();
+  rebuild();
+  app.ideaDraft = null;
+  app.ideaErrors = {};
+  app.ui.eventsView = 'ideas';
+  go('#/events?view=ideas', { replace: true });
+  document.querySelector(`[data-idea="${CSS.escape(idea.id)}"] .idea-link`)?.focus();
+  toast(`Idea posted. Demo: only you can see it, and ${venue.name} hasn’t been contacted.`, { actionLabel: 'Review as the bar', onAction: () => go(`#/console?venue=${encodeURIComponent(venue.id)}`) });
+}
+function decideIdea(id, status) {
+  const x = app.ideas.find((i) => i.id === id);
+  const v = app.venues.find((w) => w.id === x?.venueId);
+  if (!x || !v) return;
+  const cover = status === 'approved' ? (app.console.ideaCover[id] ?? defaultCover(v)) : null;
+  app.state.ideas.decisions[id] = { status, at: now(), cover };
+  const day = nightLabel(x.startsAt).split(',')[0];
+  audit(v, status === 'approved' ? `Approved community idea: ${x.title} (${day} ${formatTime(x.startsAt)}, ${coverLabel(cover)})` : `Declined community idea: ${x.title} (${day} ${formatTime(x.startsAt)})`);
+  persist(); rebuild(); rerenderConsole();
+  document.getElementById('ideas-h')?.focus();
+  toast(status === 'approved' ? `Approved in the demo console: ${x.title} shows as ${day}’s theme event. ${v.name} hasn’t seen it.` : `Declined in the demo console. ${x.title} stays on Ideas as “Bar passed”.`,
+    { actionLabel: 'Undo', onAction: () => undoDecision(id) });
+}
+function undoDecision(id) {
+  const x = app.ideas.find((i) => i.id === id);
+  const v = app.venues.find((w) => w.id === x?.venueId);
+  if (!x || !app.state.ideas.decisions[id]) return;
+  dismissCurrentToast();
+  delete app.state.ideas.decisions[id];
+  if (v) audit(v, `Moved back to waiting: ${x.title}`);
+  persist(); rebuild();
+  if (app.route.name === 'console') { rerenderConsole(); document.getElementById('ideas-h')?.focus(); } else rerenderPage();
+  toast(`Back to waiting: ${x.title}.`);
 }
 
 /* ---------------- scan: line reports ---------------- */
@@ -1068,12 +1166,14 @@ function watchMasthead() {
 }
 
 /* ---------------- events ---------------- */
-function renderEventResults() {
+function renderEventResults({ quiet = false } = {}) {
   const box = document.getElementById('event-results');
   if (!box) return;
   preserveFocus(() => { box.innerHTML = eventResults(ctx()); });
-  const n = box.querySelectorAll('.ev-card').length;
-  announce(n ? `${n} event${n === 1 ? '' : 's'} shown` : 'No events shown');
+  if (quiet) return;
+  const n = box.querySelectorAll('.ev-card, .idea-card').length;
+  if (app.ui.eventsView === 'ideas') announce(`${n} idea${n === 1 ? '' : 's'} shown`);
+  else announce(n ? `${n} event${n === 1 ? '' : 's'} shown` : 'No events shown');
 }
 function toggleEventList(key, id) {
   const list = app.state[key];
@@ -1425,11 +1525,23 @@ function handleAction(a, el) {
     case 'open-area': openAreaPicker(); return true;
     case 'close-picker': closePicker(); return true;
     case 'vote': castVote(el.dataset.id, el.dataset.vote); return true;
-    case 'event-view':
+    case 'event-view': {
+      const fromTeaser = !el.closest('.ev-views');
       app.ui.eventsView = el.dataset.view;
-      document.querySelectorAll('[data-action="event-view"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === app.ui.eventsView)));
+      document.querySelectorAll('.ev-views [data-action="event-view"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === app.ui.eventsView)));
+      const hash = buildHash('events', {}, app.ui.eventsView === 'tonight' ? {} : { view: app.ui.eventsView });
+      history.replaceState(history.state, '', hash);
+      app.renderedHash = hash;
       renderEventResults();
+      if (fromTeaser) document.querySelector('.ev-views [data-view="ideas"]')?.focus();
       return true;
+    }
+    case 'idea-hype': toggleIdea('hyped', el.dataset.id); return true;
+    case 'idea-join': toggleIdea('joined', el.dataset.id); return true;
+    case 'idea-post': return false; // the form's submit handles it
+    case 'idea-approve': decideIdea(el.dataset.id, 'approved'); return true;
+    case 'idea-decline': decideIdea(el.dataset.id, 'declined'); return true;
+    case 'idea-undo': undoDecision(el.dataset.id); return true;
     case 'event-clear': app.ui.eventsGenre = ''; app.ui.eventsTheme = ''; app.ui.eventsPrice = ''; rerenderPage(); return true;
     case 'event-save': toggleEventList('savedEvents', el.dataset.id); return true;
     case 'event-going': toggleEventList('goingEvents', el.dataset.id); return true;
@@ -1542,6 +1654,9 @@ function onInput(e) {
     }
     case 'console-note': consoleDraft().note = t.value; break;
     case 'deal-field': if (t.tagName === 'INPUT') dealDraft()[t.dataset.key] = t.value; break;
+    case 'idea-field':
+      if (t.tagName !== 'SELECT' && app.ideaDraft) app.ideaDraft[t.dataset.key] = t.value;
+      break;
     case 'hop-field': {
       const d = app.groupDraft ?? (app.groupDraft = newGroupDraft());
       const st = d.stops[Number(t.dataset.index)];
@@ -1602,6 +1717,22 @@ function onChange(e) {
       d[t.dataset.key] = t.value;
       break;
     }
+    case 'idea-field': {
+      if (t.tagName !== 'SELECT') break;
+      const d = app.ideaDraft ?? (app.ideaDraft = newIdeaDraft());
+      const k = t.dataset.key;
+      if (k === 'venueId') {
+        d.venueId = t.value;
+        if (!d.dayPicked) d.day = defaultNight(app.state.clock.base, t.value, [...app.events, ...app.ideas]);
+        rerenderPage();
+      } else if (k === 'start' || k === 'end') d[k] = t.value.split(':').map(Number);
+      else d[k] = t.value;
+      break;
+    }
+    case 'idea-night': { const d = app.ideaDraft ?? (app.ideaDraft = newIdeaDraft()); d.day = Number(t.value); d.dayPicked = true; break; }
+    case 'idea-theme': { const d = app.ideaDraft ?? (app.ideaDraft = newIdeaDraft()); d.theme = t.value; break; }
+    case 'idea-ack': { const d = app.ideaDraft ?? (app.ideaDraft = newIdeaDraft()); d.ack = t.checked; break; }
+    case 'idea-cover': app.console.ideaCover[t.dataset.id] = Number(t.value); break;
     case 'area': chooseArea(t.value); break;
     case 'group-hop': {
       const d = app.groupDraft ?? (app.groupDraft = newGroupDraft());
@@ -1651,6 +1782,7 @@ function onSubmit(e) {
   if (e.target.id === 'door-form') handleAction('console-publish', e.target);
   if (e.target.id === 'deal-form') postDeal();
   if (e.target.id === 'group-form') postGroup();
+  if (e.target.id === 'idea-form') postIdea();
   if (e.target.id === 'profile-form') saveProfile(e.target);
 }
 
