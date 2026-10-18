@@ -4,11 +4,9 @@ import { TYPICAL_HOURS } from '../data/venues.js';
 import { DEMO_SPOT } from '../lib/geo.js';
 import { icon } from '../ui/icons.js';
 import { passStatus, money } from '../lib/pass.js';
-import { FRESHNESS_MINUTES, describeEstimate, validPeople } from '../lib/queue.js';
+import { FRESHNESS_MINUTES } from '../lib/queue.js';
 import { offerSummary } from '../lib/pass.js';
-import { TONE_LABEL } from '../ui/icons.js';
 import { formatTime, hhmm, timeLabel } from '../lib/clock.js';
-import { ideaPanel } from './ideas.js';
 
 /* ---------- Saved ---------- */
 export function renderSaved(ctx) {
@@ -67,97 +65,8 @@ export function renderPassDetail(ctx, id) {
   </div>`;
 }
 
-/* ---------- Venue console (operator demo) ---------- */
-export function renderConsole(ctx) {
-  const venues = ctx.venues;
-  if (!venues.length) return `<div class="page">${stateBox({ iconName: 'door', title: 'No venues to manage', body: 'Restore the demo dataset first.', actions: '<button type="button" class="btn btn-primary" data-action="dataset" data-kind="demo">Restore demo venues</button>', headingLevel: 1 })}</div>`;
-  const id = ctx.console.venueId && venues.some((v) => v.id === ctx.console.venueId) ? ctx.console.venueId : venues[0].id;
-  const v = venues.find((x) => x.id === id);
-  const d = ctx.console.drafts[id] ?? draftFrom(v);
-  const cleared = ctx.ui.clearedQueue?.venueId === id;
-  const audit = ctx.state.audit.filter((a) => a.venueId === id).slice(0, 8);
-  const doors = [['moving', 'Moving'], ['capacity', 'At capacity'], ['paused', 'Entry paused'], ['closed', 'Closed']];
-  return `<div class="page" style="max-width:1100px">
-    <h1 class="page-title" id="page-h" tabindex="-1">Venue console</h1>
-    <p class="page-sub">Demo of what door staff would update. No real venue is connected. Changes stay on this device.</p>
-    <div class="field-group" style="margin-top:var(--s-4)">
-      <label class="label" for="console-venue">Venue (simulated controls)</label>
-      <div class="select"><select id="console-venue" data-input="console-venue" style="width:100%;min-height:46px">${venues.map((x) => `<option value="${x.id}" ${x.id === id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>${icon('chevronDown')}</div>
-    </div>
-    <div class="console-grid">
-      <section class="panel" aria-labelledby="door-h">
-        <h2 id="door-h">Door update</h2>
-        <p class="panel-sub">Publishing shows guests “Venue update · just now”. It goes out of date after ${FRESHNESS_MINUTES.venue.stale} minutes without a new update.</p>
-        <form id="door-form" novalidate>
-          <fieldset class="field-group"><legend>Door status</legend>
-            <div class="radio-row">${doors.map(([val, label]) => `<label class="radio-card"><input type="radio" name="door" value="${val}" data-input="console-door" ${d.doorStatus === val ? 'checked' : ''}><span>${label}</span></label>`).join('')}</div>
-          </fieldset>
-          <div class="field-group stepper-row">
-            <div><p class="label" id="ppl-label">People in line (about)</p><p class="hint">${d.people == null ? 'Not set yet. No line size on record.' : `Published as a range: ~${d.peopleLow}–${d.peopleHigh}`}</p></div>
-            <div class="stepper" role="group" aria-labelledby="ppl-label">
-              <button type="button" class="icon-btn" data-action="console-people" data-delta="-5" aria-label="5 fewer people" ${d.people == null || d.people <= 0 ? 'disabled' : ''}>${icon('minus')}</button>
-              <output>${d.people ?? '—'}</output>
-              <button type="button" class="icon-btn" data-action="console-people" data-delta="5" aria-label="5 more people" ${d.people >= 400 ? 'disabled' : ''}>${icon('plus')}</button>
-            </div>
-          </div>
-          <div class="field-group range-row">
-            <label class="label" for="admit">Admissions per minute: <output for="admit">${d.admitPerMin ?? 'not set'}</output></label>
-            <input id="admit" type="range" min="0.5" max="6" step="0.5" value="${d.admitPerMin ?? 2}" data-input="console-admit"${d.admitPerMin == null ? ' aria-valuetext="not set"' : ''}>
-            <p class="hint" id="console-hint">${esc(consoleHint(d, ctx.now))}</p>
-          </div>
-          <div class="field-group">
-            <label class="label" for="door-note">Note for guests (optional)</label>
-            <input id="door-note" name="note" class="text-input" maxlength="60" value="${esc(d.note)}" data-input="console-note" placeholder="Private event until 11:30 PM…" autocomplete="off">
-          </div>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary" data-action="console-publish" aria-disabled="${!draftReady(d)}">${icon('check')}Publish update</button>
-            ${cleared ? '<button type="button" class="btn" data-action="console-undo-clear">Restore previous estimate</button>' : '<button type="button" class="btn" data-action="console-clear">Clear estimate (no data)</button>'}
-          </div>
-        </form>
-      </section>
-      <section class="panel" aria-labelledby="prev-h">
-        <h2 id="prev-h">What guests see now</h2>
-        <p class="panel-sub">The same component as the guest app.</p>
-        ${estimateBlock(v, ctx.now, { headingId: 'qb-console', showHow: false, headingLevel: 3 })}
-      </section>
-      ${dealPanel(v, ctx)}
-      ${ideaPanel(v, ctx)}
-      ${passPanel(v, ctx)}
-      <section class="panel" aria-labelledby="audit-h">
-        <h2 id="audit-h">Change log</h2>
-        ${audit.length ? `<ol class="audit">${audit.map((a) => `<li><time>${esc(formatTime(a.at))} · demo time</time><span>${esc(a.summary)}</span></li>`).join('')}</ol>` : '<p class="hint">Publish a door update to start the log.</p>'}
-      </section>
-    </div>
-  </div>`;
-}
-
-/** Start from what's on record; nothing is invented. Missing counts or pace stay unset until the operator sets them. */
-export function draftFrom(v) {
-  const q = v.queue;
-  const people = validPeople(q) ? Math.round((q.peopleLow + q.peopleHigh) / 2 / 5) * 5 : null;
-  const pace = Number.isFinite(q?.admitPerMin) && q.admitPerMin > 0 ? q.admitPerMin : null;
-  return { venueId: v.id, doorStatus: q?.doorStatus ?? 'moving', people, ...(people == null ? { peopleLow: null, peopleHigh: null } : rangeFor(people)), admitPerMin: pace, note: q?.note ?? '' };
-}
-
-/** A moving line needs both a line size and a pace before a wait can be published. */
-export const draftReady = (d) => d.doorStatus !== 'moving' || (d.people != null && d.admitPerMin != null);
-
-/** What guests would see if this draft were published, via the same estimate rules as the guest app. */
-export function consoleHint(d, now) {
-  if (!draftReady(d)) return 'Set the line size and door pace to publish a wait estimate.';
-  const preview = { id: 'draft', queue: { sourceType: 'venue', observedAt: now, peopleLow: d.peopleLow, peopleHigh: d.peopleHigh, admitPerMin: d.admitPerMin, doorStatus: d.doorStatus, note: d.note } };
-  const est = describeEstimate(preview, now, { isOpen: true });
-  const tone = est.headline === TONE_LABEL[est.tone] ? '' : ` (${TONE_LABEL[est.tone]})`;
-  const how = est.waitLow != null && est.tone === 'fresh' ? ' People ÷ admission rate, widened for uncertainty.' : '';
-  return `After publishing, guests see “${est.headline}”${tone}.${how}`;
-}
-
-export function rangeFor(people) {
-  if (people <= 2) return { peopleLow: 0, peopleHigh: 2 };
-  return { peopleLow: Math.max(0, Math.round(people * 0.85)), peopleHigh: Math.round(people * 1.15) };
-}
-
-function passPanel(v, ctx) {
+/* ---------- Venue console panels (the console itself is views/console.js) ---------- */
+export function passPanel(v, ctx) {
   if (!v.pass) return `<section class="panel" aria-labelledby="pp-h"><h2 id="pp-h">Priority pass</h2><p class="hint">No simulated priority pass for this bar.</p></section>`;
   const p = v.pass;
   return `<section class="panel" aria-labelledby="pp-h">
@@ -192,7 +101,7 @@ export function renderAbout(ctx) {
       <tr><td>May have changed</td><td>${v.fresh}–${v.stale} min old</td><td>Range kept, lower confidence</td></tr>
       <tr><td>Out of date</td><td>Older than ${v.stale} min</td><td>Number hidden: “Current wait unavailable”</td></tr>
       <tr><td>No data</td><td>No report at all</td><td>“Wait unknown”, never zero</td></tr>
-      <tr><td>Uncertain</td><td>Recent crowd reports disagree</td><td>Wide range, low confidence</td></tr>
+      <tr><td>Uncertain</td><td>Recent reports or line photos disagree</td><td>Wide range, low confidence</td></tr>
     </tbody></table>
     <p class="hint" style="margin-top:8px">These thresholds are our design assumptions, not an industry standard. A real pilot would tune them against observed waits.</p>
     <h2 class="section-title">What this prototype never does</h2>
@@ -230,7 +139,7 @@ export function newDealDraft() {
   return { kind: 'entry', title: '', start: [22, 0], end: [23, 0], item: 'draft', price: '', costOk: false };
 }
 
-function dealPanel(v, ctx) {
+export function dealPanel(v, ctx) {
   const d = ctx.console.dealDraft ?? newDealDraft();
   const e = ctx.console.dealErrors ?? {};
   const slow = slowHours(v.typical, TYPICAL_HOURS);

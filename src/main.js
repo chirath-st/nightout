@@ -3,7 +3,8 @@ import { load, save, clear, defaultState } from './lib/store.js';
 import { normalizeClock, demoNow, advance, formatTime, START_OFFSET_MIN, nightIsOver } from './lib/clock.js';
 import { buildDataset, atNight, atNightOn } from './data/venues.js';
 import { buildGroups, POINTS, LINE_BUCKETS, REWARDS, balanceOf, validHandle, checkedInTonight, PLANS, SAMPLE_BAR_CARDS } from './data/social.js';
-import { resolveVenues, diffQueue } from './lib/model.js';
+import { resolveVenues } from './lib/model.js';
+import { withObservations, headsFor, scanOutcome } from './lib/merge.js';
 import { parseHash, buildHash, exploreStateFromQuery, exploreQuery } from './lib/router.js';
 import { FILTERS, SORTS, exploreList, areaLabel } from './lib/explore.js';
 import { windowState, purchasable, createPass, maxPartyFor, passStatus, money, refCode } from './lib/pass.js';
@@ -20,7 +21,9 @@ import { buildEvents, buildIdeas } from './data/events.js';
 import { resolveIdeas, checkIdea, defaultNight, defaultCover, coverLabel, nightLabel, ideaCounts } from './lib/ideas.js';
 import { renderIdeaNew } from './views/ideas.js';
 import { renderPassSheet } from './views/passSheet.js';
-import { renderSaved, renderPasses, renderPassDetail, renderConsole, renderAbout, draftFrom, rangeFor, consoleHint, draftReady, newDealDraft } from './views/pages.js';
+import { renderSaved, renderPasses, renderPassDetail, renderAbout, newDealDraft } from './views/pages.js';
+import { renderConsole, photoPanel, photoPreview, currentDoor } from './views/console.js';
+import { DRAW_MAX } from './ui/lineart.js';
 import { checkDeal } from './lib/deals.js';
 
 const FILTER_IDS = FILTERS.map((f) => f.id);
@@ -38,7 +41,7 @@ const app = {
   lastVenueId: null,
   ui: { loading: true, refreshError: false, lastRefreshAt: null, searchOpen: false, eventsView: 'tonight', eventsGenre: '', eventsTheme: '', eventsPrice: '', mapSelected: null, staleNotice: null, lastRemoved: null, resetSnapshot: null, clearedQueue: null },
   firstFetchStarted: false,
-  console: { venueId: null, drafts: {}, dealDraft: null, dealErrors: {}, ideaCover: {} },
+  console: freshConsole(),
   ideas: [],
   ideaDraft: null,
   ideaErrors: {},
@@ -54,6 +57,7 @@ const app = {
   scan: null,
   profileEdit: { editing: false, errors: {} },
 };
+function freshConsole() { return { venueId: null, dealDraft: null, dealErrors: {}, ideaCover: {}, role: 'ambassador', photo: null, snaps: 0, busyUntil: 0, filling: false }; }
 const freshScan = () => ({ step: 'pick', venueId: null, captured: false, bucket: null, door: 'moving', inLine: true, q: '', error: null });
 app.scan = freshScan();
 app.checkin = { step: 'pick', venueId: null };
@@ -73,8 +77,11 @@ function clearNightState() {
   app.state.syncAt = null;
   for (const [id, o] of Object.entries(app.state.overrides)) {
     delete o.queue;
+    delete o.clearedAt;
     if (!Object.keys(o).length) delete app.state.overrides[id];
   }
+  app.state.counts = [];
+  app.state.doors = {};
   app.state.activeWait = null;
   app.state.deals = [];
 }
@@ -94,7 +101,9 @@ function persist() { save(storage, app.state); updatePointsChip(); }
 function rebuild() {
   // Report ages count back from the last simulated refresh; before the first one, from the demo's start (midnight).
   const base = buildDataset(app.state.dataset, app.state.clock.base, app.state.syncAt ?? app.state.clock.base + START_OFFSET_MIN * 60_000);
-  app.venues = resolveVenues(base, app.state.overrides, app.state.passes, app.state.deals);
+  const n = now();
+  // This device's photo counts, guest reports and door state merge into each bar's queue (src/lib/merge.js).
+  app.venues = resolveVenues(base, app.state.overrides, app.state.passes, app.state.deals).map((v) => withObservations(v, app.state, n, { since: app.state.clock.base, night: app.state.clock.realStart }));
   app.groups = buildGroups(app.state.clock.base);
   app.events = buildEvents(app.state.clock.base);
   app.ideas = resolveIdeas(buildIdeas(app.state.clock.base, app.events), app.state.ideas.created, app.state.ideas.decisions, new Set(app.venues.map((v) => v.id)), app.state.clock.base);
@@ -171,7 +180,7 @@ function focusKey(el) {
   if (!el || el === document.body) return null;
   if (el.id) return `#${CSS.escape(el.id)}`;
   if (el.type === 'radio' && el.name) return `input[name="${CSS.escape(el.name)}"][value="${CSS.escape(el.value)}"]`;
-  const attrs = ['data-action', 'data-input', 'data-id', 'data-delta', 'data-window', 'data-filter', 'data-view', 'data-kind', 'data-key'];
+  const attrs = ['data-action', 'data-input', 'data-id', 'data-delta', 'data-window', 'data-filter', 'data-view', 'data-kind', 'data-key', 'data-role'];
   const sel = attrs.filter((a) => el.hasAttribute(a)).map((a) => `[${a}="${CSS.escape(el.getAttribute(a))}"]`).join('');
   return sel || null;
 }
@@ -465,6 +474,7 @@ function simulateFetch({ initial = false } = {}) {
 /* ---------------- live aging (estimates update in place, never reorder under the finger) ---------------- */
 function tick() {
   if (maybeStartNewNight()) return;
+  rebuild(); // the merge depends on time (inputs age out of the 20-minute window)
   const n = now();
   document.querySelectorAll('[data-demo-time]').forEach((el) => { el.textContent = formatTime(n); });
   document.querySelectorAll('[data-elapsed]').forEach((el) => { el.textContent = String(Math.max(0, Math.floor((n - Number(el.dataset.elapsed)) / 60000))); });
@@ -750,11 +760,6 @@ function consoleVenue() {
   const id = app.console.venueId && app.venues.some((v) => v.id === app.console.venueId) ? app.console.venueId : app.venues[0]?.id;
   return app.venues.find((v) => v.id === id);
 }
-function consoleDraft() {
-  const v = consoleVenue();
-  // Unsaved door edits are kept per venue, so switching venues doesn't discard them.
-  return (app.console.drafts[v.id] ??= draftFrom(v));
-}
 function rerenderPage(fallback) {
   preserveFocus(() => {
     const y = window.scrollY;
@@ -769,11 +774,116 @@ function rerenderConsole() {
     window.scrollTo(0, y);
   });
 }
-function updateConsoleHint() {
-  const d = consoleDraft();
-  const el = document.getElementById('console-hint');
-  if (el) el.textContent = consoleHint(d, now());
-  document.querySelector('[data-action="console-publish"]')?.setAttribute('aria-disabled', String(!draftReady(d)));
+/** Re-render only the line photo panel (counting taps), keeping focus on the control that was used. */
+function rerenderPhoto(fallback) {
+  const el = document.getElementById('line-photo');
+  const v = consoleVenue();
+  if (!el || !v) { rerenderConsole(); return; }
+  preserveFocus(() => { el.outerHTML = photoPanel(v, ctx()); }, fallback ?? (() => document.querySelector('#line-photo .scene-btn')));
+}
+const ROLE_NAME = { ambassador: 'Ambassador', bouncer: 'Bouncer' };
+const DOOR_WORD = { moving: 'Letting in', capacity: 'One in, one out', paused: 'Paused', closed: 'Closed' };
+function countAnnounce(v, p) {
+  announce(`${p.count} counted. Guests would see ${photoPreview(p.count, v, now(), app.state, app.console.role).headline}.`);
+}
+function snapPhoto() {
+  const v = consoleVenue();
+  if (!v) return;
+  const est = estimateFor(v, now());
+  const around = ['fresh', 'aging'].includes(est.tone) && Number.isFinite(v.queue?.peopleLow) ? Math.round((v.queue.peopleLow + v.queue.peopleHigh) / 2) : 20;
+  app.console.snaps += 1;
+  const seed = `${v.id}:${app.console.snaps}`;
+  app.console.photo = { venueId: v.id, seed, heads: headsFor(seed, around), count: 0, newest: -1, touched: false, filled: false, readyAt: performance.now() + 400 };
+  app.console.busyUntil = 0;
+  app.console.filling = false;
+  const el = document.getElementById('line-photo');
+  if (el) el.outerHTML = photoPanel(v, ctx()); else rerenderConsole();
+  const view = document.querySelector('#line-photo .lp-view');
+  if (view && !reducedMotion()) { view.classList.add('is-flash'); setTimeout(() => view.classList.remove('is-flash'), 420); }
+  document.getElementById('line-photo')?.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' });
+  document.querySelector('#line-photo .scene-btn')?.focus({ preventScroll: true });
+  announce('Simulated photo taken. Tap the photo for each head, or use the buttons.');
+}
+let fillTimer = null;
+function fillPhoto() {
+  const v = consoleVenue();
+  const p = app.console.photo;
+  if (!v || !p || p.venueId !== v.id || performance.now() < app.console.busyUntil) return;
+  clearTimeout(fillTimer);
+  const from = Math.min(p.count, DRAW_MAX);
+  Object.assign(p, { count: p.heads, newest: -1, touched: true, filled: true });
+  const drawn = Math.min(p.heads, DRAW_MAX);
+  const step = Math.min(40, 1200 / Math.max(1, drawn - from));
+  const ms = reducedMotion() ? 0 : Math.round(step * Math.max(0, drawn - from)) + 200;
+  app.console.busyUntil = performance.now() + ms;
+  app.console.filling = ms > 0 ? { from, step } : false;
+  rerenderPhoto();
+  const done = () => {
+    if (app.console.photo !== p) return;
+    app.console.filling = false;
+    app.console.busyUntil = 0;
+    rerenderPhoto();
+    document.querySelector('#line-photo [data-action="photo-publish"]')?.focus({ preventScroll: true });
+    announce(`${p.count} people counted (demo count). Ready to publish.`);
+  };
+  if (ms) fillTimer = setTimeout(done, ms); else done();
+}
+function publishPhoto(btn) {
+  const v = consoleVenue();
+  const p = app.console.photo;
+  if (!v || !p || p.venueId !== v.id) return;
+  if (!p.touched) {
+    toast('Count the line first: tap the photo once for each head, or use − / +.');
+    document.querySelector('#line-photo .scene-btn')?.focus();
+    return;
+  }
+  if (btn?.getAttribute('aria-disabled') === 'true' || performance.now() < p.readyAt || performance.now() < app.console.busyUntil) return;
+  const role = app.console.role;
+  const id = `count-${refCode(`${v.id}${p.seed}${Date.now()}`).toLowerCase()}`;
+  app.state.counts.unshift({ id, venueId: v.id, at: now(), night: app.state.clock.realStart, by: role, heads: p.count, seed: p.seed, method: p.filled && p.count === p.heads ? 'demo-fill' : 'tap' });
+  app.state.counts = app.state.counts.slice(0, 100);
+  audit(v, `${ROLE_NAME[role]} photo count: ${p.count} (simulated photo)`);
+  app.console.photo = null;
+  app.ui.clearedQueue = null;
+  persist(); rebuild(); rerenderConsole();
+  const h = document.getElementById('qb-console');
+  if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
+  // Word the toast from what guests actually get after the merge (a disagreeing photo or a shut door changes it).
+  const est = estimateFor(app.venues.find((x) => x.id === v.id), now());
+  toast(est.tone === 'uncertain' ? `Published. It disagrees with another input, so guests see “${est.headline}, uncertain” for ${v.name}.`
+    : ['closed', 'paused', 'capacity'].includes(est.tone) ? `Published. Guests see “${est.headline}” for ${v.name} while the door stays that way.`
+      : `Published. Guests see “${est.sourceLabel} · ${est.ageLabel}” for ${v.name}.`);
+}
+/** Door status or pace from the console. Starts from the door state guests see now (seeded or this device's). */
+function setDoor(t, key) {
+  const v = consoleVenue();
+  if (!v) return;
+  const doorId = t.dataset.door;
+  const label = v.doors.find((d) => d.id === doorId)?.label ?? 'Door';
+  // Arrow keys walk a radio group one value at a time: changes to the same control within 2 s count as one edit,
+  // so Undo goes back to where it started and the log keeps one line.
+  const last = app.console.lastDoorEdit;
+  const same = last && last.venueId === v.id && last.doorId === doorId && last.key === key && performance.now() - last.t < 2000;
+  const prev = same ? last.prev : app.state.doors[v.id] ? structuredClone(app.state.doors[v.id]) : undefined;
+  if (same && app.state.audit[0]?.venueId === v.id && app.state.audit[0].summary === last.summary) app.state.audit.shift();
+  const base = currentDoor(v, ctx());
+  const fallback = v.queue?.doorStatus ?? 'moving';
+  const list = Object.fromEntries(v.doors.map((d) => [d.id, { status: base?.list?.[d.id]?.status ?? fallback, pace: base?.list?.[d.id]?.pace ?? null }]));
+  const value = key === 'pace' ? Number(t.value) : t.value;
+  list[doorId] = { ...list[doorId], [key]: value };
+  app.state.doors[v.id] = { at: now(), by: app.console.role, list };
+  const what = key === 'pace' ? `${label} pace → ${value} a min` : `${label} → ${DOOR_WORD[value]}`;
+  audit(v, `${what} (${ROLE_NAME[app.console.role]}, demo)`);
+  app.console.lastDoorEdit = { venueId: v.id, doorId, key, prev, t: performance.now(), summary: app.state.audit[0].summary };
+  persist(); rebuild(); rerenderConsole();
+  const msg = key === 'pace' ? `${label} pace: ${value} a min is live for ${v.name}.` : `${label}: ${DOOR_WORD[value]} is live for ${v.name}.`;
+  toast(msg, { actionLabel: 'Undo', onAction: () => {
+    app.console.lastDoorEdit = null;
+    if (prev) app.state.doors[v.id] = prev; else delete app.state.doors[v.id];
+    audit(v, `Undid: ${what}`);
+    persist(); rebuild(); rerenderConsole();
+    announce('Door change undone');
+  } });
 }
 /* ---------------- deals posted from the console ---------------- */
 const dealDraft = () => (app.console.dealDraft ??= newDealDraft());
@@ -842,7 +952,7 @@ function resetDemo() {
   persist();
   rebuild();
   app.passFlow = null;
-  app.console = { venueId: null, drafts: {}, dealDraft: null, dealErrors: {}, ideaCover: {} };
+  app.console = freshConsole();
   app.ideaDraft = null;
   app.ideaErrors = {};
   app.scan = freshScan();
@@ -879,12 +989,12 @@ function undoClear() {
   if (!c) return;
   dismissCurrentToast();
   const o = { ...(app.state.overrides[c.venueId] ?? {}) };
-  if (c.prevOverride && 'queue' in c.prevOverride) o.queue = c.prevOverride.queue; else delete o.queue;
+  for (const k of ['queue', 'clearedAt']) { if (c.prevOverride && k in c.prevOverride) o[k] = c.prevOverride[k]; else delete o[k]; }
   if (Object.keys(o).length) app.state.overrides[c.venueId] = o; else delete app.state.overrides[c.venueId];
   app.ui.clearedQueue = null;
   const v = app.venues.find((x) => x.id === c.venueId);
   if (v) audit(v, 'Restored the previous estimate');
-  persist(); rebuild(); delete app.console.drafts[c.venueId]; rerenderConsole();
+  persist(); rebuild(); rerenderConsole();
   toast('Previous estimate restored.');
 }
 
@@ -1045,16 +1155,14 @@ function submitReport() {
   const b = LINE_BUCKETS.find((x) => x.id === f.bucket);
   const at = now();
   const id = `r-${Date.now().toString(36)}`;
-  app.state.reports.unshift({ id, venueId: v.id, at, bucket: b.id, inLine: f.inLine, gotInAt: null, waitMin: null });
-  // The report becomes this bar's crowd estimate (demo): the line size, what the door is doing, and the
-  // bar's known door pace (or the stated assumed pace), exactly as the "Your estimate" panel showed it.
-  const prev = v.queue;
-  const recentCrowd = prev?.sourceType === 'crowd' && prev.observedAt != null && at - prev.observedAt < 20 * MIN_MS;
-  app.state.overrides[v.id] = { ...(app.state.overrides[v.id] ?? {}), queue: { ...draftQueue(v, f, at), reportCount: recentCrowd ? (prev.reportCount ?? 0) + 1 : 1 } };
+  // The report is one input to this bar's estimate (src/lib/merge.js): it leads when no fresh line photo does,
+  // otherwise it backs the photo up or, with another guest, flags it as uncertain.
+  app.state.reports.unshift({ id, venueId: v.id, at, night: app.state.clock.realStart, bucket: b.id, door: f.door ?? 'moving', inLine: f.inLine, gotInAt: null, waitMin: null });
   app.state.points.push({ id: `p-${id}`, at, delta: POINTS.REPORT, label: `Line report: ${v.name}` });
   if (f.inLine) app.state.activeWait = { reportId: id, venueId: v.id, startedAt: at };
   persist();
   rebuild();
+  f.outcome = scanOutcome(app.venues.find((x) => x.id === v.id), id);
   f.step = 'done';
   f.error = null;
   rerenderPage();
@@ -1076,12 +1184,8 @@ function gotIn() {
   const waitMin = Math.max(1, Math.round((at - w.startedAt) / MIN_MS));
   const v = app.venues.find((x) => x.id === w.venueId);
   const r = app.state.reports.find((x) => x.id === w.reportId);
+  // A measured wait feeds the bar's door pace (people ahead ÷ minutes waited), never the line size.
   if (r) { r.gotInAt = at; r.waitMin = waitMin; }
-  // A measured wait from this guest refreshes the estimate (demo): a range around what they actually waited.
-  const q = app.state.overrides[w.venueId]?.queue;
-  if (q && q.sourceType === 'crowd') {
-    app.state.overrides[w.venueId].queue = { ...q, observedAt: at, waitLow: Math.max(0, round5(waitMin) - 5), waitHigh: round5(waitMin) + 5 };
-  }
   app.state.points.push({ id: `p-in-${w.reportId}`, at, delta: POINTS.GOT_IN, label: `Got in: ${v?.name ?? 'bar'} (${waitMin} min wait)` });
   app.state.activeWait = null;
   persist();
@@ -1488,39 +1592,33 @@ function handleAction(a, el) {
       return true;
     }
     case 'restore-pass': restorePass(el.dataset.id); return true;
-    case 'console-people': {
-      const d = consoleDraft();
-      d.people = Math.max(0, Math.min(400, (d.people ?? 0) + Number(el.dataset.delta)));
-      Object.assign(d, rangeFor(d.people));
+    case 'console-role':
+      app.console.role = el.dataset.role === 'bouncer' ? 'bouncer' : 'ambassador';
       rerenderConsole();
-      announce(`About ${d.people} people in line. ${consoleHint(d, now())}`);
+      announce(`${ROLE_NAME[app.console.role]} (demo role)`);
       return true;
-    }
-    case 'console-publish': {
+    case 'photo-snap': case 'photo-retake': snapPhoto(); return true;
+    case 'photo-mark': case 'photo-step': {
       const v = consoleVenue();
-      const d = consoleDraft();
-      if (!draftReady(d)) {
-        toast('Set the line size and door pace before publishing a wait.');
-        document.querySelector(d.people == null ? '[data-action="console-people"][data-delta="5"]' : '#admit')?.focus();
-        return true;
-      }
-      const before = v.queue;
-      const queue = { sourceType: 'venue', observedAt: now(), peopleLow: d.peopleLow, peopleHigh: d.peopleHigh, admitPerMin: d.admitPerMin, doorStatus: d.doorStatus, note: d.note.trim() || undefined };
-      app.state.overrides[v.id] = { ...(app.state.overrides[v.id] ?? {}), queue };
-      const changes = diffQueue(before, queue);
-      audit(v, `Published door update${changes.length ? `: ${changes.join('; ')}` : ' (no changes, timestamp refreshed)'}`);
-      app.ui.clearedQueue = null;
-      persist(); rebuild(); delete app.console.drafts[v.id]; rerenderConsole();
-      toast(`Published. Guests now see “Venue update · just now” for ${v.name}.`);
+      const p = app.console.photo;
+      if (!v || !p || p.venueId !== v.id || performance.now() < app.console.busyUntil) return true;
+      const delta = el.dataset.action === 'photo-mark' ? 1 : Number(el.dataset.delta);
+      const next = Math.max(0, Math.min(400, p.count + delta));
+      Object.assign(p, { count: next, touched: true, filled: false, newest: delta > 0 && next <= DRAW_MAX ? next - 1 : -1 });
+      rerenderPhoto();
+      countAnnounce(v, p);
       return true;
     }
+    case 'photo-fill': fillPhoto(); return true;
+    case 'photo-publish': publishPhoto(el); return true;
     case 'console-clear': {
       const v = consoleVenue();
       const prevOverride = app.state.overrides[v.id] ? structuredClone(app.state.overrides[v.id]) : null;
-      app.state.overrides[v.id] = { ...(app.state.overrides[v.id] ?? {}), queue: null };
+      app.state.overrides[v.id] = { ...(app.state.overrides[v.id] ?? {}), queue: null, clearedAt: now() };
       app.ui.clearedQueue = { venueId: v.id, prevOverride };
+      app.console.photo = null;
       audit(v, 'Cleared the estimate (guests see “Wait unknown”)');
-      persist(); rebuild(); delete app.console.drafts[v.id]; rerenderConsole();
+      persist(); rebuild(); rerenderConsole();
       toast(`${v.name} now shows “Wait unknown”.`, { actionLabel: 'Undo', onAction: undoClear });
       return true;
     }
@@ -1709,15 +1807,6 @@ function onInput(e) {
       searchTimer = setTimeout(() => { updateExploreUrl(); renderResultsOnly(); }, 120);
       document.querySelector('[data-action="clear-search"].clear')?.toggleAttribute('hidden', !t.value);
       break;
-    case 'console-admit': {
-      const d = consoleDraft();
-      d.admitPerMin = Number(t.value);
-      t.removeAttribute('aria-valuetext');
-      t.closest('.range-row').querySelector('output').textContent = String(d.admitPerMin);
-      updateConsoleHint();
-      break;
-    }
-    case 'console-note': consoleDraft().note = t.value; break;
     case 'deal-field': if (t.tagName === 'INPUT') dealDraft()[t.dataset.key] = t.value; break;
     case 'idea-field':
       if (t.tagName !== 'SELECT' && app.ideaDraft) app.ideaDraft[t.dataset.key] = t.value;
@@ -1755,11 +1844,13 @@ function onChange(e) {
     case 'pass-ack': app.passFlow.ack = t.checked; if (t.checked && app.passFlow.errors.ack) { delete app.passFlow.errors.ack; renderSheet(); } break;
     case 'console-venue':
       app.console.venueId = t.value;
+      app.console.photo = null;
       history.replaceState({ idx: histIdx() }, '', buildHash('console', {}, { venue: t.value }));
       app.renderedHash = location.hash;
       rerenderConsole();
       break;
-    case 'console-door': consoleDraft().doorStatus = t.value; updateConsoleHint(); break;
+    case 'door-status': setDoor(t, 'status'); break;
+    case 'door-pace': setDoor(t, 'pace'); break;
     case 'deal-kind': dealDraft().kind = t.value; app.console.dealErrors = {}; rerenderConsole(); break;
     case 'deal-cost': dealDraft().costOk = t.checked; break;
     case 'deal-field':
@@ -1844,7 +1935,6 @@ function onChange(e) {
 function onSubmit(e) {
   e.preventDefault();
   if (e.target.id === 'pass-form') submitPass();
-  if (e.target.id === 'door-form') handleAction('console-publish', e.target);
   if (e.target.id === 'deal-form') postDeal();
   if (e.target.id === 'group-form') postGroup();
   if (e.target.id === 'idea-form') postIdea();
@@ -1946,7 +2036,10 @@ function boot() {
   document.documentElement.dataset.ready = 'true';
   if (new URLSearchParams(location.search).has('qa')) {
     // QA-only hook (used by app/QA.md checks): age estimates while a page stays open.
-    window.__doorlineQA = { advance: (min) => { app.state.clock = advance(app.state.clock, min); persist(); rebuild(); tick(); } };
+    window.__doorlineQA = {
+      advance: (min) => { app.state.clock = advance(app.state.clock, min); persist(); rebuild(); tick(); },
+      queue: (id) => structuredClone(app.venues.find((v) => v.id === id)?.queue ?? null),
+    };
   }
 }
 

@@ -5,7 +5,17 @@
 export const FRESHNESS_MINUTES = Object.freeze({
   venue: { fresh: 10, stale: 20 },
   crowd: { fresh: 10, stale: 20 },
+  photo: { fresh: 10, stale: 20 },
 });
+
+/** Line-size buckets guests pick in Scan (people in line). */
+export const LINE_BUCKETS = Object.freeze([
+  { id: 'none', label: 'No line', low: 0, high: 2 },
+  { id: 'short', label: '1–10', low: 1, high: 10 },
+  { id: 'medium', label: '10–25', low: 10, high: 25 },
+  { id: 'long', label: '25–50', low: 25, high: 50 },
+  { id: 'huge', label: '50+', low: 50, high: 80 },
+]);
 
 const MIN = 60_000;
 
@@ -18,6 +28,7 @@ export function ageMinutes(observedAt, now) {
 export function freshnessOf(q, now) {
   if (!q || q.observedAt == null || !q.sourceType) return 'unknown';
   if (q.sourceType === 'crowd' && !((q.reportCount ?? 0) >= 1)) return 'unknown';
+  if (q.sourceType === 'photo' && !((q.photoCount ?? 0) >= 1)) return 'unknown';
   const t = FRESHNESS_MINUTES[q.sourceType];
   if (!t) return 'unknown';
   const age = ageMinutes(q.observedAt, now);
@@ -54,7 +65,13 @@ export function waitRange(q) {
 export function confidenceOf(q, freshness) {
   if (!q || freshness === 'unknown' || freshness === 'stale') return null;
   if (q.conflict) return 'Low';
-  if (q.sourceType === 'venue') return freshness === 'fresh' ? 'High' : 'Medium';
+  if (q.sourceType === 'photo') {
+    const knownPace = q.paceSource === 'door' || q.paceSource === 'measured';
+    const recent = freshness === 'fresh' && q.photoFresh !== false;
+    return recent ? (knownPace ? 'High' : 'Medium') : knownPace ? 'Medium' : 'Low';
+  }
+  // A venue number only backed up by newer guests is no longer recent itself (mirrors photoFresh above).
+  if (q.sourceType === 'venue') return freshness === 'fresh' && q.photoFresh !== false ? 'High' : 'Medium';
   if (q.sourceType === 'crowd') {
     if (freshness === 'aging') return 'Low';
     return (q.reportCount ?? 0) >= 3 ? 'Medium' : 'Low';
@@ -62,16 +79,22 @@ export function confidenceOf(q, freshness) {
   return null;
 }
 
+const plus = (n) => (n ? ` +${n}` : '');
+const guests = (n) => (n ? ` + ${n} guest report${n === 1 ? '' : 's'}` : '');
+export const ROLE_WORD = { ambassador: 'an ambassador', bouncer: 'a bouncer' };
+
 export function shortSourceLabel(q) {
   if (!q || !q.sourceType) return null;
-  if (q.sourceType === 'venue') return 'Venue';
+  if (q.sourceType === 'photo') return `Photo${plus(q.reportCount ?? 0)}`;
+  if (q.sourceType === 'venue') return `Venue${plus(q.reportCount ?? 0)}`;
   const n = q.reportCount ?? 0;
   return `${n} report${n === 1 ? '' : 's'}`;
 }
 
 export function sourceLabel(q) {
   if (!q || !q.sourceType) return 'No source';
-  if (q.sourceType === 'venue') return 'Venue update';
+  if (q.sourceType === 'photo') return `Line photo by ${ROLE_WORD[q.by] ?? 'door staff'} (demo)${guests(q.reportCount ?? 0)}`;
+  if (q.sourceType === 'venue') return `Venue update (demo)${guests(q.reportCount ?? 0)}`;
   if (q.sourceType === 'crowd') {
     const n = q.reportCount ?? 0;
     return `${n} crowd report${n === 1 ? '' : 's'}`;
@@ -90,6 +113,9 @@ export function relativeAge(observedAt, now) {
 }
 
 const fmtRange = (r) => `${r.low}–${r.high} min`;
+export const CONFLICT_COPY = { 'photo-guests': 'Line photo and guest reports disagree', photos: 'Two line photos disagree' };
+/** Where the door pace came from, in words (shown after the pace). */
+export const PACE_COPY = { door: 'set at the door (demo)', measured: 'measured from guests’ waits', typical: 'typical here (demo)', assumed: 'assumed' };
 
 /**
  * One description for every surface.
@@ -116,7 +142,14 @@ export function describeEstimate(venue, now, { isOpen = true } = {}) {
     return { ...base, tone: 'closed', headline: 'Closed now', detail: 'Outside sample opening hours', confidence: null, ageLabel: null, observedAt: null, sortRank: 5 };
   }
   if (q?.doorStatus === 'closed' && freshness !== 'stale' && freshness !== 'unknown') {
-    return { ...base, tone: 'closed', headline: 'Closed now', detail: 'Venue marked entry closed', confidence: null, sortRank: 5 };
+    return { ...base, tone: 'closed', headline: 'Closed now', detail: 'Entry marked closed at the door (demo)', confidence: null, sortRank: 5 };
+  }
+  // A door status set in the last 30 minutes still reaches guests when no people count is live.
+  if (q?.doorFresh && (freshness === 'stale' || freshness === 'unknown') && ['closed', 'paused', 'capacity'].includes(q.doorStatus)) {
+    const door = { ...base, observedAt: q.doorAt ?? null, ageLabel: q.doorAt != null ? relativeAge(q.doorAt, now) : null, sourceLabel: 'Door status (demo)', shortSource: 'Door', confidence: null };
+    if (q.doorStatus === 'closed') return { ...door, tone: 'closed', headline: 'Closed now', detail: 'Entry marked closed at the door (demo)', sortRank: 5 };
+    if (q.doorStatus === 'paused') return { ...door, tone: 'paused', headline: 'Entry paused', detail: q.note || 'Entry paused at the door (demo)', sortRank: 3 };
+    return { ...door, tone: 'capacity', headline: 'At capacity', detail: 'Entry only as people leave. The wait can grow quickly.', sortRank: 3 };
   }
   if (freshness === 'unknown') {
     return { ...base, tone: 'unknown', headline: 'Wait unknown', detail: 'No current estimate for this venue', sortRank: 4 };
@@ -139,7 +172,7 @@ export function describeEstimate(venue, now, { isOpen = true } = {}) {
   };
 
   if (q.doorStatus === 'paused') {
-    return { ...withRange, tone: 'paused', headline: 'Entry paused', detail: q.note || 'The venue has paused entry', sortRank: 3 };
+    return { ...withRange, tone: 'paused', headline: 'Entry paused', detail: q.note || 'Entry paused at the door (demo)', sortRank: 3 };
   }
   if (q.doorStatus === 'capacity') {
     return { ...withRange, tone: 'capacity', headline: 'At capacity', detail: 'Entry only as people leave. The wait can grow quickly.', sortRank: 3 };
@@ -149,9 +182,9 @@ export function describeEstimate(venue, now, { isOpen = true } = {}) {
     const lo = reported ? q.conflictLow : range?.low;
     const hi = reported ? q.conflictHigh : range?.high;
     if (lo == null || hi == null) {
-      return { ...withRange, tone: 'uncertain', headline: 'Wait uncertain', detail: 'Recent reports disagree', waitLow: null, waitHigh: null, sortRank: 4 };
+      return { ...withRange, tone: 'uncertain', headline: 'Wait uncertain', detail: CONFLICT_COPY[q.conflictWhy] ?? 'Recent reports disagree', waitLow: null, waitHigh: null, sortRank: 4 };
     }
-    return { ...withRange, tone: 'uncertain', headline: `${lo}–${hi} min`, detail: 'Recent reports disagree', waitLow: lo, waitHigh: hi, sortRank: 2 };
+    return { ...withRange, tone: 'uncertain', headline: `${lo}–${hi} min`, detail: CONFLICT_COPY[q.conflictWhy] ?? 'Recent reports disagree', waitLow: lo, waitHigh: hi, sortRank: 2 };
   }
   if (!range) {
     // No usable admission rate (missing or zero): the wait stays unknown and never counts as short.

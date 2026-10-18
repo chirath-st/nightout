@@ -5,7 +5,7 @@
 import { esc, venuePhoto, venueLogo, crowdStatus, meter, distanceText } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
 import { formatTime } from '../lib/clock.js';
-import { describeEstimate, waitRange } from '../lib/queue.js';
+import { describeEstimate, waitRange, relativeAge, PACE_COPY } from '../lib/queue.js';
 import { distanceTo } from '../lib/geo.js';
 import { isOpenAt } from '../lib/explore.js';
 import { LINE_BUCKETS, POINTS } from '../data/social.js';
@@ -16,6 +16,12 @@ export const ASSUMED_PACE = 2;
 export const DOOR_STATES = Object.freeze([['moving', 'Letting in'], ['capacity', 'One in, one out'], ['paused', 'Paused']]);
 const WORDS = { none: 'No line', short: 'Short', medium: 'Medium', long: 'Long', huge: 'Very long' };
 
+/** Where the bar's pace came from: " · set at the door (demo)", " · measured from guests’ waits", " (assumed)". */
+export function paceSuffix(venue) {
+  const src = venue?.queue?.paceSource;
+  if (!(Number.isFinite(venue?.queue?.admitPerMin) && venue.queue.admitPerMin > 0)) return ' (assumed)';
+  return src && src !== 'assumed' ? ` · ${PACE_COPY[src]}` : src === 'assumed' ? ' (assumed)' : '';
+}
 export const paceFor = (venue) => (Number.isFinite(venue?.queue?.admitPerMin) && venue.queue.admitPerMin > 0 ? venue.queue.admitPerMin : ASSUMED_PACE);
 /** The queue a report would post (shared with main.js so the panel and the saved estimate agree). */
 export function draftQueue(venue, flow, now) {
@@ -78,7 +84,7 @@ export function scanEstimate(ctx, flow) {
   const est = describeEstimate({ queue: q }, ctx.now);
   const st = crowdStatus(est);
   const value = est.waitHigh == null ? esc(st.label) : est.waitHigh <= 5 && q.peopleHigh <= 2 ? 'No wait' : `${est.waitLow}–${est.waitHigh}<small>min wait</small>`;
-  return `<div><p class="eyebrow">Your estimate</p><p class="v num">${value}</p><p class="scan-pace">Door pace ~${paceFor(venue)} a minute${Number.isFinite(venue?.queue?.admitPerMin) && venue.queue.admitPerMin > 0 ? '' : ' (assumed)'}</p></div>
+  return `<div><p class="eyebrow">Your estimate</p><p class="v num">${value}</p><p class="scan-pace">Door pace ~${paceFor(venue)} a minute${paceSuffix(venue)}</p></div>
     <div class="lv"><b>${meter(st.level)}${esc(st.label)}</b><span>${esc(latestLine)}</span></div>`;
 }
 
@@ -110,11 +116,21 @@ function captureStep(ctx, flow) {
 
 function doneStep(ctx, flow) {
   const venue = ctx.venues.find((v) => v.id === flow.venueId);
+  const bar = esc(venue?.name ?? 'this bar');
+  const o = flow.outcome ?? { kind: 'lead' };
+  const age = o.leadAt != null ? relativeAge(o.leadAt, ctx.now) : '';
+  // Disagreeing with a staff count only flags it while the count is under 10 minutes old; after that guests set it.
+  const left = o.leadAt != null ? Math.max(1, Math.ceil(10 - (ctx.now - o.leadAt) / 60_000)) : null;
+  const what = o.kind === 'backs' ? `A ${o.leadNoun} from ${age} sets the count. Your report backs it up.`
+    : o.kind === 'against' ? (o.photosDisagree ? `Two line photos disagree, so ${bar} shows the wait as uncertain. Your report doesn’t match the latest one.`
+      : o.conflict ? `You and another guest disagree with the ${o.leadNoun} from ${age}, so ${bar} now shows the wait as uncertain.`
+        : `Your report doesn’t match the ${o.leadNoun} from ${age}. If another guest agrees in the next ${left} min, the wait shows as uncertain.`)
+    : `Your report now sets the crowd estimate for ${bar}.`;
   return `<div class="result result-ok scan-done">
       <p class="scan-pts num" tabindex="-1" data-autofocus>+${POINTS.REPORT}<small>pts</small></p>
       <h2>Report sent</h2>
-      <p>Your report is now the latest crowd estimate for ${esc(venue?.name ?? 'this bar')} (demo, on this device).</p>
-      <div class="actions"><a class="btn btn-primary" href="#/venue/${encodeURIComponent(flow.venueId)}">See ${esc(venue?.name ?? 'the bar')}</a><button type="button" class="btn" data-action="scan-restart">Report another bar</button></div>
+      <p>${what}</p>
+      <div class="actions"><a class="btn btn-primary" href="#/venue/${encodeURIComponent(flow.venueId)}">See ${bar}</a><button type="button" class="btn" data-action="scan-restart">Report another bar</button></div>
     </div>`;
 }
 

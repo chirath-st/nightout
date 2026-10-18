@@ -3,6 +3,8 @@
 // line sizes, report counts, passes, prices, covers, hours, menus and typical patterns. None of it
 // describes how these bars actually operate, and no bar is affiliated with or has endorsed Night Out.
 
+import { mergeVenue } from '../lib/merge.js';
+
 const MIN = 60_000;
 
 /** Absolute time on the demo night: hours < 12 are treated as after midnight. */
@@ -105,7 +107,10 @@ const BASE = [
     cover: 0, hours: { open: '18:00', close: '02:00' }, art: 'lamps',
     palette: ['#1F3B4D', '#F3C969', '#E9DFC9', '#2E5468'],
     typical: [1, 2, 3, 4, 4, 3, 1],
-    queue: { sourceType: 'venue', ago: 3, peopleLow: 20, peopleHigh: 30, admitPerMin: 2.5, doorStatus: 'moving' },
+    // Crowd console showcase (demo): two doors and a line photo by a Night Out ambassador. No bar staff data is seeded anywhere.
+    doors: [{ id: 'main', label: 'Main door' }, { id: 'side', label: 'Side door' }], doorsSimulated: true,
+    obs: { photos: [{ id: 'oq-photo-1', by: 'ambassador', ago: 3, heads: 23 }], door: { by: 'ambassador', ago: 5, list: { main: { status: 'moving', pace: 2 }, side: { status: 'moving', pace: 2 } } } },
+    queue: null,
     menu: MENUS.pub(),
     pass: { enabled: true, paused: false, basePrice: 1000, serviceFee: 150, coverIncluded: true,
       windows: [['w1', 0, 0, 0, 30, 6], ['w2', 0, 30, 1, 0, 4], ['w3', 1, 0, 1, 30, 10]] },
@@ -234,6 +239,15 @@ function materialize(raw, demoStart, syncAt = demoStart) {
   v.deals = (DEALS[v.id] ?? []).map(({ at, until, ...d }) => ({ ...d, venueId: v.id, startsAt: atNight(demoStart, at[0], at[1]), endsAt: atNight(demoStart, until[0], until[1]), synthetic: true }));
   const g = GEO[v.id];
   v.geo = g ? { lat: g[0], lng: g[1] } : null;
+  v.doors = v.doors ?? [{ id: 'main', label: 'Door' }];
+  if (v.obs) {
+    // Seeded console observations, aged from the last simulated sync like every other report.
+    v.obs = {
+      photos: v.obs.photos.map(({ ago, ...p }) => ({ ...p, venueId: v.id, at: syncAt - ago * MIN })),
+      door: v.obs.door ? { by: v.obs.door.by, list: v.obs.door.list, at: syncAt - v.obs.door.ago * MIN } : null,
+    };
+    v.queue = mergeVenue({ seed: null, photos: v.obs.photos, door: v.obs.door, doors: v.doors, now: syncAt }).queue;
+  }
   const m = MEDIA[v.id];
   if (m) {
     v.logo = `assets/bars/${v.id}-logo.png`;
@@ -251,7 +265,9 @@ function worstCase(demoStart, syncAt) {
   long.address = null; long.source = 'Fictional stress-test entry'; long.blurb = '';
   long.name = 'The Extraordinarily Long-Named Rooftop Lounge & Late-Night Kitchen at the Corner';
   long.blurb = 'A deliberately long venue name and description to test wrapping, truncation and layout stability across every screen in the prototype.';
-  long.queue = { ...long.queue, peopleLow: 250, peopleHigh: 320, admitPerMin: 2, observedAt: syncAt - 2 * MIN, note: 'Rooftop closes early tonight; downstairs bar still admitting guests' };
+  delete long.obs;
+  long.doors = [{ id: 'main', label: 'Door' }];
+  long.queue = { sourceType: 'venue', peopleLow: 250, peopleHigh: 320, admitPerMin: 2, doorStatus: 'moving', observedAt: syncAt - 2 * MIN, note: 'Rooftop closes early tonight; downstairs bar still admitting guests' };
   long.tags = ['Rooftop cocktails and late-night small plates', 'Patio'];
   long.menu = [{ title: 'Late kitchen', items: [{ name: 'Slow-roasted heirloom tomato flatbread with whipped ricotta and chili honey', price: 16 }] }];
   long.pass = { ...long.pass, paused: true };
@@ -266,7 +282,7 @@ function worstCase(demoStart, syncAt) {
   nothing.name = 'Missing Everything';
   nothing.hours = null; nothing.cover = null; nothing.menu = []; nothing.tags = []; nothing.blurb = '';
   nothing.area = null; nothing.palette = null; nothing.typical = null; nothing.geo = null;
-  for (const v of base) if (v.queue) v.queue.observedAt = syncAt - 90 * MIN;
+  for (const v of base) { delete v.obs; if (v.queue) v.queue.observedAt = syncAt - 90 * MIN; }
   return [long, one, nothing, ...base];
 }
 

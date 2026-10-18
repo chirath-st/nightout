@@ -12,13 +12,7 @@ export const POINTS = Object.freeze({
 });
 
 /** Report sizes a guest can pick. Ranges become the crowd estimate for that bar. */
-export const LINE_BUCKETS = Object.freeze([
-  { id: 'none', label: 'No line', low: 0, high: 2 },
-  { id: 'short', label: '1–10', low: 1, high: 10 },
-  { id: 'medium', label: '10–25', low: 10, high: 25 },
-  { id: 'long', label: '25–50', low: 25, high: 50 },
-  { id: 'huge', label: '50+', low: 50, high: 80 },
-]);
+export { LINE_BUCKETS } from '../lib/queue.js';
 
 // Fictional people for demo groups: made-up names, class years, interests and Instagram-style handles. Every seeded
 // handle uses hyphens, which Instagram doesn't allow in usernames, so none can match a real account. Everyone is 21+. Pictures are drawn by src/ui/avatars.js from `seed`, never photos.

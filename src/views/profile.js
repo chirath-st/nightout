@@ -95,7 +95,7 @@ export function renderProfile(ctx, { editing = false, errors = {} } = {}) {
     <nav class="list-group" aria-label="More">
       ${btnRow('open-settings', 'bell', 'Notifications', [st.prefs.notifyDrops && 'Wait drops', st.prefs.notifyDeals && 'Deals', st.prefs.notifyGroups && 'Groups'].filter(Boolean).join(', ') || 'All off')}
       ${btnRow('open-help', 'help', 'Help & support')}
-      ${row('#/console', 'door', 'Venue console', 'What bar staff would update (demo)')}
+      ${row('#/console', 'door', 'Door console', 'Count the line from a photo (demo)')}
       ${row('#/about', 'info', 'About this demo', 'How estimates work, demo controls, sources')}
     </nav>
   </div>`;

@@ -90,10 +90,13 @@ export function estimateBlock(venue, now, { headingId = 'qb-h', showHow = true, 
     closed: est.detail || 'Not open now.',
     stale: age != null ? `Last report ${age} min ago. The number is hidden until someone reports again.` : 'No recent report.',
     unknown: 'No one has reported this line yet.',
-  }[est.tone] ?? [people && `About ${people.replace(/^~/, '')} in line`, pace && `door moving ~${pace} a min`].filter(Boolean).join(', ');
+  }[est.tone] ?? [people && `About ${people.replace(/^~/, '')} in line`, pace && `door moving ~${pace} a min${q?.doorsTotal > 1 ? ` (${q.doorsOpen} of ${q.doorsTotal} doors)` : ''}${q?.paceSource === 'measured' ? ' (measured)' : q?.paceSource === 'assumed' ? ' (assumed)' : ''}`].filter(Boolean).join(', ');
+  const doorLine = est.tone === 'uncertain' && est.detail ? [`${est.detail}.`, door].filter(Boolean).join(' ') : door;
   const levelGlyph = { closed: 'moon', paused: 'pause', stale: 'aging', unknown: 'help' }[est.tone];
   const levelHead = levelGlyph ? `${icon(levelGlyph, { size: 18, cls: 'cs-glyph' })}${esc(st.label)}` : `${meter(st.level, { maybe: st.maybe, lg: true })}${esc(st.label)}`;
-  const freshLeft = est.tone === 'fresh' && age != null ? Math.max(0, FRESHNESS_MINUTES[q.sourceType].fresh - age) : null;
+  // Only promise "fresh for N more minutes" when the leading count itself is recent (a guest backing up an old count
+  // refreshes the time shown, not the count).
+  const freshLeft = est.tone === 'fresh' && age != null && q?.photoFresh !== false ? Math.max(0, FRESHNESS_MINUTES[q.sourceType].fresh - age) : null;
   const sentence = est.observedAt != null && est.tone !== 'closed'
     ? `<b>Updated ${esc(est.ageLabel)}</b> · ${esc(est.sourceLabel)}${est.confidence ? `, ${esc(est.confidence.toLowerCase())} confidence` : ''}.${freshLeft != null ? ` Fresh for ${Math.round(freshLeft)} more minute${Math.round(freshLeft) === 1 ? '' : 's'}; after 20 the number is hidden.` : ''}`
     : esc(est.detail || '');
@@ -101,7 +104,7 @@ export function estimateBlock(venue, now, { headingId = 'qb-h', showHow = true, 
     <div class="qb-top"><${h} class="qb-label" id="${headingId}">Wait at the door</${h}><span class="demo-tag">Demo estimate</span></div>
     <p class="qb-wait"><span class="sr-only">Estimated wait </span>${big}</p>
     ${rangeTone ? `<div class="qb-scale" aria-hidden="true" style="--lo:${Math.min(est.waitLow, 30)};--hi:${Math.min(est.waitHigh, 30)};--max:30"><span class="qb-scale-track"><b style="left:33.33%"></b><b style="left:66.66%"></b><span class="qb-scale-range"></span></span><span class="qb-scale-axis"><span style="left:0">0</span><span style="left:33.33%">10</span><span style="left:66.66%">20</span><span style="left:100%">30+ min</span></span></div>` : ''}
-    <p class="qb-level"><b>${levelHead}</b>${door ? `<span>${esc(door)}</span>` : ''}</p>
+    <p class="qb-level"><b>${levelHead}</b>${doorLine ? `<span>${esc(doorLine)}</span>` : ''}</p>
     ${age != null && est.tone !== 'closed' ? `<div class="qb-fresh" aria-hidden="true" style="--age:${Math.min(age, 26)}"><span class="qf-track"><i class="qf-1"></i><i class="qf-2"></i><i class="qf-3"></i><b class="qf-mark"></b></span><span class="qf-legend"><span class="${band === 0 ? 'is-on' : ''}">Fresh</span><span class="${band === 1 ? 'is-on' : ''}">May have changed</span><span class="${band === 2 ? 'is-on' : ''}">Out of date</span></span></div>` : ''}
     ${sentence ? `<p class="qb-detail">${sentence}</p>` : ''}
     ${q?.note && !['paused', 'stale', 'unknown'].includes(est.tone) ? `<p class="qb-detail">Venue note: ${esc(q.note)}</p>` : ''}
@@ -123,7 +126,7 @@ export function factStrip(venue, now) {
   const cell = (dt, dd, sub) => `<div><dt>${dt}</dt><dd>${dd}<span class="fact-sub">${esc(sub)}</span></dd></div>`;
   return `<dl class="fact-strip">
     ${cell('In line', esc(people), 'people (demo)')}
-    ${cell('Door pace', pace, est.tone === 'paused' ? 'Paused' : est.tone === 'capacity' ? 'One in, one out' : 'Letting in')}
+    ${cell('Door pace', pace, est.tone === 'paused' ? 'Paused' : est.tone === 'capacity' ? 'One in, one out' : q?.paceSource === 'assumed' ? 'Assumed' : q?.doorsTotal > 1 ? `${q.doorsOpen} of ${q.doorsTotal} doors` : q?.paceSource === 'measured' ? 'Measured' : 'Letting in')}
     ${cell('Confidence', esc(est.confidence ?? '—'), est.tone === 'uncertain' ? 'Reports differ' : est.shortSource ?? 'No source')}
     ${cell('Distance', dist == null ? '—' : `${esc(formatMiles(dist).replace(' mi', ''))}<small>mi</small>`, 'Straight line')}
     ${cell('Cover', venue.cover == null ? '—' : `$${venue.cover}`, 'Simulated')}
@@ -136,8 +139,9 @@ export function howItWorks() {
   return `<details class="how"><summary>How this estimate works</summary>
     <p>Estimates are ranges, never exact times. In this prototype every number is simulated; none comes from the bar.</p>
     <ul>
-      <li><strong>Venue update</strong>: door staff report about how many people are in line and how fast they’re admitting. Wait ≈ people ahead ÷ admissions per minute, widened for uncertainty.</li>
-      <li><strong>Crowd reports</strong>: guests near the door report the line. Fewer reports or disagreeing reports mean lower confidence.</li>
+      <li><strong>Line photo</strong>: a Night Out ambassador, or a bar’s bouncer, photographs the line and counts the heads (demo: drawn photos, simulated roles). Wait ≈ people in line ÷ door pace, widened for uncertainty.</li>
+      <li><strong>Door pace</strong> comes from the door (added up over open doors), from guests’ measured waits (people ahead ÷ minutes waited), or is assumed at 2 a minute and labeled.</li>
+      <li><strong>Guest reports</strong> back a photo up. Two that disagree with a photo under 10 minutes old mark the wait uncertain; after that, the newest guest report sets the line.</li>
       <li>Fresh for ${v.fresh} minutes, then marked “may have changed”. After ${v.stale} minutes the number is hidden and we say the wait is unavailable.</li>
       <li>“At capacity” means entry only as people leave, so the wait can grow quickly regardless of line length.</li>
       <li>Typical patterns describe past nights and are never shown as the current wait.</li>

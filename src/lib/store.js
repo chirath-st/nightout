@@ -31,7 +31,9 @@ export function defaultState(realNow) {
     savedEvents: [], // event ids (sample events, this device only)
     goingEvents: [],
     votes: {}, // venueId -> 'going' | 'maybe' | 'no' (sample poll, this device only)
-    ideas: { joined: [], hyped: [], created: [], decisions: {} }, // community theme-night ideas (demo; this device only)
+    ideas: { joined: [], hyped: [], created: [], decisions: {} },
+    counts: [], // console photo head counts (simulated photos): { id, venueId, at, by, heads, seed, method }
+    doors: {}, // venueId -> { at, by, list: { doorId: { status, pace } } } (console door status and pace) // community theme-night ideas (demo; this device only)
     deals: [], // deals posted from the venue console: { id, venueId, kind, title, short, startsAt, endsAt, postedAt }
   };
 }
@@ -52,12 +54,48 @@ function normIdea(c) {
     kind: 'community', cover: null, adults: true, synthetic: true, mine: true,
   };
 }
+const ROLES = ['ambassador', 'bouncer'];
+const DOOR_STATUSES = ['moving', 'capacity', 'paused', 'closed'];
+/** Only these keys survive, so nothing like an image or data: URL can ride along. */
+function normCount(c) {
+  if (!c || typeof c.id !== 'string' || typeof c.venueId !== 'string' || !ROLES.includes(c.by) || !Number.isFinite(c.at)) return null;
+  if (!Number.isInteger(c.heads) || c.heads < 0 || c.heads > 400) return null;
+  return { id: c.id, venueId: c.venueId, at: c.at, ...(Number.isFinite(c.night) ? { night: c.night } : {}), by: c.by, heads: c.heads, seed: typeof c.seed === 'string' ? c.seed : '', method: c.method === 'demo-fill' ? 'demo-fill' : 'tap' };
+}
+function normDoors(d) {
+  if (!d || typeof d !== 'object') return {};
+  const out = {};
+  for (const [vid, x] of Object.entries(d)) {
+    if (!x || !Number.isFinite(x.at) || !x.list || typeof x.list !== 'object') continue;
+    const list = {};
+    for (const [id, s] of Object.entries(x.list)) {
+      if (!DOOR_STATUSES.includes(s?.status)) continue;
+      list[id] = { status: s.status, pace: Number.isFinite(s.pace) && s.pace >= 0.5 && s.pace <= 6 ? s.pace : null };
+    }
+    if (Object.keys(list).length) out[vid] = { at: x.at, by: ROLES.includes(x.by) ? x.by : 'ambassador', list };
+  }
+  return out;
+}
 function normDecisions(d) {
   if (!d || typeof d !== 'object') return {};
   const out = {};
   for (const [id, x] of Object.entries(d)) {
     if (!x || !['approved', 'declined'].includes(x.status) || !Number.isFinite(x.at)) continue;
     out[id] = { status: x.status, at: x.at, cover: x.status === 'approved' ? ([0, 5, 10].includes(x.cover) ? x.cover : 0) : null };
+  }
+  return out;
+}
+
+/** Before Ship E, Scan and the old console wrote whole queues into overrides; reports now merge in instead, so a kept
+ *  queue would count the same report twice. Only `queue: null` (a cleared estimate) is still written. */
+function dropOldQueues(o) {
+  if (!o || typeof o !== 'object') return {};
+  const out = {};
+  for (const [id, v] of Object.entries(o)) {
+    if (!v || typeof v !== 'object') continue;
+    const { queue, ...rest } = v;
+    const keep = queue === null ? { ...rest, queue: null } : rest;
+    if (Object.keys(keep).length) out[id] = keep;
   }
   return out;
 }
@@ -70,7 +108,7 @@ export function migrate(raw, realNow) {
     ...raw,
     saved: Array.isArray(raw.saved) ? raw.saved.filter((s) => typeof s === 'string') : [],
     passes: Array.isArray(raw.passes) ? raw.passes : [],
-    overrides: raw.overrides && typeof raw.overrides === 'object' ? raw.overrides : {},
+    overrides: dropOldQueues(raw.overrides),
     audit: Array.isArray(raw.audit) ? raw.audit.slice(0, 50) : [],
     clock: { ...base.clock, ...(raw.clock || {}) },
     sim: { ...base.sim, ...(raw.sim || {}) },
@@ -97,6 +135,8 @@ export function migrate(raw, realNow) {
       joined: strs(raw.ideas?.joined), hyped: strs(raw.ideas?.hyped),
       created: arr(raw.ideas?.created).map(normIdea).filter(Boolean).slice(0, 20), decisions: normDecisions(raw.ideas?.decisions),
     },
+    counts: arr(raw.counts).map(normCount).filter(Boolean).slice(0, 100),
+    doors: normDoors(raw.doors),
     deals: arr(raw.deals).filter((d) => d && typeof d.venueId === 'string' && typeof d.title === 'string' && Number.isFinite(d.startsAt) && Number.isFinite(d.endsAt)).slice(0, 50),
   };
 }
