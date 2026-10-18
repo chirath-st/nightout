@@ -1,8 +1,9 @@
 import { exploreList, FILTERS, AREAS, areaLabel } from '../lib/explore.js';
-import { esc, venueRow, venueCard, stateBox, banner, estimateFor } from '../ui/components.js';
+import { esc, venueRow, venueCard, stateBox, banner, estimateFor, venuePhoto, promoLabel, promoItem } from '../ui/components.js';
 import { icon, TONE_LABEL } from '../ui/icons.js';
 import { formatTime } from '../lib/clock.js';
-import { DEMO_SPOT } from '../lib/geo.js';
+import { DEMO_SPOT, distanceTo } from '../lib/geo.js';
+import { dealState } from '../lib/deals.js';
 
 // Schematic positions (percent of the map box), roughly by street. Not to scale; no distances implied.
 // Laid out in columns at least 80 px apart at 320 px so no two pins overlap.
@@ -25,7 +26,7 @@ function pinPos(id) {
 
 /** Sort row (team ask, 2026-10-17: "cleaner and simplified"): one segmented control, no counts. "Deals" shows only
  * bars with a live deal, nearest first. A filter or A–Z order set by an older link shows as one removable chip. */
-export const QUICK_VIEWS = Object.freeze([['near', 'Nearest'], ['wait', 'Shortest wait'], ['deals', 'Deals']]);
+export const QUICK_VIEWS = Object.freeze([['near', 'Nearest'], ['wait', 'Shortest line'], ['deals', 'Deals']]);
 export const quickViewOf = ({ sort, filters }) => (filters.includes('deals') ? 'deals' : sort === 'wait' ? 'wait' : sort === 'name' ? null : 'near');
 
 export function exploreChips(ctx) {
@@ -86,7 +87,7 @@ export function exploreResults(ctx) {
     return stateBox({ iconName: 'help', title: 'No venues in this dataset', body: 'The demo dataset is empty. Restore the sample venues to continue.', actions: '<button type="button" class="btn btn-primary" data-action="dataset" data-kind="demo">Restore demo venues</button>' });
   }
   const { results, unknown, total, excludedStale } = exploreList(venues, explore, now, savedSet);
-  const sortLabel = { near: 'nearest first', name: 'A–Z', wait: 'shortest wait first' }[explore.sort] ?? 'nearest first';
+  const sortLabel = { near: 'nearest first', name: 'A–Z', wait: 'shortest line first' }[explore.sort] ?? 'nearest first';
   if (total === 0) {
     const bits = [];
     if (explore.q) bits.push(`“${esc(explore.q)}”`);
@@ -100,11 +101,27 @@ export function exploreResults(ctx) {
   }
   const summary = resultsBar(ctx, { total, sortLabel, excludedStale });
   if (explore.view === 'map') return summary + mapView(ctx, results.concat(unknown));
+  const rail = !explore.q && !explore.filters.length && explore.sort === 'near' ? dealsRail(ctx) : '';
   const list = (rows) => `<ul class="bar-grid">${rows.map((r) => venueCard(r.venue, now, { saved: savedSet.has(r.venue.id) })).join('')}</ul>`;
-  if (explore.sort !== 'wait') return `${summary}${list(results)}`;
+  if (explore.sort !== 'wait') return `${rail}${summary}${list(results)}`;
   return `${summary}
-    ${results.length ? `<h2 class="group-title">Estimated waits <small>${results.length}</small></h2>${list(results)}` : ''}
-    ${unknown.length ? `<h2 class="group-title">No current wait estimate <small>${unknown.length}</small></h2>${list(unknown)}` : ''}`;
+    ${results.length ? `<h2 class="group-title">Line reports <small>${results.length}</small></h2>${list(results)}` : ''}
+    ${unknown.length ? `<h2 class="group-title">Closed or no recent report <small>${unknown.length}</small></h2>${list(unknown)}` : ''}`;
+}
+
+/** "Deals right now": a delivery-app style row of live promos (badge on the photo); a tile opens that deal on the bar page. */
+export function dealsRail(ctx) {
+  const live = ctx.venues.flatMap((v) => (v.deals ?? []).filter((d) => dealState(d, ctx.now) === 'live').map((d) => ({ v, d })))
+    .sort((a, b) => (distanceTo(a.v) ?? 99) - (distanceTo(b.v) ?? 99) || a.d.endsAt - b.d.endsAt);
+  if (!live.length) return '';
+  return `<section class="deals-rail" aria-labelledby="rail-h">
+    <div class="rail-head"><h2 id="rail-h">Deals right now</h2><span class="demo-tag">Demo deals</span><button type="button" class="rail-all" data-action="quick-view" data-view="deals">See all${icon('chevronRight', { size: 16 })}</button></div>
+    <ul class="rail-list">${live.map(({ v, d }) => `<li><a class="rail-tile" href="#/venue/${encodeURIComponent(v.id)}?deal=${encodeURIComponent(d.id)}" aria-label="${esc(`${promoLabel(d)}: ${promoItem(d)} at ${v.name}, until ${formatTime(d.endsAt)}. Demo deal`)}">
+      <span class="rail-photo">${venuePhoto(v)}<span class="promo-badge" data-type="${esc(d.promo?.type ?? 'price')}">${icon('tag', { size: 12 })}${esc(promoLabel(d))}</span></span>
+      <span class="rail-name">${esc(v.name)}</span>
+      <span class="rail-item">${esc(promoItem(d))} · until ${esc(formatTime(d.endsAt))}</span>
+    </a></li>`).join('')}</ul>
+  </section>`;
 }
 
 /** Pin class, accessible name and content for one venue (also used by the live tick to patch pins in place). */

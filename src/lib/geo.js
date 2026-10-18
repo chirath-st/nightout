@@ -21,6 +21,12 @@ export function milesBetween(a, b) {
 export const distanceTo = (venue, from = DEMO_SPOT) => milesBetween(from, venue?.geo);
 
 /** "0.2 mi", "<0.1 mi", "1.4 mi", "12 mi"; null stays null (shown as "Distance n/a"). */
+/** Walking time at about 3 mph (20 min a mile), rounded, at least 1 minute; null without a distance. */
+export function walkMinutes(mi) {
+  if (mi == null || !Number.isFinite(mi)) return null;
+  return Math.max(1, Math.round(mi * 20));
+}
+
 export function formatMiles(mi) {
   if (mi == null || !Number.isFinite(mi)) return null;
   if (mi < 0.1) return '<0.1 mi';

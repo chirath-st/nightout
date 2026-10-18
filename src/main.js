@@ -1,6 +1,6 @@
 // Night Out prototype controller (codename in storage and QA hook: doorline). Local only: no network requests, no payments, no ID data.
 import { load, save, clear, defaultState } from './lib/store.js';
-import { normalizeClock, demoNow, advance, formatTime } from './lib/clock.js';
+import { normalizeClock, demoNow, advance, formatTime, START_OFFSET_MIN } from './lib/clock.js';
 import { buildDataset, atNight, atNightOn } from './data/venues.js';
 import { buildGroups, POINTS, LINE_BUCKETS, REWARDS, balanceOf, validHandle, checkedInTonight, PLANS, SAMPLE_BAR_CARDS } from './data/social.js';
 import { resolveVenues, diffQueue } from './lib/model.js';
@@ -69,7 +69,8 @@ function init() {
 const now = () => demoNow(app.state.clock, Date.now());
 function persist() { save(storage, app.state); updatePointsChip(); }
 function rebuild() {
-  const base = buildDataset(app.state.dataset, app.state.clock.base, app.state.syncAt ?? app.state.clock.base);
+  // Report ages count back from the last simulated refresh; before the first one, from the demo's start (midnight).
+  const base = buildDataset(app.state.dataset, app.state.clock.base, app.state.syncAt ?? app.state.clock.base + START_OFFSET_MIN * 60_000);
   app.venues = resolveVenues(base, app.state.overrides, app.state.passes, app.state.deals);
   app.groups = buildGroups(app.state.clock.base);
   app.events = buildEvents(app.state.clock.base);
@@ -242,7 +243,13 @@ function render({ focus = 'heading', scroll = 'keep' } = {}) {
   syncSheet();
   if (scroll === 'restore') window.scrollTo(0, app.scroll.get(app.renderedHash) ?? 0);
   else if (scroll === 'top') window.scrollTo(0, 0);
-  if (focus === 'heading') {
+  const dealTarget = app.route?.name === 'venue' && app.route.query.deal ? document.getElementById(`deal-${app.route.query.deal}`) : null;
+  if (dealTarget) {
+    // Opened from a deal tile: land on that deal's details on the bar page.
+    dealTarget.classList.add('is-target');
+    requestAnimationFrame(() => dealTarget.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' }));
+    dealTarget.focus({ preventScroll: true });
+  } else if (focus === 'heading') {
     pageHeading()?.focus({ preventScroll: true });
   } else if (focus === 'venue' && app.lastVenueId) {
     const link = document.querySelector(`[data-nav-venue="${CSS.escape(app.lastVenueId)}"]`);
@@ -1352,7 +1359,7 @@ function handleAction(a, el) {
       document.querySelector('[data-action="quick-view"][aria-pressed="true"]')?.focus();
       return true;
     case 'quick-view': {
-      // Nearest / Shortest wait / Deals: one choice. Other filters from older links are kept.
+      // Nearest / Shortest line / Deals: one choice. Other filters from older links are kept.
       const v = el.dataset.view;
       const others = app.explore.filters.filter((f) => f !== 'deals');
       app.explore.sort = v === 'wait' ? 'wait' : 'near';
@@ -1361,7 +1368,7 @@ function handleAction(a, el) {
       updateExploreUrl();
       renderResultsOnly();
       document.querySelector(`[data-action="quick-view"][data-view="${v}"]`)?.focus({ preventScroll: true });
-      announce({ near: 'Nearest first', wait: 'Shortest wait first', deals: 'Bars with a deal now' }[v] ?? '');
+      announce({ near: 'Nearest first', wait: 'Shortest line first', deals: 'Bars with a deal now' }[v] ?? '');
       return true;
     }
     case 'clear-search': {

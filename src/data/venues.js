@@ -65,27 +65,36 @@ const MEDIA = {
   'olive-branch': { photo: 'The Olive Branch website', alt: 'The beer taps at The Olive Branch', pos: '50% 50%' },
 };
 
-// SIMULATED deals ("weak hours" promotions). No bar is offering these; every one is labeled a demo deal.
-// Kinds and limits follow src/lib/deals.js (New Jersey rules). Times are on the demo night (hours < 12 are
-// after midnight). `short` is the card tag (keep it under ~18 characters).
+// SIMULATED deals ("weak hours" promotions), set up for the demo's midnight. No bar is offering these; every one is
+// labeled a demo deal. Delivery-app style promos (Buy 1 get 1, % off) are only on food, entry and non-alcoholic
+// drinks: New Jersey bans 2-for-1 and multi-drink offers on alcohol, so drink specials stay a single fixed price
+// (src/lib/deals.js). `promo` drives the card badge; `item` and `terms` show on the bar page. Times are on the demo
+// night (hours < 12 are after midnight).
 const DEALS = {
   'olde-queens': [
-    { id: 'oq-cover', kind: 'entry', title: 'No cover before 11 PM', short: 'No cover till 11', at: [21, 0], until: [23, 0] },
-    { id: 'oq-drafts', kind: 'drink', item: 'draft', price: 4, title: 'Happy hour: $4 draft beer (16 oz)', short: '$4 drafts till 12', at: [22, 0], until: [0, 0] },
+    { id: 'oq-fries', kind: 'food', promo: { type: 'bogo' }, item: 'Loaded fries', title: 'Buy 1, get 1 free loaded fries', short: 'Buy 1 get 1', terms: 'Food only. One free order per person.', at: [23, 30], until: [1, 30] },
+    { id: 'oq-drafts', kind: 'drink', item: 'draft', price: 4, promo: { type: 'price', label: '$4 drafts' }, title: 'Happy hour: $4 draft beer (16 oz)', short: '$4 drafts', terms: '21+. One drink per order, 16 oz.', at: [22, 0], until: [1, 0] },
+  ],
+  'scarlet-pub': [
+    { id: 'sp-wings', kind: 'food', promo: { type: 'percent', value: 30 }, item: 'Wings and tenders', title: '30% off wings and tenders', short: '30% off', terms: 'Food only. Not valid on drinks.', at: [23, 0], until: [1, 30] },
+    { id: 'sp-late', kind: 'entry', promo: { type: 'free', label: 'Free entry' }, item: 'Entry after 1 AM', title: 'Free entry after 1 AM', short: 'Free entry', terms: '21+ with ID. Capacity permitting.', at: [1, 0], until: [2, 0] },
   ],
   'ale-n-wich': [
-    { id: 'aw-wings', kind: 'food', title: '$5 wings until midnight', short: '$5 wings till 12', at: [22, 0], until: [0, 0] },
-    { id: 'aw-drafts', kind: 'drink', item: 'draft', price: 5, title: 'Happy hour: $5 draft beer (16 oz)', short: '$5 drafts to 11:30', at: [21, 0], until: [23, 30] },
+    { id: 'aw-food', kind: 'food', promo: { type: 'percent', value: 20 }, item: 'All food', title: '20% off all food', short: '20% off', terms: 'Food only. Dine in.', at: [22, 0], until: [1, 0] },
   ],
   'pitch-social': [
-    { id: 'ps-hh', kind: 'drink', item: 'well', price: 5, title: 'Happy hour: $5 well drink (1.5 oz)', short: '$5 wells 8–10', at: [20, 0], until: [22, 0] },
-    { id: 'ps-mock', kind: 'na', title: '$3 mocktails and sodas all night', short: '$3 mocktails', at: [21, 0], until: [2, 0] },
+    { id: 'ps-cover', kind: 'entry', promo: { type: 'percent', value: 50 }, item: 'Cover before 12:30 AM', title: '50% off cover before 12:30 AM', short: '50% off', terms: 'Entry only. 21+ with ID.', at: [23, 30], until: [0, 30] },
+    { id: 'ps-mock', kind: 'na', promo: { type: 'price', label: '$3 mocktails' }, item: 'Mocktails and sodas', title: '$3 mocktails and sodas all night', short: '$3 mocktails', terms: 'Non-alcoholic drinks.', at: [21, 0], until: [2, 0] },
   ],
-  'scarlet-pub': [{ id: 'sp-late', kind: 'entry', title: 'Free entry after 1 AM', short: 'Free entry after 1', at: [1, 0], until: [2, 0] }],
-  'stuff-yer-face': [{ id: 'sf-food', kind: 'food', title: 'Half-price appetizers until 11:30 PM', short: '½ apps till 11:30', at: [22, 0], until: [23, 30] }],
-  'the-vine': [{ id: 'tv-trivia', kind: 'event', title: 'Trivia at 11 PM: $25 food voucher prize (21+ teams, no purchase needed)', short: 'Trivia at 11', at: [23, 0], until: [0, 30] }],
-  evelyns: [{ id: 'ev-hummus', kind: 'food', title: 'Free hummus and pita, no purchase needed', short: 'Free hummus & pita', at: [22, 0], until: [23, 30] }],
-  'thirty-burgers': [{ id: 'tb-fries', kind: 'food', title: 'Half-price fries 9 to 10 PM', short: '½ fries 9–10', at: [21, 0], until: [22, 0] }],
+  'stuff-yer-face': [
+    { id: 'sf-mozz', kind: 'food', promo: { type: 'bogo' }, item: 'Mozzarella sticks', title: 'Buy 1, get 1 free mozzarella sticks', short: 'Buy 1 get 1', terms: 'Food only. One free order per person.', at: [23, 0], until: [1, 30] },
+  ],
+  evelyns: [
+    { id: 'ev-hummus', kind: 'food', promo: { type: 'free', label: 'Free bite' }, item: 'Hummus and pita', title: 'Free hummus and pita, no purchase needed', short: 'Free hummus', terms: 'No purchase needed. While it lasts.', at: [23, 0], until: [0, 30] },
+  ],
+  'the-vine': [
+    { id: 'tv-trivia', kind: 'event', promo: { type: 'free', label: 'Trivia' }, item: '$25 food voucher prize', title: 'Trivia at 11 PM: $25 food voucher prize (21+ teams, no purchase needed)', short: 'Trivia prize', terms: '21+ teams. No purchase needed. Prize is food only.', at: [23, 0], until: [0, 30] },
+  ],
 };
 
 const BASE = [
@@ -99,7 +108,7 @@ const BASE = [
     queue: { sourceType: 'venue', ago: 3, peopleLow: 20, peopleHigh: 30, admitPerMin: 2.5, doorStatus: 'moving' },
     menu: MENUS.pub(),
     pass: { enabled: true, paused: false, basePrice: 1000, serviceFee: 150, coverIncluded: true,
-      windows: [['w1', 22, 30, 23, 0, 6], ['w2', 23, 0, 23, 30, 4], ['w3', 23, 30, 0, 0, 10]] },
+      windows: [['w1', 0, 0, 0, 30, 6], ['w2', 0, 30, 1, 0, 4], ['w3', 1, 0, 1, 30, 10]] },
   },
   {
     id: 'scarlet-pub', name: 'Scarlet Pub', area: 'Easton Ave', address: '131 Easton Ave', tags: ['Pub'],
@@ -111,7 +120,7 @@ const BASE = [
     queue: { sourceType: 'crowd', ago: 6, reportCount: 4, peopleLow: 35, peopleHigh: 50, admitPerMin: 3, doorStatus: 'moving' },
     menu: MENUS.pub(),
     pass: { enabled: true, paused: false, basePrice: 1500, serviceFee: 195, coverIncluded: false,
-      windows: [['w1', 22, 30, 23, 0, 0], ['w2', 23, 0, 23, 30, 3], ['w3', 23, 30, 0, 0, 8]] },
+      windows: [['w1', 0, 0, 0, 30, 0], ['w2', 0, 30, 1, 0, 3], ['w3', 1, 0, 1, 30, 8]] },
   },
   {
     id: 'ale-n-wich', name: "Ale 'N 'Wich Pub", area: 'Hamilton St', address: '246 Hamilton St', tags: ['Pub'],
@@ -134,7 +143,7 @@ const BASE = [
     queue: { sourceType: 'venue', ago: 2, peopleLow: 60, peopleHigh: 80, admitPerMin: 1, doorStatus: 'capacity' },
     menu: MENUS.pub(),
     pass: { enabled: true, paused: true, basePrice: 2000, serviceFee: 250, coverIncluded: true,
-      windows: [['w1', 22, 30, 23, 0, 5], ['w2', 23, 0, 23, 30, 5], ['w3', 23, 30, 0, 0, 5]] },
+      windows: [['w1', 0, 0, 0, 30, 5], ['w2', 0, 30, 1, 0, 5], ['w3', 1, 0, 1, 30, 5]] },
   },
   {
     id: 'evelyns', name: "Evelyn's Restaurant & Bar", area: 'Easton Ave', address: '45 Easton Ave', tags: ['Restaurant & bar', 'Patio'],
@@ -165,7 +174,7 @@ const BASE = [
     cover: 0, hours: { open: '11:00', close: '01:00' }, art: 'arches',
     palette: ['#3B2416', '#E39B4A', '#F2E3CF', '#57351F'],
     typical: [2, 3, 3, 3, 2, 1, 0],
-    queue: { sourceType: 'crowd', ago: 42, reportCount: 2, peopleLow: 10, peopleHigh: 20, admitPerMin: 2, doorStatus: 'moving' },
+    queue: { sourceType: 'crowd', ago: 9, reportCount: 3, peopleLow: 5, peopleHigh: 10, admitPerMin: 2, doorStatus: 'moving' },
     menu: MENUS.restaurant(),
     pass: null,
   },
@@ -176,7 +185,7 @@ const BASE = [
     cover: 0, hours: { open: '11:00', close: '02:00' }, art: 'stripes',
     palette: ['#2A1A12', '#F07A3A', '#F4E6D6', '#43291C'],
     typical: [1, 2, 3, 3, 3, 2, 1],
-    queue: null,
+    queue: { sourceType: 'venue', ago: 12, peopleLow: 2, peopleHigh: 6, admitPerMin: 2, doorStatus: 'moving' },
     menu: MENUS.dogs(),
     pass: null,
   },
@@ -187,19 +196,19 @@ const BASE = [
     cover: 5, hours: { open: '20:00', close: '02:00' }, art: 'waves',
     palette: ['#1D2B1F', '#8BC34A', '#E4EEDC', '#2C4230'],
     typical: [0, 1, 2, 4, 4, 3, 1],
-    queue: { sourceType: 'venue', ago: 1, peopleLow: 15, peopleHigh: 25, admitPerMin: 1.5, doorStatus: 'paused', note: 'Private event until 11:30 PM (simulated)' },
+    queue: { sourceType: 'venue', ago: 1, peopleLow: 15, peopleHigh: 25, admitPerMin: 1.5, doorStatus: 'paused', note: 'Trivia final round: doors reopen at 12:30 AM (simulated)' },
     menu: MENUS.pub(),
     pass: { enabled: true, paused: false, basePrice: 1000, serviceFee: 150, coverIncluded: true,
-      windows: [['w1', 23, 30, 0, 0, 6], ['w2', 0, 0, 0, 30, 6]] },
+      windows: [['w1', 0, 15, 0, 45, 6], ['w2', 0, 45, 1, 15, 6]] },
   },
   {
     id: 'olive-branch', name: 'The Olive Branch', area: 'Bartlett & Morrell St', address: '37 Bartlett St', tags: ['College bar'],
     blurb: 'Bar and restaurant on Bartlett St, and a stop on the 2025–2026 student bar crawls.',
     source: 'NJ ABC retail license list (Oct 2026); LineLeap student bar crawl pages (2025–2026)',
-    cover: 0, hours: { open: '16:00', close: '02:00' }, closedTonight: true, art: 'lamps',
+    cover: 0, hours: { open: '16:00', close: '02:00' }, art: 'lamps',
     palette: ['#232A1A', '#C9B458', '#ECE8D4', '#363F27'],
     typical: [1, 2, 3, 3, 3, 2, 1],
-    queue: null,
+    queue: { sourceType: 'crowd', ago: 5, reportCount: 5, peopleLow: 25, peopleHigh: 40, admitPerMin: 2.5, doorStatus: 'moving' },
     menu: MENUS.pub(),
     pass: null,
   },

@@ -1,5 +1,5 @@
 // Pure search / filter / sort for the Tonight list. No DOM access, so it is unit-tested directly.
-import { describeEstimate } from './queue.js';
+import { describeEstimate, validPeople } from './queue.js';
 import { distanceTo, DEMO_SPOT } from './geo.js';
 import { activeDeal } from './deals.js';
 
@@ -29,7 +29,7 @@ export const FILTERS = Object.freeze([
 
 export const SORTS = Object.freeze([
   { id: 'near', label: 'Nearest' },
-  { id: 'wait', label: 'Shortest wait' },
+  { id: 'wait', label: 'Shortest line' },
   { id: 'name', label: 'A–Z' },
 ]);
 
@@ -84,9 +84,11 @@ export function exploreList(venues, { q = '', filters = [], sort = 'wait', area 
     rows.sort(sort === 'near' ? byNear : byName);
     return { results: rows, unknown: [], total: rows.length, excludedStale };
   }
+  // "Shortest line": people in line (middle of the reported range); paused or full doors after moving ones.
   const known = rows.filter((r) => r.est.sortRank <= 3);
   const unknown = rows.filter((r) => r.est.sortRank > 3);
-  known.sort((a, b) => a.est.sortRank - b.est.sortRank || (a.est.waitLow ?? 999) - (b.est.waitLow ?? 999) || byName(a, b));
+  const people = (r) => (validPeople(r.venue.queue) ? (r.venue.queue.peopleLow + r.venue.queue.peopleHigh) / 2 : 999);
+  known.sort((a, b) => (a.est.sortRank === 3) - (b.est.sortRank === 3) || people(a) - people(b) || byName(a, b));
   unknown.sort((a, b) => a.est.sortRank - b.est.sortRank || byName(a, b));
   return { results: known, unknown, total: known.length + unknown.length, excludedStale };
 }

@@ -1,4 +1,4 @@
-import { esc, estimateBlock, saveButton, stateBox, windowLabel, coverText, venuePhoto, venueLogo, distanceText, factStrip, howItWorks } from '../ui/components.js';
+import { esc, estimateBlock, saveButton, stateBox, windowLabel, coverText, venuePhoto, venueLogo, distanceText, factStrip, howItWorks, promoLabel, promoItem } from '../ui/components.js';
 import { formatTime } from '../lib/clock.js';
 import { VIBE, POLL } from '../data/events.js';
 import { eventWindow, isLive, pollResult } from '../lib/events.js';
@@ -130,23 +130,22 @@ function dealsSection(venue, now) {
   const mins = (ms) => Math.max(0, Math.round(ms / 60000));
   const left = (m) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m} min`);
   return `<section class="deals" aria-labelledby="deals-h">
-    <div class="section-head"><h2 id="deals-h">Deals &amp; drink specials</h2><span class="eyebrow">Demo deals</span></div>
+    <div class="section-head"><h2 id="deals-h">Deals tonight</h2><span class="eyebrow">Demo deals</span></div>
     <ul class="deal-list">${deals.map((d) => {
       const st = dealState(d, now);
       const kind = DEAL_KINDS[d.kind] ?? DEAL_KINDS.food;
-      const at = st === 'soon' ? d.startsAt : d.endsAt;
-      const [t, ap] = formatTime(at).split(/\s+/);
       const frac = st === 'live' ? Math.max(0, Math.min(1, (d.endsAt - now) / (d.endsAt - d.startsAt))) : 0;
-      const sub = st === 'live' ? `${left(mins(d.endsAt - now))} left` : st === 'soon' ? `starts in ${left(mins(d.startsAt - now))}` : 'ended';
-      const sr = st === 'live' ? `Live now until ${formatTime(d.endsAt)}, ${left(mins(d.endsAt - now))} left.` : st === 'soon' ? `Starts at ${formatTime(d.startsAt)}.` : 'Ended.';
-      return `<li class="deal-row" data-state="${st}">
-        <span class="deal-icon">${icon(kind.icon, { size: 20 })}</span>
-        <span class="deal-main"><span class="eyebrow">${esc(kind.adults ? `${kind.short} · 21+` : `Demo deal · ${kind.short}`)}</span><span class="deal-title">${esc(d.title)}</span><span class="deal-meta">Simulated, not offered by the bar</span></span>
-        <span class="deal-stub" aria-hidden="true"><span class="deal-state">${st === 'live' ? 'Live' : st === 'soon' ? 'Soon' : 'Ended'}</span><span class="deal-time num">${esc(t)}<small>${esc(ap ?? '')}</small></span><span class="deal-left"><i style="--left:${(frac * 100).toFixed(0)}%"></i></span><span class="deal-sub">${esc(sub)}</span></span>
-        <span class="sr-only">${esc(sr)}</span>
+      const when = st === 'live' ? `Now until ${formatTime(d.endsAt)} · ${left(mins(d.endsAt - now))} left` : st === 'soon' ? `${formatTime(d.startsAt)}–${formatTime(d.endsAt)} · starts in ${left(mins(d.startsAt - now))}` : 'Ended';
+      return `<li class="deal-row promo-row" id="deal-${esc(d.id)}" tabindex="-1" data-state="${st}">
+        <span class="promo-head"><span class="promo-badge is-lg" data-type="${esc(d.promo?.type ?? 'price')}">${icon('tag', { size: 14 })}${esc(promoLabel(d))}</span><span class="deal-state-word">${st === 'live' ? 'Live' : st === 'soon' ? 'Later tonight' : 'Ended'}</span></span>
+        <span class="promo-on"><span class="eyebrow">Applies to</span><b>${esc(promoItem(d))}</b></span>
+        <span class="deal-title">${esc(d.title)}</span>
+        <span class="deal-meta num">${esc(when)}</span>
+        ${st === 'live' ? `<span class="deal-left" aria-hidden="true"><i style="--left:${(frac * 100).toFixed(0)}%"></i></span>` : ''}
+        <span class="promo-terms">${icon('info', { size: 14 })}<span>${esc(d.terms ?? (kind.adults ? '21+.' : ''))} ${kind.adults ? '' : 'Not valid on alcohol.'} Demo deal: ${esc(venue.name)} isn’t offering this.</span></span>
       </li>`;
     }).join('')}</ul>
-    <p class="hint">${esc(venue.name)} isn’t offering these. In the real app each deal is set by the bar and valid only there; drink specials are 21+ and never below the bar’s cost.</p>
+    <p class="hint">In the real app each deal is set by the bar and valid only there. “Buy 1 get 1” and % off deals are only on food, entry and non-alcoholic drinks: New Jersey bans 2-for-1 drinks. Drink specials are 21+, one fixed price and never below the bar’s cost.</p>
   </section>`;
 }
 

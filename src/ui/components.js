@@ -8,8 +8,8 @@ import { formatTime } from '../lib/clock.js';
 import { icon, TONE_ICON, TONE_LABEL } from './icons.js';
 import { monogram } from './art.js';
 import { nightArt, NIGHT_PALETTES } from './nightart.js';
-import { distanceTo, formatMiles, DEMO_SPOT } from '../lib/geo.js';
-import { activeDeal, dealState, DEAL_KINDS } from '../lib/deals.js';
+import { distanceTo, formatMiles, walkMinutes, DEMO_SPOT } from '../lib/geo.js';
+import { activeDeal, dealState, DEAL_KINDS, DRINK_ITEMS } from '../lib/deals.js';
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -197,27 +197,31 @@ export function venueStatus(venue, now) {
   </section>`;
 }
 
-/** The card's bottom-right wait (spec "Late Edition"): eyebrow (meter or glyph + word) over the value. Live-patched. */
-export function cardStatus(venue, now) {
+/**
+ * People in line, for the card's bottom-right (team ask, 2026-10-17: "pivot to how long is the line"): one best
+ * estimate (the middle of the reported range) and a level for the glow. Levels by line length: under 10 quiet,
+ * 10–29 lively, 30+ packed. Closed is grey; no recent data says so and shows no number.
+ */
+export function lineInfo(venue, now) {
   const est = estimateFor(venue, now);
-  const st = crowdStatus(est);
-  const range = est.waitLow != null ? `${est.waitLow}–${est.waitHigh}` : null;
-  let eb; let val;
+  const q = venue?.queue;
+  const people = q && Number.isFinite(q.peopleLow) && Number.isFinite(q.peopleHigh) ? Math.round((q.peopleLow + q.peopleHigh) / 2) : null;
+  const n = people != null && q.peopleHigh <= 2 ? 0 : people;
+  const level = n == null ? 'none' : n < 10 ? 'quiet' : n < 30 ? 'lively' : 'packed';
   switch (est.tone) {
-    case 'capacity': eb = `${meter('capacity')}Door`; val = '<span class="cs-tag">Full</span>'; break;
-    case 'paused': eb = `${glyph('pause')}Door`; val = '<span class="cs-tag is-outline">Paused</span>'; break;
-    case 'unknown': eb = `${glyph('help')}Wait`; val = '<span class="cs-value is-word is-dim">No reports</span>'; break;
-    case 'stale': eb = `${glyph('aging')}Wait`; val = '<span class="cs-value is-word is-dim">Out of date</span>'; break;
-    case 'closed': eb = `${glyph('moon')}Closed`; val = `<span class="cs-value is-word">${venue.closedTonight ? 'Not tonight' : esc(hoursShort(venue, now))}</span>`; break;
-    case 'uncertain':
-      eb = `${meter('mixed')}Mixed`;
-      val = range ? `<span class="cs-value is-dim"><span class="approx">≈</span>${range}<small>min</small></span>` : '<span class="cs-value is-word is-dim">Unclear</span>';
-      break;
-    default:
-      eb = `${meter(st.level, { maybe: st.maybe })}${st.label}`;
-      val = st.maybe ? `<span class="cs-value is-dim"><span class="approx">≈</span>${range}<small>min</small></span>` : `<span class="cs-value">${range}<small>min</small></span>`;
+    case 'closed': return { state: 'closed', level: 'closed', n: null, word: 'Closed', est };
+    case 'stale': case 'unknown': return { state: 'none', level: 'none', n: null, word: 'No update', est };
+    case 'capacity': return { state: 'full', level: 'packed', n, word: 'Full', est };
+    case 'paused': return { state: 'paused', level: 'paused', n, word: 'Paused', est };
+    default: return { state: n === 0 ? 'clear' : 'line', level, n, word: n === 0 ? 'No line' : 'in line', approx: est.tone === 'aging' || est.tone === 'uncertain', est };
   }
-  return `<span class="card-status" data-est="${esc(venue.id)}" data-variant="status" data-tone="${est.tone}" data-level="${st.level}"${st.maybe ? ' data-maybe' : ''}><span class="foot-eb">${eb}</span>${val}</span>`;
+}
+
+/** The card's bottom-right: a glowing dot in the line's level and the people-in-line number. Live-patched by tick(). */
+export function cardStatus(venue, now) {
+  const L = lineInfo(venue, now);
+  const num = L.n != null && ['line', 'full'].includes(L.state) ? `<span class="lb-num num">${L.approx ? '≈' : ''}${L.n}</span>` : '';
+  return `<span class="line-badge" data-est="${esc(venue.id)}" data-variant="status" data-tone="${L.est.tone}" data-state="${L.state}" data-level="${L.level}"><span class="lb-dot" aria-hidden="true"></span><span class="lb-text">${num}<span class="lb-word">${esc(L.state === 'full' ? 'Full' : L.word)}</span></span></span>`;
 }
 
 /** Freshness micro-line under the card name ("Demo wait · 4m ago"): the per-card demo marker. Live-patched. */
@@ -226,20 +230,32 @@ export function cardFresh(venue, now) {
   const age = est.observedAt != null ? Math.max(0, Math.round((now - est.observedAt) / 60000)) : null;
   const text = {
     aging: `${icon('aging', { size: 12 })}Demo · ${age}m ago · may have changed`,
-    uncertain: 'Demo wait · reports differ',
+    uncertain: 'Demo · reports differ',
     unknown: 'Demo · be first to report',
     stale: `${icon('aging', { size: 12 })}Demo · last report ${age}m ago`,
     closed: 'Demo data',
-  }[est.tone] ?? `Demo wait · ${age ?? 0}m ago`;
+  }[est.tone] ?? `Demo · updated ${age ?? 0}m ago`;
   return `<span class="card-fresh" data-est="${esc(venue.id)}" data-variant="fresh" data-tone="${est.tone}">${text}</span>`;
 }
 
-/** The card's bottom-left: the live deal ending soonest ("Demo deal"), else when the bar opens or closes. Live-patched. */
+/** Promo badge text, delivery-app style: "Buy 1 get 1", "30% off", "$4 drafts", "Free entry". */
+export function promoLabel(d, { compact = false } = {}) {
+  const p = d?.promo;
+  if (!p) return d?.short ?? d?.title ?? '';
+  return p.type === 'bogo' ? (compact ? 'BOGO' : 'Buy 1, get 1 free') : p.type === 'percent' ? `${p.value}% off` : p.label ?? d.short ?? '';
+}
+/** What a deal applies to, in words. */
+export function promoItem(d) {
+  if (d.kind === 'drink') { const it = DRINK_ITEMS.find((x) => x.id === d.item); return it ? `${it.label}, ${it.size}` : 'Drink special'; }
+  return d.item ?? DEAL_KINDS[d.kind]?.label ?? '';
+}
+
+/** The card's bottom-left: the live promo ending soonest (a badge, then what it's on), else the next one tonight. Live-patched. */
 export function dealTag(venue, now) {
   const d = activeDeal(venue, now);
-  return d
-    ? `<span class="deal-slot" data-deal-for="${esc(venue.id)}"><span class="foot-eb">Demo deal</span><span class="deal-tag">${esc(d.short || d.title)}</span></span>`
-    : `<span class="deal-slot" data-deal-for="${esc(venue.id)}"><span class="foot-eb">No deal</span><span class="deal-tag is-none">${esc(hoursShort(venue, now))}</span></span>`;
+  if (d) return `<span class="deal-slot" data-deal-for="${esc(venue.id)}"><span class="promo-badge" data-type="${esc(d.promo?.type ?? 'price')}" title="${esc(promoLabel(d))}">${esc(promoLabel(d, { compact: true }))}</span><span class="promo-item">${esc(promoItem(d))}</span></span>`;
+  const next = (venue.deals ?? []).filter((x) => dealState(x, now) === 'soon').sort((a, b) => a.startsAt - b.startsAt)[0];
+  return `<span class="deal-slot" data-deal-for="${esc(venue.id)}">${next ? `<span class="promo-next">${esc(promoLabel(next, { compact: true }))} at ${esc(formatTime(next.startsAt).replace(':00', ''))}</span>` : ''}</span>`;
 }
 
 /** When a deal runs, in words: "Now until 11:00 PM", "Starts 11:00 PM", "Ended". */
@@ -259,7 +275,9 @@ export function srSummary(venue, now) {
   const showPeople = est.peopleLabel && !['stale', 'unknown', 'closed'].includes(est.tone);
   const dist = distanceText(venue);
   const deal = activeDeal(venue, now);
-  const text = `${st.label}: ${est.headline}. ${est.tone === 'aging' ? 'May have changed. ' : ''}${showPeople ? `${est.peopleLabel}. ` : ''}${est.detail ? `${est.detail}. ` : ''}${est.observedAt != null ? `${est.sourceLabel}, ${est.ageLabel}.` : ''}${dist ? ` ${dist} from the demo spot.` : ''}${deal ? ` Demo deal: ${deal.title}, until ${formatTime(deal.endsAt)}.` : ''} Demo data.`;
+  const L = lineInfo(venue, now);
+  const lineWords = L.n != null && ['line', 'full', 'clear'].includes(L.state) ? (L.n === 0 ? 'No line. ' : `About ${L.n} in line${L.state === 'full' ? ', at capacity' : ''}. `) : '';
+  const text = `${lineWords}${st.label}: ${est.headline}. ${est.tone === 'aging' ? 'May have changed. ' : ''}${showPeople ? `${est.peopleLabel}. ` : ''}${est.detail ? `${est.detail}. ` : ''}${est.observedAt != null ? `${est.sourceLabel}, ${est.ageLabel}.` : ''}${dist ? ` ${dist} from the demo spot, about ${walkMinutes(distanceTo(venue))} min walk.` : ''}${deal ? ` Demo deal: ${promoLabel(deal)}, ${promoItem(deal)}, until ${formatTime(deal.endsAt)}.` : ''} Demo data.`;
   return `<span class="sr-only" data-est="${esc(venue.id)}" data-variant="sr" data-tone="${est.tone}">${esc(text)}</span>`;
 }
 
@@ -292,10 +310,11 @@ export function venueLogo(venue) {
  */
 export function venueCard(venue, now, { saved = false, save = false } = {}) {
   const dist = distanceText(venue);
+  const walk = walkMinutes(distanceTo(venue));
   return `<li class="bar-card" data-venue-row="${esc(venue.id)}" data-area="${esc(venue.area ?? '')}">
     <a class="bar-link" href="#/venue/${encodeURIComponent(venue.id)}" data-nav-venue="${esc(venue.id)}">
       <span class="bar-photo" data-thumb="${esc(venue.id)}">${venuePhoto(venue)}
-        <span class="card-top" aria-hidden="true"><span class="bar-logo">${venueLogo(venue)}</span><span class="card-dist">${icon('nav', { size: 11 })}${dist ? esc(dist) : 'n/a'}</span></span>
+        <span class="card-top" aria-hidden="true"><span class="bar-logo">${venueLogo(venue)}</span><span class="card-dist">${walk != null ? `${icon('walk', { size: 13 })}<b class="num">${walk} min</b><span class="cd-mi">${esc(dist)}</span>` : 'n/a'}</span></span>
         <span class="bar-id"><span class="bar-name">${esc(venue.name)}</span><span aria-hidden="true">${cardFresh(venue, now)}</span></span>
       </span>
       <span class="card-foot" aria-hidden="true">${dealTag(venue, now)}${cardStatus(venue, now)}</span>
