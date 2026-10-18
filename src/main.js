@@ -1,6 +1,6 @@
 // Night Out prototype controller (codename in storage and QA hook: doorline). Local only: no network requests, no payments, no ID data.
 import { load, save, clear, defaultState } from './lib/store.js';
-import { normalizeClock, demoNow, advance, formatTime, START_OFFSET_MIN } from './lib/clock.js';
+import { normalizeClock, demoNow, advance, formatTime, START_OFFSET_MIN, nightIsOver } from './lib/clock.js';
 import { buildDataset, atNight, atNightOn } from './data/venues.js';
 import { buildGroups, POINTS, LINE_BUCKETS, REWARDS, balanceOf, validHandle, checkedInTonight, PLANS, SAMPLE_BAR_CARDS } from './data/social.js';
 import { resolveVenues, diffQueue } from './lib/model.js';
@@ -9,7 +9,7 @@ import { FILTERS, SORTS, exploreList, areaLabel } from './lib/explore.js';
 import { windowState, purchasable, createPass, maxPartyFor, passStatus, money, refCode } from './lib/pass.js';
 import { estimateCompact, estimateBlock, estimateRing, estimateFor, pointsChip, esc, venueRow, cardStatus, cardFresh, srSummary, dealTag, venueStatus } from './ui/components.js';
 import { icon } from './ui/icons.js';
-import { renderExplore, exploreResults, exploreBanners, exploreChips, pinParts, areaSheet } from './views/explore.js';
+import { renderExplore, exploreResults, exploreBanners, exploreChips, pinParts, areaSheet, dealsRail } from './views/explore.js';
 import { renderGroups, renderGroupNew, validateGroup, membersSheet, memberProfileSheet, nightMinutes, MAX_STOPS } from './views/groups.js';
 import { renderEvents, eventResults } from './views/events.js';
 import { renderScan, pickListItems, scanEstimate, scanSubmitReady, draftQueue } from './views/scan.js';
@@ -62,9 +62,32 @@ app.checkin = { step: 'pick', venueId: null };
 function init() {
   const realNow = Date.now();
   app.state = load(storage, realNow);
-  app.state.clock = normalizeClock(app.state.clock, realNow);
+  const prev = app.state.clock;
+  app.state.clock = normalizeClock(prev, realNow);
+  if (prev?.realStart !== app.state.clock.realStart || prev?.base !== app.state.clock.base) clearNightState();
   persist();
   rebuild();
+}
+/** A fresh demo night: anything tied to the old night's clock would read as stale or as "just now", so drop it. */
+function clearNightState() {
+  app.state.syncAt = null;
+  for (const [id, o] of Object.entries(app.state.overrides)) {
+    delete o.queue;
+    if (!Object.keys(o).length) delete app.state.overrides[id];
+  }
+  app.state.activeWait = null;
+  app.state.deals = [];
+}
+/** Called from tick and on return to the tab: once every bar has closed, start a new midnight. */
+function maybeStartNewNight() {
+  if (!nightIsOver(app.state.clock, Date.now())) return false;
+  app.state.clock = normalizeClock(null, Date.now());
+  clearNightState();
+  persist();
+  rebuild();
+  render({ focus: 'none' });
+  toast('The demo night ended, so a new one started at midnight.');
+  return true;
 }
 const now = () => demoNow(app.state.clock, Date.now());
 function persist() { save(storage, app.state); updatePointsChip(); }
@@ -74,7 +97,7 @@ function rebuild() {
   app.venues = resolveVenues(base, app.state.overrides, app.state.passes, app.state.deals);
   app.groups = buildGroups(app.state.clock.base);
   app.events = buildEvents(app.state.clock.base);
-  app.ideas = resolveIdeas(buildIdeas(app.state.clock.base, app.events), app.state.ideas.created, app.state.ideas.decisions, new Set(app.venues.map((v) => v.id)));
+  app.ideas = resolveIdeas(buildIdeas(app.state.clock.base, app.events), app.state.ideas.created, app.state.ideas.decisions, new Set(app.venues.map((v) => v.id)), app.state.clock.base);
 }
 const isOffline = () => app.state.sim.offline || navigator.onLine === false;
 const savedSet = () => new Set(app.state.saved);
@@ -441,6 +464,7 @@ function simulateFetch({ initial = false } = {}) {
 
 /* ---------------- live aging (estimates update in place, never reorder under the finger) ---------------- */
 function tick() {
+  if (maybeStartNewNight()) return;
   const n = now();
   document.querySelectorAll('[data-demo-time]').forEach((el) => { el.textContent = formatTime(n); });
   document.querySelectorAll('[data-elapsed]').forEach((el) => { el.textContent = String(Math.max(0, Math.floor((n - Number(el.dataset.elapsed)) / 60000))); });
@@ -474,10 +498,21 @@ function tick() {
     tpl.innerHTML = dealTag(v, n).trim();
     const next = tpl.content.firstElementChild;
     if (slot.innerHTML === next.innerHTML) return;
-    const appeared = !slot.querySelector('.deal-tag:not(.is-none)') && next.querySelector('.deal-tag:not(.is-none)');
+    const appeared = !slot.querySelector('.promo-badge') && next.querySelector('.promo-badge');
     slot.replaceWith(next);
-    if (appeared && !reducedMotion()) next.querySelector('.deal-tag')?.animate([{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }], { duration: cssMs('--d-reveal', 200), easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
+    if (appeared && !reducedMotion()) next.querySelector('.promo-badge')?.animate([{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }], { duration: cssMs('--d-reveal', 200), easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
   });
+  // The "Deals right now" row: swap it when the set of live deals changes (a deal starts or ends).
+  const rail = document.querySelector('.deals-rail');
+  if (rail || (app.route?.name === 'tonight' && app.explore.view === 'list' && !app.explore.q && !app.explore.filters.length && app.explore.sort === 'near')) {
+    const html = dealsRail(ctx());
+    const tpl = document.createElement('template');
+    tpl.innerHTML = html.trim();
+    const fresh = tpl.content.firstElementChild;
+    const sig = fresh?.dataset.railSig ?? '';
+    if (rail && (rail.dataset.railSig ?? '') !== sig) { if (fresh) rail.replaceWith(fresh); else rail.remove(); }
+    else if (!rail && fresh) document.querySelector('#results .results-bar')?.before(fresh);
+  }
   // Map pins share the same estimate meaning: patch any pin whose state changed, in place (no re-announce).
   document.querySelectorAll('[data-pin-tone]').forEach((b) => {
     const v = byId.get(b.dataset.id);
@@ -856,10 +891,14 @@ function undoClear() {
 /* ---------------- groups ---------------- */
 function newGroupDraft() {
   const first = app.venues.find((v) => v.id === app.lastVenueId) ?? [...app.venues].sort((a, b) => a.name.localeCompare(b.name))[0];
-  return { title: '', venueId: first?.id ?? '', time: '22:30', spots: 4, note: '', handle: app.state.profile.handle || '', hop: false, stops: [] };
+  // Default meet time: the first slot after the demo time (falls back to the last slot late in the night).
+  const slots = ['21:00', '21:30', '22:00', '22:30', '23:00', '23:30', '0:00', '0:30', '1:00', '1:30'];
+  const time = slots.find((t) => { const [h, m] = t.split(':').map(Number); return atNight(app.state.clock.base, h, m) > now(); }) ?? '1:30';
+  return { title: '', venueId: first?.id ?? '', time, spots: 4, note: '', handle: app.state.profile.handle || '', hop: false, stops: [] };
 }
 /** Next default stop: a different bar from the previous stop, an hour later (capped at the last time slot). */
 function nextHopStop(d) {
+  if (!app.venues.length) return null;
   const prev = d.stops[d.stops.length - 1] ?? { venueId: d.venueId, time: d.time };
   const names = [...app.venues].sort((a, b) => a.name.localeCompare(b.name));
   const i = names.findIndex((v) => v.id === prev.venueId);
@@ -873,7 +912,9 @@ function postGroup() {
   app.groupErrors = validateGroup(d);
   if (Object.keys(app.groupErrors).length) {
     rerenderPage();
-    document.querySelector(app.groupErrors.title ? '#g-title' : app.groupErrors.handle ? '#g-ig' : '#hop-bar-0')?.focus();
+    const at = app.groupErrors.stopsAt;
+    document.querySelector(app.groupErrors.title ? '#g-title' : app.groupErrors.handle ? '#g-ig' : at ? `#hop-${at.field}-${at.index}` : '#hop-bar-0')?.focus();
+    announce(app.groupErrors.title || app.groupErrors.handle || app.groupErrors.stops || '');
     return;
   }
   const [h, m] = d.time.split(':').map(Number);
@@ -942,9 +983,9 @@ function postIdea() {
   if (Object.keys(errors).length) {
     app.ideaErrors = errors;
     rerenderPage();
-    const order = [['venue', '#idea-venue'], ['day', 'input[name="idea-night"]:checked, input[name="idea-night"]'], ['time', '#idea-end'], ['theme', 'input[name="idea-theme"]'], ['title', '#idea-title'], ['pitch', '#idea-pitch'], ['ack', '#idea-ack'], ['limit', '[data-action="idea-post"]']];
+    const order = [['venue', '#idea-venue'], ['day', 'input[name="idea-night"]:checked'], ['time', '#idea-end'], ['theme', 'input[name="idea-theme"]'], ['title', '#idea-title'], ['pitch', '#idea-pitch'], ['ack', '#idea-ack'], ['limit', '[data-action="idea-post"]']];
     const first = order.find(([k]) => errors[k]);
-    if (first) { document.querySelector(first[1])?.focus(); announce(errors[first[0]]); }
+    if (first) { (document.querySelector(first[1]) ?? (first[0] === 'day' ? document.querySelector('input[name="idea-night"]') : null))?.focus(); announce(errors[first[0]]); }
     return;
   }
   const base = app.state.clock.base;
@@ -1565,7 +1606,7 @@ function handleAction(a, el) {
     case 'member-profile': {
       const g = [...app.state.groups.created, ...app.groups].find((x) => x.id === el.dataset.group);
       if (g) {
-        openAccountSheet(memberProfileSheet(g, Number(el.dataset.index), ctx()), '.sheet-back');
+        openAccountSheet(memberProfileSheet(g, Number(el.dataset.index), ctx()), '#picker-title');
         document.querySelector('#picker .member-profile')?.setAttribute('data-index', el.dataset.index);
       }
       return true;
@@ -1573,7 +1614,9 @@ function handleAction(a, el) {
     case 'hop-add': {
       const d = app.groupDraft ?? (app.groupDraft = newGroupDraft());
       if (d.stops.length >= MAX_STOPS - 1) return true;
-      d.stops.push(nextHopStop(d));
+      const st = nextHopStop(d);
+      if (!st) return true;
+      d.stops.push(st);
       rerenderPage();
       document.getElementById(`hop-bar-${d.stops.length - 1}`)?.focus();
       announce(`Stop ${d.stops.length + 1} added`);
@@ -1589,7 +1632,13 @@ function handleAction(a, el) {
       announce('Stop removed');
       return true;
     }
-    case 'ig-link': toast(`Opens instagram.com/${el.dataset.handle} in the real app. Handles here are made up, so links are off in this demo.`); return true;
+    case 'ig-link': {
+      // Seeded handles contain hyphens (impossible on Instagram): say there's no account. Your own handle: links are off.
+      const msg = el.dataset.handle.includes('-') ? `@${el.dataset.handle} is a made-up demo handle, so there’s no Instagram account to open.` : `Opens instagram.com/${el.dataset.handle} in the real app. Links are off in this demo.`;
+      const note = el.closest('dialog')?.querySelector('[data-ig-note]');
+      if (note) note.textContent = msg; else toast(msg);
+      return true;
+    }
     case 'group-spots': {
       const d = app.groupDraft ?? (app.groupDraft = newGroupDraft());
       d.spots = Math.max(2, Math.min(12, d.spots + Number(el.dataset.delta)));
@@ -1753,7 +1802,7 @@ function onChange(e) {
     case 'group-hop': {
       const d = app.groupDraft ?? (app.groupDraft = newGroupDraft());
       d.hop = t.checked;
-      if (d.hop && !d.stops.length) d.stops.push(nextHopStop(d));
+      if (d.hop && !d.stops.length) { const st = nextHopStop(d); if (st) d.stops.push(st); else d.hop = false; }
       app.groupErrors = {};
       rerenderPage();
       document.getElementById('g-hop')?.focus();
@@ -1906,7 +1955,15 @@ function runSplash() {
   const el = document.getElementById('splash');
   const shell = document.querySelector('.app');
   if (!el) return Promise.resolve();
-  const remove = () => { el.remove(); shell?.removeAttribute('inert'); };
+  const prevFocus = document.activeElement;
+  const remove = () => {
+    el.remove();
+    shell?.removeAttribute('inert');
+    // inert dropped the focus route() set; put it back (the age gate takes focus itself on a first visit).
+    if (app.state.ageConfirmed && (!document.activeElement || document.activeElement === document.body)) {
+      (prevFocus?.isConnected && prevFocus !== document.body ? prevFocus : document.querySelector('#main .is-target') || pageHeading())?.focus({ preventScroll: true });
+    }
+  };
   if (new URLSearchParams(location.search).has('qa')) { remove(); return Promise.resolve(); } // QA runs skip it
   shell?.setAttribute('inert', '');
   return new Promise((resolve) => {
@@ -1918,6 +1975,8 @@ function runSplash() {
       setTimeout(() => { remove(); resolve(); }, reducedMotion() ? 160 : 420);
     };
     el.addEventListener('pointerdown', finish, { once: true });
+    // If the CSS safety net hid the splash first (slow boot), clean up at once so the app is never stuck inert.
+    el.addEventListener('animationend', (e) => { if (e.target === el && e.animationName === 'splash-safety') finish(); });
     const fontReady = Promise.race([document.fonts?.load?.('italic 600 140px Fraunces').catch(() => null), new Promise((r) => setTimeout(r, 700))]);
     fontReady.then(() => {
       placeSplashMoon(el);

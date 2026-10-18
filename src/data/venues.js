@@ -87,7 +87,7 @@ const DEALS = {
     { id: 'ps-mock', kind: 'na', promo: { type: 'price', label: '$3 mocktails' }, item: 'Mocktails and sodas', title: '$3 mocktails and sodas all night', short: '$3 mocktails', terms: 'Non-alcoholic drinks.', at: [21, 0], until: [2, 0] },
   ],
   'stuff-yer-face': [
-    { id: 'sf-mozz', kind: 'food', promo: { type: 'bogo' }, item: 'Mozzarella sticks', title: 'Buy 1, get 1 free mozzarella sticks', short: 'Buy 1 get 1', terms: 'Food only. One free order per person.', at: [23, 0], until: [1, 30] },
+    { id: 'sf-mozz', kind: 'food', promo: { type: 'bogo' }, item: 'Mozzarella sticks', title: 'Buy 1, get 1 free mozzarella sticks', short: 'Buy 1 get 1', terms: 'Food only. One free order per person.', at: [23, 0], until: [1, 0] },
   ],
   evelyns: [
     { id: 'ev-hummus', kind: 'food', promo: { type: 'free', label: 'Free bite' }, item: 'Hummus and pita', title: 'Free hummus and pita, no purchase needed', short: 'Free hummus', terms: 'No purchase needed. While it lasts.', at: [23, 0], until: [0, 30] },

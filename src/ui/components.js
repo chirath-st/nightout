@@ -149,6 +149,11 @@ export function howItWorks() {
  * longer), plus the range. Color is never the only cue: every state has a word, a meter or glyph shape and
  * a value. States without a usable range say so (and never show a number).
  */
+/** People in line as one best number (middle of the reported range); 0 for "about 0–2"; null when unknown. */
+export const peopleInLine = (est) => (Number.isFinite(est?.peopleHigh) && Number.isFinite(est?.peopleLow) ? (est.peopleHigh <= 2 ? 0 : Math.round((est.peopleLow + est.peopleHigh) / 2)) : null);
+/** Line levels by people: under 10 quiet, 10–29 lively, 30+ packed. */
+export const levelForPeople = (n) => (n < 10 ? 'quiet' : n < 30 ? 'lively' : 'packed');
+
 export function crowdStatus(est) {
   switch (est.tone) {
     case 'closed': return { level: 'closed', label: 'Closed', sub: 'Not open now', icon: 'moon' };
@@ -159,7 +164,9 @@ export function crowdStatus(est) {
     default: break;
   }
   if (est.waitHigh == null) return { level: 'mixed', label: 'Mixed', sub: 'Reports disagree', icon: 'uncertain', maybe: true };
-  const level = est.waitHigh <= 5 ? 'quiet' : est.waitHigh <= 15 ? 'lively' : 'packed';
+  // One scale everywhere (team ask: "how long is the line"): people in line when known, else the top of the wait range.
+  const n = peopleInLine(est);
+  const level = n != null ? levelForPeople(n) : est.waitHigh <= 5 ? 'quiet' : est.waitHigh <= 15 ? 'lively' : 'packed';
   return {
     level,
     label: { quiet: 'Quiet', lively: 'Lively', packed: 'Packed' }[level],
@@ -205,9 +212,8 @@ export function venueStatus(venue, now) {
 export function lineInfo(venue, now) {
   const est = estimateFor(venue, now);
   const q = venue?.queue;
-  const people = q && Number.isFinite(q.peopleLow) && Number.isFinite(q.peopleHigh) ? Math.round((q.peopleLow + q.peopleHigh) / 2) : null;
-  const n = people != null && q.peopleHigh <= 2 ? 0 : people;
-  const level = n == null ? 'none' : n < 10 ? 'quiet' : n < 30 ? 'lively' : 'packed';
+  const n = peopleInLine(q && Number.isFinite(q.peopleLow) ? { peopleLow: q.peopleLow, peopleHigh: q.peopleHigh } : null);
+  const level = n == null ? 'none' : levelForPeople(n);
   switch (est.tone) {
     case 'closed': return { state: 'closed', level: 'closed', n: null, word: 'Closed', est };
     case 'stale': case 'unknown': return { state: 'none', level: 'none', n: null, word: 'No update', est };
@@ -251,10 +257,15 @@ export function promoItem(d) {
 }
 
 /** The card's bottom-left: the live promo ending soonest (a badge, then what it's on), else the next one tonight. Live-patched. */
+/** A deal only counts as live while the bar is open (a promo never outlasts closing time). */
+export const liveDeal = (venue, now) => (isOpenAt(venue, now) === false ? null : activeDeal(venue, now));
+/** The next deal starting tonight at an open-later bar, if any. */
+export const nextDeal = (venue, now) => (venue.deals ?? []).filter((x) => dealState(x, now) === 'soon').sort((a, b) => a.startsAt - b.startsAt)[0] ?? null;
+
 export function dealTag(venue, now) {
-  const d = activeDeal(venue, now);
+  const d = liveDeal(venue, now);
   if (d) return `<span class="deal-slot" data-deal-for="${esc(venue.id)}"><span class="promo-badge" data-type="${esc(d.promo?.type ?? 'price')}" title="${esc(promoLabel(d))}">${esc(promoLabel(d, { compact: true }))}</span><span class="promo-item">${esc(promoItem(d))}</span></span>`;
-  const next = (venue.deals ?? []).filter((x) => dealState(x, now) === 'soon').sort((a, b) => a.startsAt - b.startsAt)[0];
+  const next = nextDeal(venue, now);
   return `<span class="deal-slot" data-deal-for="${esc(venue.id)}">${next ? `<span class="promo-next">${esc(promoLabel(next, { compact: true }))} at ${esc(formatTime(next.startsAt).replace(':00', ''))}</span>` : ''}</span>`;
 }
 
@@ -274,10 +285,11 @@ export function srSummary(venue, now) {
   const st = crowdStatus(est);
   const showPeople = est.peopleLabel && !['stale', 'unknown', 'closed'].includes(est.tone);
   const dist = distanceText(venue);
-  const deal = activeDeal(venue, now);
+  const deal = liveDeal(venue, now);
+  const next = deal ? null : nextDeal(venue, now);
   const L = lineInfo(venue, now);
-  const lineWords = L.n != null && ['line', 'full', 'clear'].includes(L.state) ? (L.n === 0 ? 'No line. ' : `About ${L.n} in line${L.state === 'full' ? ', at capacity' : ''}. `) : '';
-  const text = `${lineWords}${st.label}: ${est.headline}. ${est.tone === 'aging' ? 'May have changed. ' : ''}${showPeople ? `${est.peopleLabel}. ` : ''}${est.detail ? `${est.detail}. ` : ''}${est.observedAt != null ? `${est.sourceLabel}, ${est.ageLabel}.` : ''}${dist ? ` ${dist} from the demo spot, about ${walkMinutes(distanceTo(venue))} min walk.` : ''}${deal ? ` Demo deal: ${promoLabel(deal)}, ${promoItem(deal)}, until ${formatTime(deal.endsAt)}.` : ''} Demo data.`;
+  const lineWords = L.n != null && ['line', 'full', 'clear'].includes(L.state) ? (L.n === 0 ? 'No line. ' : `About ${L.n} in line${L.state === 'full' ? ', at capacity' : `, ${L.level}`}. `) : '';
+  const text = `${lineWords}${st.label}: ${est.headline}. ${est.tone === 'aging' ? 'May have changed. ' : ''}${showPeople ? `${est.peopleLabel}. ` : ''}${est.detail ? `${est.detail}. ` : ''}${est.observedAt != null ? `${est.sourceLabel}, ${est.ageLabel}.` : ''}${dist ? ` ${dist} from the demo spot, about ${walkMinutes(distanceTo(venue))} min walk.` : ''}${deal ? ` Demo deal: ${promoLabel(deal)}, ${promoItem(deal)}, until ${formatTime(deal.endsAt)}.` : next ? ` Demo deal later: ${promoLabel(next)}, ${promoItem(next)}, from ${formatTime(next.startsAt)}.` : ''} Demo data.`;
   return `<span class="sr-only" data-est="${esc(venue.id)}" data-variant="sr" data-tone="${est.tone}">${esc(text)}</span>`;
 }
 

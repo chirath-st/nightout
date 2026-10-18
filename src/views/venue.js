@@ -56,6 +56,12 @@ function passCta(venue, now) {
     <p>${why}</p>${btn}</section>`;
 }
 
+/** What on the bar page is real: name and address, plus the logo and photo when we show real ones. */
+function realBits(venue) {
+  const real = ['name', 'address', venue.logo && 'logo', venue.photo && 'photo'].filter(Boolean);
+  return real.length > 1 ? `${real.slice(0, -1).join(', ')} and ${real.at(-1)}` : real[0];
+}
+
 export function renderVenue(ctx, id) {
   const venue = ctx.venues.find((v) => v.id === id);
   if (!venue) {
@@ -119,7 +125,7 @@ export function renderVenue(ctx, id) {
       <h2 id="idpc-h" style="display:flex;gap:8px;align-items:center">${icon('id')}About a future ID pre-check</h2>
       <p>A future version might help you check, ahead of time, that you’re bringing an accepted ID. It could never guarantee entry or replace the venue’s own ID check at the door. New Jersey also limits keeping data from scanned IDs. This prototype collects no ID information.</p>
     </section>
-    <p class="demo-caption">Night Out isn’t affiliated with ${esc(venue.name)}. Everything on this page except the name and address is simulated, including community ideas and the people who proposed them. 21+ with physical ID.</p>
+    <p class="demo-caption">Night Out isn’t affiliated with ${esc(venue.name)}. Everything on this page except the ${esc(realBits(venue))} is simulated, including community ideas and the people who proposed them. 21+ with physical ID.</p>
   </div>`;
 }
 

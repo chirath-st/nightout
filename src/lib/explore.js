@@ -69,7 +69,7 @@ export function exploreList(venues, { q = '', filters = [], sort = 'wait', area 
     if (active.has('open') && open !== true) continue;
     if (active.has('nocover') && venue.cover !== 0) continue;
     if (active.has('saved') && !savedIds.has(venue.id)) continue;
-    if (active.has('deals') && !activeDeal(venue, now)) continue;
+    if (active.has('deals') && (open === false || !activeDeal(venue, now))) continue;
     if (active.has('short') && !est.qualifiesShortWait) {
       if (est.tone === 'stale') excludedStale += 1;
       continue;

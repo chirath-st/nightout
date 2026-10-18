@@ -20,33 +20,33 @@ export const LINE_BUCKETS = Object.freeze([
   { id: 'huge', label: '50+', low: 50, high: 80 },
 ]);
 
-// Fictional people for demo groups: made-up names, class years, interests and Instagram handles (every handle ends in
-// ".demo" so it can't point at a real account). Pictures are drawn by src/ui/avatars.js from `seed`, never photos.
+// Fictional people for demo groups: made-up names, class years, interests and Instagram-style handles. Every seeded
+// handle uses hyphens, which Instagram doesn't allow in usernames, so none can match a real account. Everyone is 21+. Pictures are drawn by src/ui/avatars.js from `seed`, never photos.
 export const PEOPLE = Object.freeze([
-  ['Chris T.', 'Senior', ['Chill', 'Bar hop']], ['Ana M.', 'Junior', ['Dancer']], ['Leo G.', 'Senior', ['Sports fan']], ['Nia B.', 'Junior', ['Karaoke']],
-  ['Omar H.', 'Grad student', ['Live music']], ['Jess W.', 'Junior', ['First time out']], ['Kenji A.', 'Senior', ['DJ fan']], ['Bella C.', 'Junior', ['Dancer', 'Karaoke']],
-  ['Tariq N.', 'Grad student', ['Trivia nerd']], ['Zoe F.', 'Senior', ['Chill']], ['Marcus D.', 'Senior', ['Sports fan', 'Bar hop']], ['Elena V.', 'Junior', ['Karaoke']],
-  ['Ravi J.', 'Grad student', ['Sports fan']], ['Hannah O.', 'Senior', ['Birthday crew']], ['Diego Q.', 'Senior', ['DJ fan']], ['Imani Y.', 'Junior', ['Dancer']],
-  ['Noah Z.', 'Grad student', ['Chill', 'Trivia nerd']], ['Grace E.', 'Junior', ['First time out']], ['Ethan U.', 'Senior', ['Trivia nerd']], ['Sofia R.', 'Junior', ['Live music']],
-  ['Malik P.', 'Senior', ['Sports fan']], ['Lily K.', 'Junior', ['Karaoke', 'Dancer']], ['Sam O.', 'Alum', ['Chill']], ['Aisha L.', 'Senior', ['DJ fan', 'Bar hop']],
-].map(([name, year, vibe]) => ({ name, year, vibe, handle: `${name.split(' ')[0].toLowerCase()}.${name.split(' ')[1][0].toLowerCase()}.demo`, seed: `p-${name}` })));
+  ['Chris T.', 'Senior', ['Chill', 'Bar hop']], ['Ana M.', 'Senior', ['Dancer']], ['Leo G.', 'Senior', ['Sports fan']], ['Nia B.', 'Senior', ['Karaoke']],
+  ['Omar H.', 'Grad student', ['Live music']], ['Jess W.', 'Senior', ['New to Easton Ave']], ['Kenji A.', 'Senior', ['DJ fan']], ['Bella C.', 'Senior', ['Dancer', 'Karaoke']],
+  ['Tariq N.', 'Grad student', ['Trivia nerd']], ['Zoe F.', 'Senior', ['Chill']], ['Marcus D.', 'Senior', ['Sports fan', 'Bar hop']], ['Elena V.', 'Senior', ['Karaoke']],
+  ['Ravi J.', 'Grad student', ['Sports fan']], ['Hannah O.', 'Senior', ['Birthday crew']], ['Diego Q.', 'Senior', ['DJ fan']], ['Imani Y.', 'Senior', ['Dancer']],
+  ['Noah Z.', 'Grad student', ['Chill', 'Trivia nerd']], ['Grace E.', 'Senior', ['New to Easton Ave']], ['Ethan U.', 'Senior', ['Trivia nerd']], ['Sofia R.', 'Senior', ['Live music']],
+  ['Malik P.', 'Senior', ['Sports fan']], ['Lily K.', 'Senior', ['Karaoke', 'Dancer']], ['Sam O.', 'Alum', ['Chill']], ['Aisha L.', 'Senior', ['DJ fan', 'Bar hop']],
+].map(([name, year, vibe]) => ({ name, year, vibe, handle: `${name.split(' ')[0].toLowerCase()}-${name.split(' ')[1][0].toLowerCase()}-demo`, seed: `p-${name}` })));
 
 const GROUPS = [
-  { id: 'g1', title: 'Pregame then Olde Queens', venueId: 'olde-queens', at: [22, 30], spots: 6, going: 3, host: { name: 'Maya R.', handle: 'maya.r.demo', hue: 18, year: 'Senior' }, note: 'Chill group, mostly seniors. Meeting outside at 10:25.', tags: ['Chill', 'Seniors'] },
-  { id: 'g2', title: 'Trivia crew needs two more', venueId: 'ale-n-wich', at: [21, 0], spots: 5, going: 3, host: { name: 'Dev P.', handle: 'dev.trivia.demo', hue: 205, year: 'Grad student' }, note: 'We lose every week. Come lose with us.', tags: ['Trivia'] },
-  { id: 'g3', title: 'Birthday at Scarlet Pub', venueId: 'scarlet-pub', at: [23, 0], spots: 10, going: 7, host: { name: 'Sam K.', handle: 'samk.demo', hue: 340, year: 'Senior' }, note: 'Turning 22. Everyone welcome, bring good energy.', tags: ['Birthday'] },
-  { id: 'g4', title: 'Late night at PITCH', venueId: 'pitch-social', at: [23, 30], spots: 4, going: 2, host: { name: 'Jordan L.', handle: '', hue: 140, year: 'Junior' }, note: 'Going for the DJ. One more and we’re a crew.', tags: ['DJ'] },
-  { id: 'g5', title: 'Easton Ave bar walk', venueId: 'hueys-knight-club', at: [22, 0], spots: 8, going: 5, host: { name: 'Priya S.', handle: 'priya.walks.demo', hue: 270, year: 'Senior' }, note: 'Three stops, one block. We move on when the next line is short.', tags: ['Bar hop'],
-    stops: [['hueys-knight-club', 22, 0], ['scarlet-pub', 23, 0], ['olde-queens', 0, 0]] },
-  { id: 'g6', title: 'Hamilton to Easton hop', venueId: 'ale-n-wich', at: [21, 30], spots: 6, going: 4, host: { name: 'Luis F.', handle: 'luis.hops.demo', hue: 30, year: 'Grad student' }, note: 'Wings and trivia first, then dancing.', tags: ['Bar hop'],
-    stops: [['ale-n-wich', 21, 30], ['pitch-social', 23, 0]] },
+  { id: 'g1', title: 'Pregame then Olde Queens', venueId: 'olde-queens', at: [0, 0], spots: 6, going: 3, host: { name: 'Maya R.', handle: 'maya-r-demo', hue: 18, year: 'Senior' }, note: 'Chill group, mostly seniors. Meeting outside at 11:55.', tags: ['Chill', 'Seniors'] },
+  { id: 'g2', title: 'Late trivia crew needs two more', venueId: 'ale-n-wich', at: [0, 30], spots: 5, going: 3, host: { name: 'Dev P.', handle: 'dev-trivia-demo', hue: 205, year: 'Grad student' }, note: 'We lose every week. Come lose with us.', tags: ['Trivia'] },
+  { id: 'g3', title: 'Birthday at Scarlet Pub', venueId: 'scarlet-pub', at: [23, 30], spots: 10, going: 7, host: { name: 'Sam K.', handle: 'sam-k-demo', hue: 340, year: 'Senior' }, note: 'Turning 22. Everyone welcome, bring good energy.', tags: ['Birthday'] },
+  { id: 'g4', title: 'Late night at PITCH', venueId: 'pitch-social', at: [0, 30], spots: 4, going: 2, host: { name: 'Jordan L.', handle: '', hue: 140, year: 'Senior' }, note: 'Going for the DJ. One more and we’re a crew.', tags: ['DJ'] },
+  { id: 'g5', title: 'Easton Ave bar walk', venueId: 'hueys-knight-club', at: [23, 30], spots: 8, going: 5, host: { name: 'Priya S.', handle: 'priya-walks-demo', hue: 270, year: 'Senior' }, note: 'Three stops, one block. We move on when the next line is short.', tags: ['Bar hop'],
+    stops: [['hueys-knight-club', 23, 30], ['scarlet-pub', 0, 15], ['olde-queens', 1, 0]] },
+  { id: 'g6', title: 'Hamilton to Easton hop', venueId: 'ale-n-wich', at: [23, 0], spots: 6, going: 4, host: { name: 'Luis F.', handle: 'luis-hops-demo', hue: 30, year: 'Grad student' }, note: 'Wings and trivia first, then dancing.', tags: ['Bar hop'],
+    stops: [['ale-n-wich', 23, 0], ['pitch-social', 0, 45]] },
 ];
 
 /** Members of a seeded group: the host plus fictional people (deterministic per group), and you if you joined. */
 export function groupMembers(g, { you = null, joined = false } = {}) {
   const host = { ...g.host, seed: g.mine ? null : `p-${g.host.name}`, initials: initials(g.host.name), role: 'Host', vibe: g.tags ?? [] };
   const me = (extra = {}) => ({ name: you?.name ?? g.host.name, initials: initials(you?.name ?? g.host.name), seed: youSeed(you?.name ?? g.host.name), handle: you?.handle ?? '', vibe: [], you: true, ...extra });
-  if (g.mine) return [me({ role: 'Host', vibe: g.tags ?? [] })];
+  if (g.mine) return [me({ role: 'Host', handle: g.host.handle ?? '', vibe: g.tags ?? [] })];
   let h = 0;
   for (const ch of g.id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   const others = [];
@@ -66,6 +66,9 @@ export function buildGroups(demoStart) {
     ...(stops ? { stops: stops.map(([venueId, h, m]) => ({ venueId, startsAt: atNight(demoStart, h, m) })) } : {}),
   }));
 }
+
+/** When a group (or the last stop of a bar hop) is over: 2 hours after it starts. One rule for cards, timelines and counts. */
+export const groupEndsAt = (g) => (g.stops?.length ? g.stops[g.stops.length - 1].startsAt : g.startsAt) + 2 * 60 * 60_000;
 
 /** Which stop of a bar hop is current at `now` (null before the first or with no stops). Each stop runs until the next starts. */
 export function currentStop(stops, now) {

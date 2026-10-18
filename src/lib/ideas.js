@@ -15,12 +15,14 @@ export const END_TIMES = Object.freeze([[23, 0], [0, 0], [1, 0], [2, 0]]);
 const HOUR = 60 * 60_000;
 
 const RULES = [
-  [/https?:|www\.|\b[\w.-]+\.(com|net|org|io|co|me)\b|@\w|\b\d{3}[\s.-]?\d{3}[\s.-]?\d{4}\b/i, 'Leave out links, @handles, emails and phone numbers.'],
+  [/https?:|www\.|\b[\w.-]+\.(com|net|org|io|co|me)\b|@\w|(?<!\d)\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)|\b(ig|insta(gram)?|snap(chat)?|tiktok)\b\s*[:@-]\s*\w/i, 'Leave out links, @handles, emails and phone numbers.'],
   [BANNED, 'New Jersey doesn’t allow free-drink, 2-for-1, unlimited-drink or gender-based nights.'],
+  [/\$\s?\d|\d+\s*%|half[\s-]*(price|off)|on\s+the\s+house|\bdiscount(s|ed)?\b|\bdeals?\b|\bspecials?\b/i, 'Leave out prices, discounts and deals. The bar sets cover and any specials.'],
   [/\b(beer\s*pong|flip\s*cup|chug\w*|keg\s*stands?|shotgun\w*|drinking\s+games?|power\s*hour|raffles?|bingo|50\s*\/\s*50|lotter(y|ies)|poker|casino|bet(s|ting)?|gambl\w*|wagers?)\b/i, 'Night Out doesn’t post ideas about drinking games, raffles, bingo or betting.'],
-  [/(?<!\d)(1[6-9]|20)\s*\+|\b((18|19|20)\s*(and|&)\s*(up|over)|under\s*21|all\s*ages|underage|teens?|kids?)\b/i, 'Every night here is 21+. Leave out under-21 or all-ages wording.'],
+  [/(?<!\d)(1[6-9]|20)\s*\+|\b((18|19|20)\s*(and|&)\s*(up|over)|under\s*21|all\s*ages|underage|teens?|kids?|fresh(man|men|ers?)|sophomores?|class\s+of\s+20(29|3\d)|fake\s*ids?|sweet\s*16)\b/i, 'Every night here is 21+. Leave out under-21 or all-ages wording.'],
   [ALCOHOL, 'Theme nights can’t be about drinks. Make it about the music, the theme or the game; the bar sets any specials.'],
-  [/\b(official(ly)?|sponsor\w*|partner(ed|ship)|hosted\s+by|presented\s+by)\b/i, 'Ideas can’t say a bar is hosting or sponsoring them. Only the bar can.'],
+  [/\b(drinks?|bottles?|champagne|prosecco|spirits|bud\s*light|coors|white\s*claw|truly)\b|\brounds?\s+(on|for)\b/i, 'Theme nights can’t be about drinks. Make it about the music, the theme or the game; the bar sets any specials.'],
+  [/\b(official(ly)?|sponsor\w*|partner(ed|ship|ing)|hosted\s+by|presented\s+by|brought\s+to\s+you\s+by|in\s+collaboration\s+with)\b/i, 'Ideas can’t say a bar is hosting or sponsoring them. Only the bar can.'],
 ];
 /** First rule an idea's text breaks, as a message; null when it's fine. */
 export function textProblem(s) {
@@ -101,8 +103,13 @@ export function agoLabel(at, now) {
 }
 
 /** Seeds + your ideas, with the console's decisions applied. Drops anything that breaks the text rules or has no bar. */
-export function resolveIdeas(seeds, created = [], decisions = {}, venueIds = null) {
-  const mine = created.filter((c) => !textProblem(c.title) && !textProblem(c.pitch) && THEMES.includes(c.theme));
+export function resolveIdeas(seeds, created = [], decisions = {}, venueIds = null, base = null) {
+  // Your ideas store absolute times; their night number is recounted against the current demo night (it may be a new one).
+  const dayOf = (ms) => { const d = new Date(ms - 12 * HOUR); d.setHours(0, 0, 0, 0); return d.getTime(); };
+  const mine = created
+    .filter((c) => !textProblem(c.title) && !textProblem(c.pitch) && THEMES.includes(c.theme))
+    .map((c) => (base == null ? c : { ...c, day: Math.round((dayOf(c.startsAt) - dayOf(base)) / (24 * HOUR)) }))
+    .filter((c) => c.day >= 1 && c.day <= 6);
   return [...mine, ...seeds]
     .filter((x) => !venueIds || venueIds.has(x.venueId))
     .map((x) => {

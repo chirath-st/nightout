@@ -132,6 +132,8 @@ export function describeEstimate(venue, now, { isOpen = true } = {}) {
   const withRange = {
     ...base,
     peopleLabel: people,
+    peopleLow: validPeople(q) ? q.peopleLow : null,
+    peopleHigh: validPeople(q) ? q.peopleHigh : null,
     waitLow: range?.low ?? null,
     waitHigh: range?.high ?? null,
   };

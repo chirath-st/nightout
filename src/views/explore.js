@@ -1,4 +1,4 @@
-import { exploreList, FILTERS, AREAS, areaLabel } from '../lib/explore.js';
+import { exploreList, FILTERS, AREAS, areaLabel, isOpenAt } from '../lib/explore.js';
 import { esc, venueRow, venueCard, stateBox, banner, estimateFor, venuePhoto, promoLabel, promoItem } from '../ui/components.js';
 import { icon, TONE_LABEL } from '../ui/icons.js';
 import { formatTime } from '../lib/clock.js';
@@ -111,10 +111,10 @@ export function exploreResults(ctx) {
 
 /** "Deals right now": a delivery-app style row of live promos (badge on the photo); a tile opens that deal on the bar page. */
 export function dealsRail(ctx) {
-  const live = ctx.venues.flatMap((v) => (v.deals ?? []).filter((d) => dealState(d, ctx.now) === 'live').map((d) => ({ v, d })))
+  const live = ctx.venues.filter((v) => isOpenAt(v, ctx.now) !== false).flatMap((v) => (v.deals ?? []).filter((d) => dealState(d, ctx.now) === 'live').map((d) => ({ v, d })))
     .sort((a, b) => (distanceTo(a.v) ?? 99) - (distanceTo(b.v) ?? 99) || a.d.endsAt - b.d.endsAt);
   if (!live.length) return '';
-  return `<section class="deals-rail" aria-labelledby="rail-h">
+  return `<section class="deals-rail" aria-labelledby="rail-h" data-rail-sig="${esc(live.map(({ d }) => d.id).join(','))}">
     <div class="rail-head"><h2 id="rail-h">Deals right now</h2><span class="demo-tag">Demo deals</span><button type="button" class="rail-all" data-action="quick-view" data-view="deals">See all${icon('chevronRight', { size: 16 })}</button></div>
     <ul class="rail-list">${live.map(({ v, d }) => `<li><a class="rail-tile" href="#/venue/${encodeURIComponent(v.id)}?deal=${encodeURIComponent(d.id)}" aria-label="${esc(`${promoLabel(d)}: ${promoItem(d)} at ${v.name}, until ${formatTime(d.endsAt)}. Demo deal`)}">
       <span class="rail-photo">${venuePhoto(v)}<span class="promo-badge" data-type="${esc(d.promo?.type ?? 'price')}">${icon('tag', { size: 12 })}${esc(promoLabel(d))}</span></span>

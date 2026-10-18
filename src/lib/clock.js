@@ -7,6 +7,7 @@
 export const START_OFFSET_MIN = 80;
 const CLOCK_VERSION = 2; // bump to give every saved demo a fresh night (v2: start at midnight)
 const STALE_SESSION_MS = 4 * 60 * 60_000; // a session left for 4+ hours starts a fresh night
+export const NIGHT_LENGTH_MIN = 200; // every demo bar closes by 2:00 AM (anchor 10:40 PM + 200 min)
 
 export function defaultBase(realNow) {
   const d = new Date(realNow);
@@ -15,9 +16,15 @@ export function defaultBase(realNow) {
 }
 
 export function normalizeClock(clock, realNow) {
-  const valid = clock?.v === CLOCK_VERSION && Number.isFinite(clock.realStart) && Number.isFinite(clock.base) && realNow - clock.realStart < STALE_SESSION_MS;
+  const valid = clock?.v === CLOCK_VERSION && Number.isFinite(clock.realStart) && Number.isFinite(clock.base) && realNow - clock.realStart < STALE_SESSION_MS
+    && !nightIsOver(clock, realNow);
   if (!valid) return { v: CLOCK_VERSION, realStart: realNow, base: defaultBase(realNow), offsetMin: START_OFFSET_MIN };
   return { v: CLOCK_VERSION, realStart: clock.realStart, base: clock.base, offsetMin: Number.isFinite(clock.offsetMin) ? clock.offsetMin : START_OFFSET_MIN };
+}
+
+/** The night is over once every demo bar has closed (2:00 AM); the next load or tick starts a fresh night. */
+export function nightIsOver(clock, realNow) {
+  return demoNow({ offsetMin: START_OFFSET_MIN, ...clock }, realNow) >= clock.base + NIGHT_LENGTH_MIN * 60_000;
 }
 
 export function demoNow(clock, realNow) {

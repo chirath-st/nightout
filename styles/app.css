@@ -1560,3 +1560,14 @@ button.member-row:focus-visible { outline: 2px solid var(--focus); outline-offse
 .vip-card.is-tinted .vip-brand { color: #fff; }
 .sheet-head:has(.sheet-back) { grid-template-columns: 44px minmax(0, 1fr) 44px; padding-left: 8px; }
 .sheet-head:has(.sheet-back) .sheet-title { grid-column: 2; }
+
+/* ---------- Review fixes (2026-10-17) ---------- */
+.promo-item { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.card-foot .promo-badge { flex: none; max-width: none; }
+.search .clear::before { content: ""; position: absolute; inset: -4px; }
+.idea-card .idea-pitch { display: block; -webkit-line-clamp: unset; overflow: visible; }
+.mp-facts dd:not(.num) { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.1; }
+.handle { position: relative; }
+.handle::before { content: ""; position: absolute; inset: -8px -4px; }
+.sheet-title:focus { outline: none; }
+.sheet-title:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }

@@ -6,6 +6,7 @@ import { formatTime } from '../lib/clock.js';
 import { eventList, isLive, PRICE_BANDS } from '../lib/events.js';
 import { GENRES, THEMES } from '../data/events.js';
 import { allGroups } from './groups.js';
+import { groupEndsAt } from '../data/social.js';
 import { ideaCard, ideasTeaser } from './ideas.js';
 import { ideaList } from '../lib/ideas.js';
 
@@ -74,7 +75,7 @@ export function eventResults(ctx) {
 export function renderEvents(ctx) {
   const ui = ctx.ui;
   const pendingIdeas = ctx.ideas.filter((x) => x.status === 'pending' && x.endsAt > ctx.now).length;
-  const groups = allGroups(ctx).filter((g) => ctx.now < g.startsAt + 3 * 60 * 60_000).length;
+  const groups = allGroups(ctx).filter((g) => ctx.now < groupEndsAt(g)).length;
   return `<div class="page">
     <h1 class="page-title" id="page-h" tabindex="-1">Events</h1>
     <p class="page-sub">${icon('pinFill', { size: 14 })} New Brunswick</p>

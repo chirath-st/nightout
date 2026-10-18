@@ -24,7 +24,12 @@ export const DRINK_ITEMS = Object.freeze([
 
 export const DEAL_TITLE_MAX = 32;
 
-export const BANNED = /\b(2|two)\s*-?\s*(for|4)\s*-?\s*(1|one)\b|\bbogo\b|buy\s+(one|1|\d+)\s+get|bottomless|unlimited|all[\s-]*you[\s-]*can[\s-]*drink|open\s*bar|free\s+(shots?|drinks?|beers?|rounds?|pitchers?|cocktails?)|\bladies\b|\bgirls?\b|\bguys\b|\bmen\b|\bwomen\b|\bupsize\b|\bupgrade\b|\bdoubles?\s+for\b|\bdrink\s+tickets?\b|\bbuckets?\b|\bpitchers?\s+for\b|\bwas\s+\$/i;
+// Banned in every deal: unlimited or bottomless drinks, open bars, free drinks, gender pricing, upsizing, drink tickets, "was $".
+export const ALWAYS_BANNED = /bottomless|unlimited|all[\s-]*you[\s-]*can[\s-]*drink|open\s*bar|free\s+(shots?|drinks?|beers?|rounds?|pitchers?|cocktails?)|\bladies\b|\bgirls?\b|\bguys\b|\bmen\b|\bwomen\b|\bupsize\b|\bupgrade\b|\bdrink\s+tickets?\b|\bwas\s+\$/i;
+// Multi-item offers (2-for-1, BOGO, buy N get…): banned for alcohol, fine for food, entry and non-alcoholic drinks.
+export const MULTI_OFFER = /\b(2|two)\s*-?\s*(for|4)\s*-?\s*(1|one)\b|\bbogo\b|\bb1g1\b|buy\s*(one|1|\d+)[\s,]*get|\bdoubles?\s+for\b|\bbuckets?\b|\bpitchers?\s+for\b/i;
+/** Either kind of banned shape (used for free text where we can't tell what the offer is on). */
+export const BANNED = new RegExp(`${ALWAYS_BANNED.source}|${MULTI_OFFER.source}`, 'i');
 export const ALCOHOL = /\b(beers?|drafts?|shots?|cocktails?|wines?|liquor|margaritas?|pitchers?|seltzers?|vodka|tequila|whiske?y|rum|gin|ipas?|lagers?|sangria|mimosas?|well\s+drinks?|booze|happy\s+hour)\b/i;
 const NA_WORDS = /non-?alcoholic|mocktails?|soda|soft\s+drinks?|zero-?proof|red\s*bull|coffee|water|juice|lemonade/i;
 
@@ -73,7 +78,8 @@ export function checkDeal(draft) {
   } else if (kind) {
     if (!title) errors.title = 'Add a short headline, like “No cover before 11”.';
     else if (title.length > DEAL_TITLE_MAX) errors.title = `Keep it to ${DEAL_TITLE_MAX} characters.`;
-    else if (BANNED.test(title)) errors.title = 'New Jersey doesn’t allow 2-for-1, unlimited, free-drink, upsized, multi-drink or gender-based deals.';
+    else if (ALWAYS_BANNED.test(title)) errors.title = 'New Jersey doesn’t allow unlimited, free-drink, upsized or gender-based deals.';
+    else if (MULTI_OFFER.test(title) && ALCOHOL.test(title) && !NA_WORDS.test(title)) errors.title = 'New Jersey doesn’t allow 2-for-1 or multi-drink deals on alcohol. Buy 1, get 1 works for food, entry and non-alcoholic drinks.';
     else if (ALCOHOL.test(title) && !NA_WORDS.test(title)) errors.title = 'Alcohol prices go under “Drink special (21+)” so the price and size are checked.';
   }
   const okTime = (t) => Array.isArray(t) && t.length === 2 && t.every(Number.isFinite);

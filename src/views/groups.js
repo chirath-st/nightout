@@ -3,7 +3,7 @@
 import { esc, stateBox, venueLogo, cardStatus, distanceText } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
 import { formatTime } from '../lib/clock.js';
-import { initials, validHandle, groupMembers, currentStop } from '../data/social.js';
+import { initials, validHandle, groupMembers, currentStop, groupEndsAt } from '../data/social.js';
 import { personAvatar } from '../ui/avatars.js';
 
 const MAX_FACES = 5;
@@ -18,7 +18,7 @@ function groupCard(g, ctx) {
   const joined = ctx.state.groups.joined.includes(g.id) || g.mine;
   const going = g.going + (ctx.state.groups.joined.includes(g.id) ? 1 : 0);
   const full = going >= g.spots && !joined;
-  const ended = ctx.now >= g.startsAt + 3 * 60 * 60000;
+  const ended = ctx.now >= groupEndsAt(g);
   const members = membersFor(g, ctx);
   const faces = members.slice(0, MAX_FACES).map((m) => personAvatar(m, 30)).join('');
   const more = members.length > MAX_FACES ? `<span class="avatar avatar-more" style="--size:30px">+${members.length - MAX_FACES}</span>` : '';
@@ -45,7 +45,7 @@ function groupCard(g, ctx) {
 /** Bar hop: each stop runs until the next one starts; the current stop is marked while the hop is on. */
 function hopTimeline(g, ctx) {
   const cur = currentStop(g.stops, ctx.now);
-  const ended = ctx.now >= g.stops[g.stops.length - 1].startsAt + 2 * 60 * 60000;
+  const ended = ctx.now >= groupEndsAt(g);
   return `<div class="hop"><p class="hop-label">${icon('nav', { size: 14 })}Bar hop · ${g.stops.length} stops</p>
     <ol class="hop-list">${g.stops.map((st, i) => {
       const v = ctx.venues.find((x) => x.id === st.venueId);
@@ -61,7 +61,7 @@ function hopTimeline(g, ctx) {
 }
 
 const tagsOf = (m) => [m.role, m.year, ...(m.vibe ?? [])].filter(Boolean);
-const sheetHead = (title, back) => `<div class="sheet-head"><span class="sheet-grabber" aria-hidden="true"></span>${back ? `<button type="button" class="icon-btn sheet-back" data-action="group-members" data-id="${esc(back)}" aria-label="Back to who’s going">${icon('chevronLeft')}</button>` : ''}<h2 class="sheet-title" id="picker-title">${title}</h2>
+const sheetHead = (title, back) => `<div class="sheet-head"><span class="sheet-grabber" aria-hidden="true"></span>${back ? `<button type="button" class="icon-btn sheet-back" data-action="group-members" data-id="${esc(back)}" aria-label="Back to who’s going">${icon('chevronLeft')}</button>` : ''}<h2 class="sheet-title" id="picker-title" tabindex="-1">${title}</h2>
       <button type="button" class="icon-btn sheet-close" data-action="close-picker" aria-label="Close">${icon('x')}</button></div>`;
 
 /** "Who's going" sheet: everyone in the group with their picture, handle and tags; tap one to see their profile. */
@@ -72,7 +72,7 @@ export function membersSheet(g, ctx) {
     <div class="sheet-body">
       <p class="members-sub">${esc(g.title)} · <span class="num">${going} of ${g.spots}</span></p>
       <ul class="member-list">${members.map((m, i) => `<li><button type="button" class="member-row" data-action="member-profile" data-group="${esc(g.id)}" data-index="${i}">${personAvatar(m, 44)}<span class="member-main"><b>${esc(m.you ? `${m.name} (you)` : m.name)}</b>${m.handle ? `<small class="member-handle">@${esc(m.handle)}</small>` : ''}${tagsOf(m).length ? `<span class="member-tags">${tagsOf(m).map((x) => `<span class="mini-tag">${esc(x)}</span>`).join('')}</span>` : ''}</span>${icon('chevronRight', { size: 18 })}</button></li>`).join('')}</ul>
-      <p class="hint">Demo people: names, handles and years are made up, and pictures are drawn by the app. Real profiles would come from sign-up.</p>
+      <p class="hint">${members.some((x) => x.you) ? 'Everyone here except you is a demo person' : 'Demo people'}: names, handles and years are made up, and pictures are drawn by the app. Real profiles would come from sign-up.</p>
     </div>`;
 }
 
@@ -83,7 +83,7 @@ export function memberProfileSheet(g, index, ctx) {
   if (!m) return membersSheet(g, ctx);
   const venue = ctx.venues.find((v) => v.id === g.venueId);
   const plans = allGroups(ctx).filter((x) => membersFor(x, ctx).some((p) => p.name === m.name)).length;
-  return `${sheetHead(m.you ? 'Your profile' : 'Profile', g.id)}
+  return `${sheetHead(m.you ? 'Your profile' : `${esc(m.name)}’s profile`, g.id)}
     <div class="sheet-body member-profile">
       <div class="mp-head">${personAvatar(m, 88)}
         <div class="mp-id"><p class="mp-name">${esc(m.you ? `${m.name} (you)` : m.name)}</p>
@@ -98,7 +98,8 @@ export function memberProfileSheet(g, index, ctx) {
       <p class="eyebrow" style="margin-top:16px">Going to</p>
       <div class="mp-plan">${venue ? `<span class="bar-logo" aria-hidden="true">${venueLogo(venue)}</span>` : ''}<span><b>${esc(g.title)}</b><small>${esc(venue?.name ?? '')} · ${esc(formatTime(g.startsAt))}</small></span></div>
       ${m.handle ? `<button type="button" class="btn btn-block" data-action="ig-link" data-handle="${esc(m.handle)}" style="margin-top:16px">${icon('at', { size: 16 })}Open Instagram</button>` : ''}
-      <p class="hint">Demo person: the name, handle and picture are made up, so Instagram links are off. In the real app this opens their Instagram profile.</p>
+      <p class="hint" role="status" aria-live="polite" data-ig-note></p>
+      <p class="hint">${m.you ? 'This is your demo profile: the name and handle are what you entered, and they stay on this device. Instagram links are off in the demo.' : 'Demo person: the name, handle and picture are made up, so there’s no Instagram account to open. In the real app this opens their Instagram profile.'}</p>
     </div>`;
 }
 
@@ -124,6 +125,7 @@ export const nightMinutes = (hhmm) => { const [h, m] = hhmm.split(':').map(Numbe
 export const MAX_STOPS = 4;
 
 export function renderGroupNew(ctx, draft, errors = {}) {
+  if (!ctx.venues.length) return `<div class="page">${stateBox({ iconName: 'users', title: 'No bars to meet at', body: 'Switch back to the demo venues in About.', actions: '<a class="btn btn-primary" href="#/about">About this demo</a>', headingLevel: 1 })}</div>`;
   const d = draft;
   const venues = [...ctx.venues].sort((a, b) => a.name.localeCompare(b.name));
   return `<div class="page">
@@ -150,8 +152,8 @@ export function renderGroupNew(ctx, draft, errors = {}) {
         <span class="switch"><input id="g-hop" type="checkbox" role="switch" data-input="group-hop" ${d.hop ? 'checked' : ''}><span></span></span></div>
       ${d.hop ? `<fieldset class="hop-edit"><legend class="label">Then</legend>
         <ol class="hop-edit-list">${d.stops.map((st, i) => `<li class="hop-edit-row">
-          <div class="select"><label class="sr-only" for="hop-bar-${i}">Stop ${i + 2} bar</label><select id="hop-bar-${i}" data-input="hop-field" data-index="${i}" data-key="venueId">${venues.map((v) => `<option value="${esc(v.id)}" ${v.id === st.venueId ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select>${icon('chevronDown', { size: 14 })}</div>
-          <div class="select hop-time"><label class="sr-only" for="hop-time-${i}">Stop ${i + 2} time</label><select id="hop-time-${i}" data-input="hop-field" data-index="${i}" data-key="time">${timeOptions(st.time)}</select>${icon('chevronDown', { size: 14 })}</div>
+          <div class="select"><label class="sr-only" for="hop-bar-${i}">Stop ${i + 2} bar</label><select id="hop-bar-${i}" data-input="hop-field" data-index="${i}" data-key="venueId"${errors.stopsAt?.index === i && errors.stopsAt.field === 'bar' ? ' aria-invalid="true" aria-describedby="err-g-stops"' : ''}>${venues.map((v) => `<option value="${esc(v.id)}" ${v.id === st.venueId ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select>${icon('chevronDown', { size: 14 })}</div>
+          <div class="select hop-time"><label class="sr-only" for="hop-time-${i}">Stop ${i + 2} time</label><select id="hop-time-${i}" data-input="hop-field" data-index="${i}" data-key="time"${errors.stopsAt?.index === i && errors.stopsAt.field === 'time' ? ' aria-invalid="true" aria-describedby="err-g-stops"' : ''}>${timeOptions(st.time)}</select>${icon('chevronDown', { size: 14 })}</div>
           <button type="button" class="icon-btn" data-action="hop-remove" data-index="${i}" aria-label="Remove stop ${i + 2}">${icon('x')}</button>
         </li>`).join('')}</ol>
         ${errors.stops ? `<p class="field-error" id="err-g-stops">${icon('alert')}${esc(errors.stops)}</p>` : ''}
@@ -185,8 +187,10 @@ export function validateGroup(d) {
   if (d.handle && !validHandle(d.handle.replace(/^@/, ''))) errors.handle = 'Use letters, numbers, periods or underscores (up to 30).';
   if (d.hop && d.stops?.length) {
     const seq = [{ venueId: d.venueId, time: d.time }, ...d.stops];
-    if (seq.some((st, i) => i > 0 && nightMinutes(st.time) <= nightMinutes(seq[i - 1].time))) errors.stops = 'Each stop needs a later time than the one before.';
-    else if (seq.some((st, i) => i > 0 && st.venueId === seq[i - 1].venueId)) errors.stops = 'Pick a different bar than the stop before.';
+    const late = seq.findIndex((st, i) => i > 0 && nightMinutes(st.time) <= nightMinutes(seq[i - 1].time));
+    const same = seq.findIndex((st, i) => i > 0 && st.venueId === seq[i - 1].venueId);
+    if (late > 0) { errors.stops = 'Each stop needs a later time than the one before.'; errors.stopsAt = { index: late - 1, field: 'time' }; }
+    else if (same > 0) { errors.stops = 'Pick a different bar than the stop before.'; errors.stopsAt = { index: same - 1, field: 'bar' }; }
   }
   return errors;
 }
