@@ -1,6 +1,6 @@
 // Events tab: what's on at the bars tonight and this week. Every event, count and price is a sample
 // (no bar has announced these). Save and "I'm going" stay on this device; no one is notified.
-import { esc, venuePhoto, venueLogo, stateBox } from '../ui/components.js';
+import { esc, venuePhoto, venueLogo, stateBox, heartStack, lblStack } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
 import { formatTime } from '../lib/clock.js';
 import { eventList, isLive, PRICE_BANDS } from '../lib/events.js';
@@ -26,18 +26,18 @@ export function eventCard(ev, ctx) {
   const when = `${ctx.ui.eventsView === 'tonight' || live ? (live ? 'Now' : 'Tonight') : dayName(ev.startsAt)} · ${formatTime(ev.startsAt)}${ev.endsAt ? `–${formatTime(ev.endsAt)}` : ' till late'}`;
   return `<li class="ev-card" data-event="${esc(ev.id)}" data-starts="${ev.startsAt}">
     <a class="ev-link" href="#/venue/${encodeURIComponent(ev.venueId)}" data-nav-venue="${esc(ev.venueId)}">
-      <span class="ev-photo">${venue ? venuePhoto(venue, { anchor: 'bottom' }) : ''}${live ? '<span class="live-chip ev-live">Live</span>' : ''}</span>
+      <span class="ev-photo" data-thumb-ev="${esc(ev.id)}">${venue ? venuePhoto(venue, { anchor: 'bottom' }) : ''}${live ? '<span class="live-chip ev-live">Live</span>' : ''}</span>
       <span class="ev-body">
         <span class="ev-bar">${venue ? `<span class="bar-logo ev-logo" aria-hidden="true">${venueLogo(venue)}</span>` : ''}<span>${esc(venue?.name ?? 'Bar not in this dataset')}</span></span>
         <span class="ev-title">${esc(ev.title)}</span>
         <span class="ev-meta">${icon('clock', { size: 15 })}<span class="num">${esc(when)}</span></span>
-        <span class="ev-meta">${icon('users', { size: 15 })}<span class="num" data-going="${esc(ev.id)}">${ev.going + (going ? 1 : 0)} going</span><span class="sep" aria-hidden="true">•</span><span>21+</span><span class="sep" aria-hidden="true">•</span><span class="num">${ev.cover ? `$${ev.cover} cover` : 'Free entry'}</span></span>
+        <span class="ev-meta">${icon('users', { size: 15 })}<span class="num" data-going="${esc(ev.id)}"><span class="roll">${ev.going + (going ? 1 : 0)}</span> going</span><span class="sep" aria-hidden="true">•</span><span class="num">21+</span><span class="sep" aria-hidden="true">•</span><span class="num">${ev.cover ? `$${ev.cover} cover` : 'Free entry'}</span></span>
         <span class="ev-meta">${icon('music', { size: 15 })}<span>${esc(ev.music)}</span></span>
       </span>
     </a>
     <div class="ev-actions">
-      <button type="button" class="btn btn-sm" data-action="event-save" data-id="${esc(ev.id)}" aria-pressed="${saved}" aria-label="Save ${esc(ev.title)}">${icon(saved ? 'heartFill' : 'heart', { size: 16 })}${saved ? 'Saved' : 'Save'}</button>
-      <button type="button" class="btn btn-sm ${going ? '' : 'btn-primary'}" data-action="event-going" data-id="${esc(ev.id)}" aria-pressed="${going}">${going ? `${icon('check', { size: 16 })}Going` : 'I’m going'}</button>
+      <button type="button" class="btn btn-sm" data-action="event-save" data-id="${esc(ev.id)}" aria-pressed="${saved}" aria-label="Save ${esc(ev.title)}">${heartStack(16)}${lblStack('Save', 'Saved', saved)}</button>
+      <button type="button" class="btn btn-sm ${going ? '' : 'btn-primary'}" data-action="event-going" data-id="${esc(ev.id)}" aria-pressed="${going}">${lblStack('I’m going', `${icon('check', { size: 16 })}Going`, going)}</button>
     </div>
   </li>`;
 }
@@ -74,7 +74,7 @@ export function renderEvents(ctx) {
   const groups = allGroups(ctx).filter((g) => ctx.now < groupEndsAt(g)).length;
   return `<div class="page">
     <h1 class="page-title" id="page-h" tabindex="-1">Events</h1>
-    <div class="segmented ev-views" role="group" aria-label="Show">${EVENT_VIEWS.map(([id, label]) => `<button type="button" data-action="event-view" data-view="${id}" aria-pressed="${ui.eventsView === id}">${label}${id === 'saved' && ctx.state.savedEvents.length ? ` <span class="num">${ctx.state.savedEvents.length}</span>` : ''}${id === 'ideas' && pendingIdeas ? ` <span class="num">${pendingIdeas}</span>` : ''}</button>`).join('')}</div>
+    <div class="segmented ev-views" role="group" aria-label="Show" style="--n:${EVENT_VIEWS.length}">${EVENT_VIEWS.map(([id, label]) => `<button type="button" data-action="event-view" data-view="${id}" aria-pressed="${ui.eventsView === id}">${label}${id === 'saved' ? ` <span class="num">${ctx.state.savedEvents.length || ''}</span>` : ''}${id === 'ideas' && pendingIdeas ? ` <span class="num">${pendingIdeas}</span>` : ''}</button>`).join('')}</div>
     <div class="chips ev-filters" role="group" aria-label="Filters">
       ${filterSelect('genre', 'Music', GENRES.map((g) => [g, g]), ui.eventsGenre)}
       ${filterSelect('theme', 'Theme', THEMES.map((t) => [t, t]), ui.eventsTheme)}

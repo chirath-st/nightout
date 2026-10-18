@@ -1,6 +1,6 @@
 // Groups: people post plans to head out together; others join. Everything is simulated and stays on
 // this device. Hosts are fictional; Instagram handles are shown but never linked out in the demo.
-import { esc, stateBox, venueLogo, cardStatus, distanceText } from '../ui/components.js';
+import { esc, stateBox, venueLogo, cardStatus, distanceText, lblStack } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
 import { formatTime } from '../lib/clock.js';
 import { initials, validHandle, groupMembers, currentStop, groupEndsAt } from '../data/social.js';
@@ -13,7 +13,7 @@ export function allGroups(ctx) {
   return [...ctx.state.groups.created, ...ctx.groups].sort((a, b) => a.startsAt - b.startsAt);
 }
 
-function groupCard(g, ctx) {
+export function groupCard(g, ctx) {
   const venue = ctx.venues.find((v) => v.id === g.venueId);
   const joined = ctx.state.groups.joined.includes(g.id) || g.mine;
   const going = g.going + (ctx.state.groups.joined.includes(g.id) ? 1 : 0);
@@ -27,17 +27,17 @@ function groupCard(g, ctx) {
     ? `<button type="button" class="handle" data-action="member-profile" data-group="${esc(g.id)}" data-index="0" aria-haspopup="dialog" aria-label="@${esc(g.host.handle)}: see ${esc(g.host.name)}’s profile">${icon('at', { size: 14 })}${esc(g.host.handle)}</button>`
     : '';
   const [t, ap] = formatTime(g.startsAt).split(/\s+/);
-  return `<li class="group-card">
+  return `<li class="group-card" data-group="${esc(g.id)}">
     <div class="group-dest">${venue ? `<span class="bar-logo" aria-hidden="true">${venueLogo(venue)}</span>` : ''}<span><b>${esc(venue?.name ?? 'Bar not in this dataset')}</b><small>${esc((venue && distanceText(venue)) || '')}</small></span>${venue ? `<span class="group-wait" aria-hidden="true">${cardStatus(venue, ctx.now)}</span>` : ''}</div>
-    <div class="group-host">${personAvatar(members[0], 36)}<div class="group-host-text"><span class="group-host-name">${esc(g.host.name)}${g.mine ? ' <span class="mini-tag">You</span>' : ''}</span>${handle}</div></div>
-    <h2 class="group-title-text">${esc(g.title)}</h2>
+    <div class="group-host">${personAvatar(members[0], 28)}<div class="group-host-text"><span class="group-host-name">${esc(g.host.name)}${g.mine ? ' <span class="mini-tag">You</span>' : ''}</span>${handle}</div></div>
+    <h2 class="group-title-text" tabindex="-1">${esc(g.title)}</h2>
     ${g.stops?.length > 1 ? hopTimeline(g, ctx) : `<p class="group-when"><small>Leaving</small><span class="num">${esc(t)}</span><small class="ap">${esc(ap ?? '')}</small></p>`}
     ${g.note ? `<p class="group-note">${esc(g.note)}</p>` : ''}
     <div class="group-foot">
-      <button type="button" class="group-spots" data-action="group-members" data-id="${esc(g.id)}" aria-haspopup="dialog" aria-label="${going} of ${g.spots} going. See who’s going"><span class="avatars" aria-hidden="true">${faces}${more}</span><span class="gs-text"><span class="num">${going} of ${g.spots} going</span><small>${open ? `${open} spot${open === 1 ? '' : 's'} left` : 'Full'}</small></span></button>
+      <button type="button" class="group-spots" data-action="group-members" data-id="${esc(g.id)}" aria-haspopup="dialog" aria-label="${going} of ${g.spots} going. See who’s going"><span class="avatars" aria-hidden="true">${faces}${more}</span><span class="gs-text"><span class="num"><span class="roll">${going}</span> of ${g.spots} going</span><small>${open ? `<span class="roll">${open}</span> spot${open === 1 ? '' : 's'} left` : 'Full'}</small></span></button>
       ${g.mine ? '<span class="mini-tag">Your group</span>'
         : ended ? '<span class="mini-tag">Ended</span>'
-        : `<button type="button" class="btn ${joined ? '' : 'btn-primary'} btn-sm" data-action="join-group" data-id="${esc(g.id)}" aria-pressed="${joined}" ${full ? 'aria-disabled="true"' : ''}>${joined ? `${icon('check', { size: 16 })}Joined` : full ? 'Full' : 'Join'}</button>`}
+        : `<button type="button" class="btn ${joined ? '' : 'btn-primary'} btn-sm" data-action="join-group" data-id="${esc(g.id)}" aria-pressed="${joined}" ${full ? 'aria-disabled="true"' : ''}>${full ? 'Full' : lblStack('Join', `${icon('check', { size: 16 })}Joined`, joined)}</button>`}
     </div>
   </li>`;
 }
@@ -132,7 +132,7 @@ export function renderGroupNew(ctx, draft, errors = {}) {
     <div class="back-row"><a class="back-link" href="#/groups" data-action="back">${icon('chevronLeft')}Groups</a></div>
     <h1 class="page-title" id="page-h" tabindex="-1">Post a group</h1>
     <p class="page-sub">Posted as ${esc(ctx.state.profile.name)}.</p>
-    <form id="group-form" class="form-stack" novalidate>
+    <form id="group-form" class="form-stack${d.hop ? ' is-hop' : ''}" novalidate>
       <div class="field">
         <label class="label" for="g-title">What’s the plan?</label>
         <input id="g-title" name="title" class="text-input" maxlength="60" required value="${esc(d.title)}" placeholder="Pregame then Scarlet Pub…" data-input="group-field" data-key="title" ${errors.title ? 'aria-invalid="true" aria-describedby="err-g-title"' : ''}>
@@ -148,17 +148,17 @@ export function renderGroupNew(ctx, draft, errors = {}) {
           <div class="select"><select id="g-time" name="time" data-input="group-field" data-key="time">${timeOptions(d.time)}</select>${icon('chevronDown', { size: 14 })}</div>
         </div>
       </div>
-      <div class="switch-row hop-switch"><label for="g-hop"><span class="label" style="margin:0">Bar hop</span><span class="hint">Add more stops.</span></label>
+      <div class="hop-block"><div class="switch-row hop-switch"><label for="g-hop"><span class="label" style="margin:0">Bar hop</span><span class="hint">Add more stops.</span></label>
         <span class="switch"><input id="g-hop" type="checkbox" role="switch" data-input="group-hop" ${d.hop ? 'checked' : ''}><span></span></span></div>
-      ${d.hop ? `<fieldset class="hop-edit"><legend class="label">Then</legend>
-        <ol class="hop-edit-list">${d.stops.map((st, i) => `<li class="hop-edit-row">
+      <div class="hop-edit"${d.hop ? '' : ' inert'}><div class="hop-clip"><fieldset class="hop-fields"><legend class="label">Then</legend>
+        <ol class="hop-edit-list">${d.stops.map((st, i) => `<li class="hop-edit-row" data-key="${esc(st.key ?? `${st.venueId}-${i}`)}">
           <div class="select"><label class="sr-only" for="hop-bar-${i}">Stop ${i + 2} bar</label><select id="hop-bar-${i}" data-input="hop-field" data-index="${i}" data-key="venueId"${errors.stopsAt?.index === i && errors.stopsAt.field === 'bar' ? ' aria-invalid="true" aria-describedby="err-g-stops"' : ''}>${venues.map((v) => `<option value="${esc(v.id)}" ${v.id === st.venueId ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select>${icon('chevronDown', { size: 14 })}</div>
           <div class="select hop-time"><label class="sr-only" for="hop-time-${i}">Stop ${i + 2} time</label><select id="hop-time-${i}" data-input="hop-field" data-index="${i}" data-key="time"${errors.stopsAt?.index === i && errors.stopsAt.field === 'time' ? ' aria-invalid="true" aria-describedby="err-g-stops"' : ''}>${timeOptions(st.time)}</select>${icon('chevronDown', { size: 14 })}</div>
           <button type="button" class="icon-btn" data-action="hop-remove" data-index="${i}" aria-label="Remove stop ${i + 2}">${icon('x')}</button>
         </li>`).join('')}</ol>
         ${errors.stops ? `<p class="field-error" id="err-g-stops">${icon('alert')}${esc(errors.stops)}</p>` : ''}
         ${d.stops.length < MAX_STOPS - 1 ? `<button type="button" class="btn btn-sm" data-action="hop-add">${icon('plus', { size: 16 })}Add a stop</button>` : `<p class="hint">Up to ${MAX_STOPS} stops.</p>`}
-      </fieldset>` : ''}
+      </fieldset></div></div></div>
       <div class="field stepper-row">
         <div><p class="label" id="g-spots-label">Group size</p><p class="hint">Including you</p></div>
         <div class="stepper" role="group" aria-labelledby="g-spots-label">

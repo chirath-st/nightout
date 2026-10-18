@@ -26,7 +26,7 @@ function typicalStrip(venue, now) {
   const idx = hour >= 20 ? hour - 20 : hour <= 2 ? hour + 4 : -1;
   const peak = venue.typical.indexOf(Math.max(...venue.typical));
   return `<section class="typical" aria-labelledby="typ-h">
-    <h2 class="qb-label" id="typ-h">Typical weekend night</h2>
+    <div class="section-head"><h2 id="typ-h">Typical weekend night</h2></div>
     
     <div class="typical-bars" aria-hidden="true">${venue.typical.map((n, i) => `<span class="${i === idx ? 'is-now' : ''}" style="height:${10 + n * 22}%"></span>`).join('')}</div>
     <div class="typical-axis" aria-hidden="true">${TYPICAL_HOURS.map((h) => `<span>${h}</span>`).join('')}</div>
@@ -52,7 +52,7 @@ function passCta(venue, now) {
     ? `<a class="btn btn-primary btn-lg btn-block" href="#/venue/${encodeURIComponent(venue.id)}/pass" data-nav="pass">${icon('ticket')}Review priority pass</a>`
     : `<p class="pass-state">${icon('ticket')}<span>${esc(s.label)}</span></p>`;
   return `<section class="pass-cta" aria-labelledby="pass-h">
-    <h2 id="pass-h">Priority entry</h2>
+    <div class="section-head"><h2 id="pass-h">Priority entry</h2></div>
     <p>${why}</p>${btn}</section>`;
 }
 
@@ -73,7 +73,7 @@ export function renderVenue(ctx, id) {
   const ev = tonightEvent(ctx, venue);
   const eyebrow = [venue.area, venue.tags?.[0]].filter(Boolean).join(' · ');
   return `<div class="page detail">
-    <div class="detail-hero" data-hero="${esc(venue.id)}">${venuePhoto(venue, { title: true })}
+    <div class="detail-hero" data-hero="${esc(venue.id)}">${venuePhoto(venue, { title: true })}<span class="hero-scrim" aria-hidden="true"></span>
       <a class="back-link hero-btn" href="${ctx.backHref}" data-action="back" aria-label="Back to ${esc(ctx.backLabel)}">${icon('chevronLeft', { size: 22 })}</a>
       ${venue.photo ? `<span class="hero-caption">${icon('info', { size: 13 })}<span>${esc(`Photo: ${venue.photoCredit ?? 'the bar'}`)}</span></span>` : ''}
       ${saveButton(venue, saved, 'save-detail hero-btn')}
@@ -85,6 +85,7 @@ export function renderVenue(ctx, id) {
     </div>
     
     ${estimateBlock(venue, now, { showHow: false })}
+    ${howItWorks()}
     <div class="venue-actions">
       <a class="act act-primary" href="#/scan?venue=${encodeURIComponent(venue.id)}">${icon('report', { size: 22 })}<span>Report the line</span><span class="act-pts" aria-hidden="true">+${POINTS.REPORT}</span><span class="sr-only">, earn ${POINTS.REPORT} points</span></a>
       <button type="button" class="act" data-action="directions" data-id="${esc(venue.id)}" ${venue.address ? '' : 'aria-disabled="true"'}>${icon('directions', { size: 22 })}<span>Directions</span></button>
@@ -98,7 +99,6 @@ export function renderVenue(ctx, id) {
     ${dealsSection(venue, now)}
     ${foodSection(venue)}
     ${pollSection(venue, ctx.state.votes?.[venue.id] ?? null)}
-    ${howItWorks()}
     ${typicalStrip(venue, now)}
     ${passCta(venue, now)}
     <div class="section-head"><h2>Entry details</h2></div>
@@ -119,13 +119,13 @@ export function renderVenue(ctx, id) {
   </div>`;
 }
 
-/** Tonight's deals as tickets: live first, then later, then ended. Every one is a demo deal. */
-function dealsSection(venue, now) {
+/** Tonight's deals as tickets: live first, then later, then ended. Every one is a demo deal. The live tick re-renders it (data-deals). */
+export function dealsSection(venue, now) {
   const deals = dealsTonight(venue, now);
   if (!deals.length) return '';
   const mins = (ms) => Math.max(0, Math.round(ms / 60000));
   const left = (m) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m} min`);
-  return `<section class="deals" aria-labelledby="deals-h">
+  return `<section class="deals" data-deals="${esc(venue.id)}" aria-labelledby="deals-h">
     <div class="section-head"><h2 id="deals-h">Deals tonight</h2></div>
     <ul class="deal-list">${deals.map((d) => {
       const st = dealState(d, now);
@@ -137,7 +137,7 @@ function dealsSection(venue, now) {
         <span class="promo-on"><span class="eyebrow">Applies to</span><b>${esc(promoItem(d))}</b></span>
         <span class="deal-title">${esc(d.title)}</span>
         <span class="deal-meta num">${esc(when)}</span>
-        ${st === 'live' ? `<span class="deal-left" aria-hidden="true"><i style="--left:${(frac * 100).toFixed(0)}%"></i></span>` : ''}
+        ${st === 'live' ? `<span class="deal-left" aria-hidden="true"><i style="--left:${frac.toFixed(3)}"></i></span>` : ''}
         <span class="promo-terms">${icon('info', { size: 14 })}<span>${esc(d.terms ?? (kind.adults ? '21+.' : ''))} ${kind.adults ? '' : 'Not valid on alcohol.'}</span></span>
       </li>`;
     }).join('')}</ul>
@@ -213,7 +213,7 @@ export function pollSection(venue, vote) {
     <div class="section-head"><h2 id="poll-h">Who’s going?</h2></div>
     <div class="poll-options" role="group" aria-label="Are you going tonight?">
       ${VOTES.map(([k, label]) => `<button type="button" class="poll-opt" data-action="vote" data-id="${esc(venue.id)}" data-vote="${k}" aria-pressed="${vote === k}" style="--pf:${(r.pct[k] / 100).toFixed(2)}">
-        <span class="poll-label">${vote === k ? icon('check', { size: 16 }) : ''}${label}</span><span class="poll-pct num">${r.pct[k]}%</span></button>`).join('')}
+        <span class="poll-label"><span class="poll-check" aria-hidden="true">${icon('check', { size: 16 })}</span>${label}</span><span class="poll-pct num roll">${r.pct[k]}%</span></button>`).join('')}
     </div>
     <p class="hint">${r.total} answers${vote ? ', including yours' : ''}</p>
   </section>`;
@@ -222,7 +222,7 @@ export function pollSection(venue, vote) {
 /** Directions sheet: the address and links that open the phone's maps app (the link carries only the address). */
 export function directionsSheet(venue) {
   const q = encodeURIComponent(`${venue.address}, New Brunswick, NJ 08901`);
-  return `<div class="sheet-head"><h2 class="sheet-title" id="picker-title">Directions to ${esc(venue.name)}</h2>
+  return `<div class="sheet-head"><span class="sheet-grabber" aria-hidden="true"></span><h2 class="sheet-title" id="picker-title">Directions to ${esc(venue.name)}</h2>
       <button type="button" class="icon-btn sheet-close" data-action="close-picker" aria-label="Close">${icon('x')}</button></div>
     <div class="sheet-body">
       <p class="dir-address">${icon('pinFill', { size: 18 })}<span>${esc(venue.address)}, New Brunswick, NJ</span></p>

@@ -1,6 +1,6 @@
 import { esc, venueCard, stateBox, passCard, estimateBlock, banner, dealWhen } from '../ui/components.js';
 import { DEAL_KINDS, DRINK_ITEMS, DEAL_TITLE_MAX, slowHours } from '../lib/deals.js';
-import { TYPICAL_HOURS } from '../data/venues.js';
+import { TYPICAL_HOURS, atNight } from '../data/venues.js';
 import { DEMO_SPOT } from '../lib/geo.js';
 import { icon } from '../ui/icons.js';
 import { passStatus, money } from '../lib/pass.js';
@@ -8,15 +8,17 @@ import { FRESHNESS_MINUTES } from '../lib/queue.js';
 import { offerSummary } from '../lib/pass.js';
 import { formatTime, hhmm, timeLabel } from '../lib/clock.js';
 
+/** Icon-only Back for a drill-in page (QA plan 9.13): a Home Screen app has no browser Back. It plays the back transition. */
+export const backTitle = (title, to = 'profile') => `<div class="title-row back-title"><a class="back-link back-icon" href="#/${to}" data-action="back" aria-label="Back to ${to === 'points' ? 'Points' : 'Profile'}">${icon('chevronLeft', { size: 22 })}</a><h1 class="page-title" id="page-h" tabindex="-1">${title}</h1></div>`;
+
 /* ---------- Saved ---------- */
 export function renderSaved(ctx) {
   const saved = ctx.state.saved.map((id) => ctx.venues.find((v) => v.id === id)).filter(Boolean);
   const missing = ctx.state.saved.length - saved.length;
   return `<div class="page">
-    <h1 class="page-title" id="page-h" tabindex="-1">Saved</h1>
+    ${backTitle('Saved')}
     
     ${missing ? banner('info', 'info', `<p>${missing} saved venue${missing === 1 ? ' isn’t' : 's aren’t'} in this view. ${missing === 1 ? 'It comes' : 'They come'} back when you show all bars.</p>`, ctx.state.dataset !== 'demo' ? '<button type="button" class="btn" data-action="dataset" data-kind="demo">Show all bars</button>' : '') : ''}
-    ${ctx.ui.lastRemoved && ctx.ui.lastRemoved.visit === ctx.visit ? `<div class="undo-row" role="status"><span>Removed ${esc(ctx.ui.lastRemoved.name)}.</span><button type="button" class="btn btn-quiet" data-action="undo-remove">Undo</button></div>` : ''}
     ${saved.length
       ? `<ul class="bar-grid" style="margin-top:var(--s-4)">${saved.map((v) => venueCard(v, ctx.now, { saved: true, save: true })).join('')}</ul>`
       : stateBox({ iconName: 'bookmark', title: 'Nothing saved yet', body: 'Save bars from their pages to compare waits here later.', actions: '<a class="btn btn-primary" href="#/">Browse bars</a>' })}
@@ -30,7 +32,7 @@ export function renderPasses(ctx) {
   const order = { active: 0, upcoming: 1, expired: 2, cancelled: 3 };
   passes.sort((a, b) => order[passStatus(a, ctx.now)] - order[passStatus(b, ctx.now)]);
   return `<div class="page">
-    <h1 class="page-title" id="page-h" tabindex="-1">Passes</h1>
+    ${backTitle('Passes', ctx.passesFrom === 'profile' ? 'profile' : 'points')}
     
     ${passes.length
       ? `<div class="pass-list">${passes.map((p) => passItem(p, ctx.now)).join('')}</div>`
@@ -41,7 +43,7 @@ export function renderPasses(ctx) {
 function passItem(p, now) {
   const status = passStatus(p, now);
   const canCancel = status === 'upcoming' || status === 'active';
-  return `<div>
+  return `<div data-key="${esc(p.id)}">
     ${passCard(p, now, { headingLevel: 2 })}
     <div class="pass-item-actions">
       <a class="btn" href="#/venue/${encodeURIComponent(p.venueId)}" aria-label="View ${esc(p.venueName)}">${icon('arrowRight')}View venue</a>
@@ -72,7 +74,7 @@ export function passPanel(v, ctx) {
     <h2 id="pp-h">Priority pass availability</h2>
     <div class="switch-row"><label for="pp-pause"><span class="label" style="margin:0">Pause priority passes</span><span class="hint">Guests see “Paused by venue”.</span></label>
       <span class="switch"><input id="pp-pause" type="checkbox" role="switch" data-input="console-pause" ${p.paused ? 'checked' : ''}><span></span></span></div>
-    <div class="cap-row" style="border-top:1px solid var(--line)"><div><span class="label" style="margin:0" id="price-label">Price per person</span><small>${money(p.serviceFee)} service fee added (shown all-in to guests)</small></div>
+    <div class="cap-row" style="border-top:1px solid var(--line)"><div><span class="label" style="margin:0" id="price-label">Price per person</span><small>+${money(p.serviceFee)} fee</small></div>
       <div class="stepper" role="group" aria-labelledby="price-label"><button type="button" class="icon-btn" data-action="console-price" data-delta="-100" aria-label="Lower price by $1" ${p.basePrice <= 100 ? 'disabled' : ''}>${icon('minus')}</button><output>${money(p.basePrice)}</output><button type="button" class="icon-btn" data-action="console-price" data-delta="100" aria-label="Raise price by $1" ${p.basePrice >= 5000 ? 'disabled' : ''}>${icon('plus')}</button></div></div>
     ${p.windows.map((w) => `<div class="cap-row"><div><span id="cap-${w.id}">${esc(formatTime(w.start))}–${esc(formatTime(w.end))}</span><small>${w.sold} sold, ${w.remaining} left</small></div>
       <div class="stepper" role="group" aria-labelledby="cap-${w.id}"><button type="button" class="icon-btn" data-action="console-cap" data-window="${w.id}" data-delta="-1" aria-label="Reduce capacity" ${w.capacity <= w.sold ? 'disabled' : ''}>${icon('minus')}</button><output>${w.capacity}</output><button type="button" class="icon-btn" data-action="console-cap" data-window="${w.id}" data-delta="1" aria-label="Increase capacity" ${w.capacity >= 50 ? 'disabled' : ''}>${icon('plus')}</button></div></div>`).join('')}
@@ -86,7 +88,7 @@ export function renderAbout(ctx) {
   const v = FRESHNESS_MINUTES.venue;
   const toggle = (key, label, hint) => `<div class="switch-row"><label for="sim-${key}"><span class="label" style="margin:0">${label}</span><span class="hint">${hint}</span></label><span class="switch"><input id="sim-${key}" type="checkbox" role="switch" data-input="sim" data-key="${key}" ${s[key] ? 'checked' : ''}><span></span></span></div>`;
   return `<div class="page">
-    <h1 class="page-title" id="page-h" tabindex="-1">About Night Out</h1>
+    ${backTitle('About Night Out')}
     <div class="prose" style="margin-top:var(--s-4)">
       <p><strong>Night Out is a prototype. Bar names, addresses, logos and photos are real; everything else is sample data.</strong> Waits, reports, passes, prices, hours, deals, events, ideas and people are made up and don’t describe how these bars operate. No bar is affiliated with Night Out or has endorsed it.</p>
       <p>Student bars around Easton Ave and Hamilton St, checked in October 2026 against New Jersey ABC license records and the bars’ own websites. Distances are straight-line from ${esc(DEMO_SPOT.label)}, using OpenStreetMap, New Jersey address points and the US Census geocoder.</p>
@@ -107,7 +109,7 @@ export function renderAbout(ctx) {
       ${toggle('failNextRefresh', 'Fail the next refresh', 'Shows the error state while keeping cached results.')}
       ${toggle('failNextPass', 'Fail the next pass request', 'Shows the safe-retry state in the pass flow.')}
       <fieldset class="field-group"><legend>Dataset</legend>
-        <div class="segmented" role="group" aria-label="Dataset">
+        <div class="segmented" role="group" aria-label="Dataset" style="--n:3">
           ${[['demo', 'Demo'], ['worst', 'Worst case'], ['empty', 'Empty']].map(([k, l]) => `<button type="button" data-action="dataset" data-kind="${k}" aria-pressed="${ctx.state.dataset === k}">${l}</button>`).join('')}
         </div>
       </fieldset>
@@ -129,12 +131,22 @@ const PLACEHOLDER = { entry: 'No cover before 11', food: '$5 wings till midnight
 const errP = (id, msg) => `<p class="field-error" id="${id}">${icon('alert')}${esc(msg)}</p>`;
 const invalid = (msg, id) => (msg ? ` aria-invalid="true" aria-describedby="${id}"` : '');
 
-export function newDealDraft() {
-  return { kind: 'entry', title: '', start: [22, 0], end: [23, 0], item: 'draft', price: '', costOk: false };
+/** Default window: the first slot that hasn't passed yet, for an hour (capped at 2 AM), so a headline alone can post. */
+export function newDealDraft(base, now) {
+  const last = DEAL_TIMES.length - 1; // 2:00 AM
+  let s = 2, e = 4; // 10–11 PM when there is no clock
+  if (base != null && now != null) {
+    const at = ([h, m]) => atNight(base, h, m);
+    s = DEAL_TIMES.findIndex((t) => at(t) >= now);
+    if (s < 0 || s >= last) s = last - 1; // after 1:30 AM: the last half hour
+    e = DEAL_TIMES.findIndex((t) => at(t) >= at(DEAL_TIMES[s]) + 60 * 60_000);
+    if (e < 0) e = last;
+  }
+  return { kind: 'entry', title: '', start: [...DEAL_TIMES[s]], end: [...DEAL_TIMES[e]], item: 'draft', price: '', costOk: false };
 }
 
 export function dealPanel(v, ctx) {
-  const d = ctx.console.dealDraft ?? newDealDraft();
+  const d = ctx.console.dealDraft ?? newDealDraft(ctx.state.clock.base, ctx.now);
   const e = ctx.console.dealErrors ?? {};
   const slow = slowHours(v.typical, TYPICAL_HOURS);
   const mine = ctx.state.deals.filter((x) => x.venueId === v.id);
@@ -162,6 +174,6 @@ export function dealPanel(v, ctx) {
       <p class="hint">New Jersey doesn’t allow 2-for-1 or multi-drink offers, unlimited drinks, free items for buying alcohol, bigger pours for the same price, or prices by gender. This form only builds deals that avoid those.</p>
       <div class="form-actions" style="margin-top:0"><button type="submit" class="btn btn-primary" data-action="deal-post">${icon('plus')}Post deal</button></div>
     </form>
-    ${mine.length ? `<h3 class="label" style="margin-top:20px">Posted from this console</h3><ul class="plain-list">${mine.map((x) => `<li><span><b>${esc(x.title)}</b><small>${esc(dealWhen(x, ctx.now))}</small></span><button type="button" class="btn btn-sm" data-action="deal-remove" data-id="${esc(x.id)}" aria-label="Remove deal: ${esc(x.title)}">Remove</button></li>`).join('')}</ul>` : ''}
+    ${mine.length ? `<h3 class="label" style="margin-top:20px" data-key="deals-posted">Posted from this console</h3><ul class="plain-list">${mine.map((x) => `<li data-key="${esc(x.id)}"><span><b>${esc(x.title)}</b><small>${esc(dealWhen(x, ctx.now))}</small></span><button type="button" class="btn btn-sm" data-action="deal-remove" data-id="${esc(x.id)}" aria-label="Remove deal: ${esc(x.title)}">Remove</button></li>`).join('')}</ul>` : ''}
   </section>`;
 }

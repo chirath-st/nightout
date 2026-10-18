@@ -1,7 +1,7 @@
 // Community theme-night ideas: cards on the Events tab, the propose form, the bar's approval panel in the
 // venue console, and the bar page's "Theme night ideas" rows. SIMULATED: the ideas, people and counts are
 // made up, approvals happen only in the demo console on this device, and no bar is ever contacted.
-import { esc, venueLogo, stateBox, meter } from '../ui/components.js';
+import { esc, venueLogo, stateBox, meter, lblStack } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
 import { formatTime, hhmm, timeLabel } from '../lib/clock.js';
 import { initials } from '../data/social.js';
@@ -25,15 +25,15 @@ export function ideaCard(x, ctx) {
   const status = x.status === 'approved' ? `${icon('checkCircle', { size: 14 })}Approved`
     : x.status === 'declined' ? `${icon('x', { size: 14 })}Bar passed` : `${icon('clock', { size: 14 })}Needs bar approval`;
   const counts = x.status === 'approved'
-    ? `<span class="num" data-idea-counts="${esc(x.id)}">${joins} going</span><span class="sep" aria-hidden="true">•</span><span>${esc(coverLabel(x.cover))}</span>`
-    : `<span class="num" data-idea-counts="${esc(x.id)}">${joins} in · ${hype} hype</span>${x.status === 'pending' ? `<span class="sep" aria-hidden="true">•</span><span class="num">~${exp.low}–${exp.high} expected</span>` : ''}`;
+    ? `<span class="num" data-idea-counts="${esc(x.id)}"><span class="roll">${joins}</span> going</span><span class="sep" aria-hidden="true">•</span><span>${esc(coverLabel(x.cover))}</span>`
+    : `<span class="num" data-idea-counts="${esc(x.id)}"><span class="roll">${joins}</span> in · <span class="roll">${hype}</span> hype</span>${x.status === 'pending' ? `<span class="sep" aria-hidden="true">•</span><span class="num">~${exp.low}–${exp.high} expected</span>` : ''}`;
   let actions = '';
   if (x.mine) actions = `<a class="btn btn-sm" href="#/console?venue=${encodeURIComponent(x.venueId)}">${icon('door', { size: 16 })}Review as the bar</a>`;
   else if (x.status === 'pending') {
-    actions = `<button type="button" class="btn btn-sm" data-action="idea-hype" data-id="${esc(x.id)}" aria-pressed="${hyped}">${icon('bolt', { size: 16 })}${hyped ? 'Hyped' : 'Hype'}<span class="sr-only"> ${esc(x.title)}</span></button>
-      <button type="button" class="btn btn-sm ${joined ? '' : 'btn-primary'}" data-action="idea-join" data-id="${esc(x.id)}" aria-pressed="${joined}">${joined ? `${icon('check', { size: 16 })}You’re in` : 'I’m in'}<span class="sr-only"> for ${esc(x.title)}</span></button>`;
+    actions = `<button type="button" class="btn btn-sm" data-action="idea-hype" data-id="${esc(x.id)}" aria-pressed="${hyped}">${icon('bolt', { size: 16 })}${lblStack('Hype', 'Hyped', hyped)}<span class="sr-only"> ${esc(x.title)}</span></button>
+      <button type="button" class="btn btn-sm ${joined ? '' : 'btn-primary'}" data-action="idea-join" data-id="${esc(x.id)}" aria-pressed="${joined}">${lblStack('I’m in', `${icon('check', { size: 16 })}You’re in`, joined)}<span class="sr-only"> for ${esc(x.title)}</span></button>`;
   } else if (x.status === 'approved') {
-    actions = `<button type="button" class="btn btn-sm ${joined ? '' : 'btn-primary'}" data-action="idea-join" data-id="${esc(x.id)}" aria-pressed="${joined}">${joined ? `${icon('check', { size: 16 })}You’re in` : 'I’m in'}<span class="sr-only"> for ${esc(x.title)}</span></button>`;
+    actions = `<button type="button" class="btn btn-sm ${joined ? '' : 'btn-primary'}" data-action="idea-join" data-id="${esc(x.id)}" aria-pressed="${joined}">${lblStack('I’m in', `${icon('check', { size: 16 })}You’re in`, joined)}<span class="sr-only"> for ${esc(x.title)}</span></button>`;
   }
   return `<li class="idea-card" data-idea="${esc(x.id)}" data-status="${x.status}" data-starts="${x.startsAt}">
     <a class="idea-link" href="#/venue/${encodeURIComponent(x.venueId)}" data-nav-venue="${esc(x.venueId)}">
@@ -132,9 +132,9 @@ export function ideaPanel(v, ctx) {
   return `<section class="panel" aria-labelledby="ideas-h">
     <h2 id="ideas-h" tabindex="-1">Community ideas</h2>
     <p class="panel-sub">Theme nights guests asked for. Approve one to add it to Events.</p>
-    ${waiting.length ? `<h3 class="label">Waiting for you (${waiting.length})</h3><div class="idea-reviews">${waiting.map(review).join('')}</div>`
+    ${waiting.length ? `<h3 class="label" data-key="ideas-waiting">Waiting for you (${waiting.length})</h3><div class="idea-reviews">${waiting.map(review).join('')}</div>`
       : `<p class="hint">No ideas waiting.</p>`}
-    ${decided.length ? `<h3 class="label" style="margin-top:16px">Decided</h3><ul class="plain-list">${decided.map((x) => `<li><span><b>${esc(x.title)}</b><small>${x.status === 'approved' ? `Approved · ${esc(nightLabel(x.startsAt).split(',')[0])} ${esc(formatTime(x.startsAt))} · ${esc(coverLabel(x.cover))}` : 'Declined'}</small></span><button type="button" class="btn btn-sm" data-action="idea-undo" data-id="${esc(x.id)}">Undo<span class="sr-only"> decision: ${esc(x.title)}</span></button></li>`).join('')}</ul>` : ''}
+    ${decided.length ? `<h3 class="label" style="margin-top:16px" data-key="ideas-decided">Decided</h3><ul class="plain-list">${decided.map((x) => `<li data-key="decided-${esc(x.id)}"><span><b>${esc(x.title)}</b><small>${x.status === 'approved' ? `Approved · ${esc(nightLabel(x.startsAt).split(',')[0])} ${esc(formatTime(x.startsAt))} · ${esc(coverLabel(x.cover))}` : 'Declined'}</small></span><button type="button" class="btn btn-sm" data-action="idea-undo" data-id="${esc(x.id)}">Undo<span class="sr-only"> decision: ${esc(x.title)}</span></button></li>`).join('')}</ul>` : ''}
     
   </section>`;
 }

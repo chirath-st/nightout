@@ -7,7 +7,7 @@ import { describeEstimate, relativeAge, PACE_COPY } from '../lib/queue.js';
 import { doorPace, withObservations, WINDOW } from '../lib/merge.js';
 import { lineScene, DRAW_MAX } from '../ui/lineart.js';
 import { formatTime } from '../lib/clock.js';
-import { dealPanel, passPanel } from './pages.js';
+import { dealPanel, passPanel, backTitle } from './pages.js';
 import { ideaPanel } from './ideas.js';
 
 const ROLE = { ambassador: 'Ambassador', bouncer: 'Bouncer' };
@@ -78,6 +78,12 @@ export function photoPanel(v, ctx) {
   const step = !photo ? 1 : !photo.touched ? 2 : 3;
   const drawn = photo ? Math.min(photo.heads, DRAW_MAX) : 0;
   const scene = lineScene({ seed: photo?.seed ?? `${v.id}:empty`, heads: photo?.heads ?? 0, count: photo?.count ?? 0, newest: photo?.newest ?? -1, doors });
+  // "Count for me": the visible count follows the marks (main.js steps .pc-vis); the math and "Publish N" change once, at
+  // the end. The output keeps the real count for assistive tech.
+  const fill = photo && ctx.console.filling;
+  const before = fill ? fill.before : photo?.count;
+  const shown = fill ? fill.shown : photo?.count;
+  const mctx = fill ? { ...ctx, console: { ...ctx.console, photo: { ...photo, count: before } } } : ctx;
   return `<section class="panel line-photo" id="line-photo" aria-labelledby="lp-h">
     <h2 id="lp-h">Line photo</h2>
     <ol class="story" aria-label="Steps">${['Snap', 'Count', 'Publish'].map((w, i) => `<li class="${i + 1 < step ? 'is-done' : i + 1 === step ? 'is-now' : ''}">${i + 1 < step ? icon('check', { size: 14 }) : `<span class="num">${i + 1}</span>`}${w}${i + 1 < step ? '<span class="sr-only">, done</span>' : ''}</li>`).join('')}</ol>
@@ -90,16 +96,16 @@ export function photoPanel(v, ctx) {
     </div>
     ${photo ? `
       <div class="count-row">
-        <div><p class="label" id="pc-label">People counted</p><output id="photo-count" class="num" aria-labelledby="pc-label">${photo.count}</output></div>
+        <div><p class="label" id="pc-label">People counted</p><output id="photo-count" class="sr-only" aria-labelledby="pc-label">${photo.count}</output><span class="pc-vis num roll" aria-hidden="true">${shown}</span></div>
         <div class="stepper count-step" role="group" aria-labelledby="pc-label">
           ${[[-5, '5 fewer people'], [-1, '1 fewer person'], [1, '1 more person'], [5, '5 more people']].map(([d, l]) => `<button type="button" class="icon-btn" data-action="photo-step" data-delta="${d}" aria-label="${l}" ${(d < 0 && photo.count <= 0) || (d > 0 && photo.count >= 400) ? 'disabled' : ''}><span class="num">${d > 0 ? '+' : '−'}${Math.abs(d)}</span></button>`).join('')}
         </div>
       </div>
       <p class="hint" id="count-help">Tap each head, or use − / +.</p>
       <button type="button" class="btn btn-quiet btn-block" data-action="photo-fill"${busy ? ' aria-disabled="true"' : ''}>${icon('sparkle', { size: 16 })}Count for me</button>` : ''}
-    ${mathStrip(v, ctx)}
+    ${mathStrip(v, mctx)}
     <div class="photo-cta">${photo
-      ? `<button type="button" class="btn btn-primary btn-lg btn-block" data-action="photo-publish"${!photo.touched || busy ? ' aria-disabled="true"' : ''}>${icon('check', { size: 18 })}Publish ${photo.count}</button>`
+      ? `<button type="button" class="btn btn-primary btn-lg btn-block" data-action="photo-publish"${!photo.touched || busy ? ' aria-disabled="true"' : ''}>${icon('check', { size: 18 })}Publish ${before}</button>`
       : `<button type="button" class="btn btn-primary btn-lg btn-block" data-action="photo-snap">${icon('camera', { size: 18 })}Snap the line</button>`}</div>
   </section>`;
 }
@@ -113,7 +119,7 @@ function doorsPanel(v, ctx) {
       const s = door?.list?.[d.id] ?? { status: v.queue?.doorStatus ?? 'moving', pace: null };
       return `<fieldset class="field-group door-row"><legend class="label">${esc(d.label)}</legend>
         <div class="radio-row door-status">${DOOR_WORDS.map(([val, label]) => `<label class="radio-card"><input type="radio" name="door-status-${esc(d.id)}" value="${val}" data-input="door-status" data-door="${esc(d.id)}" ${s.status === val ? 'checked' : ''}><span>${label}</span></label>`).join('')}</div>
-        <div class="pace-row"><span class="label" id="pace-${esc(d.id)}">Pace</span><div class="segmented pace-seg" role="radiogroup" aria-labelledby="pace-${esc(d.id)}">${[1, 2, 3, 4].map((n) => `<label><input type="radio" name="door-pace-${esc(d.id)}" value="${n}" data-input="door-pace" data-door="${esc(d.id)}" ${s.pace === n ? 'checked' : ''}><span>${n}</span></label>`).join('')}</div><span class="hint" style="margin:0">a min</span></div>
+        <div class="pace-row"><span class="label" id="pace-${esc(d.id)}">Pace</span><div class="segmented pace-seg" role="radiogroup" aria-labelledby="pace-${esc(d.id)}" style="--n:4"${[1, 2, 3, 4].includes(s.pace) ? '' : ' data-empty'}>${[1, 2, 3, 4].map((n) => `<label><input type="radio" name="door-pace-${esc(d.id)}" value="${n}" data-input="door-pace" data-door="${esc(d.id)}" ${s.pace === n ? 'checked' : ''}><span>${n}</span></label>`).join('')}</div><span class="hint" style="margin:0">a min</span></div>
       </fieldset>`;
     }).join('')}
     <p class="door-summary">${dp?.pace != null ? `Venue pace: <b>${esc(v.doors.length > 1 ? `${dp.detail} = ${dp.pace}` : String(dp.pace))} a min</b> · ${dp.open} of ${dp.total} door${dp.total === 1 ? '' : 's'} open` : dp && dp.open === 0 ? 'No door is letting people in.' : 'No door pace yet.'}</p>
@@ -127,7 +133,7 @@ function inputRow(u, ctx) {
   const age = relativeAge(x.at, ctx.now);
   const what = x.kind === 'photo' ? `${ROLE[x.by] ?? 'Staff'} photo · ${x.heads} heads` : x.kind === 'venue' ? `Venue update · ${x.low}–${x.high}` : x.n > 1 ? `${x.n} earlier crowd reports · ${x.low}–${x.high}` : `Guest report · ${x.low}–${x.high}`;
   const [ic, word] = CHIPS[u.outcome];
-  return `<li><span class="feed-main">${esc(what)}<small>${esc(age)}</small></span><span class="feed-chip" data-outcome="${u.outcome}">${icon(ic, { size: 13 })}${word}</span></li>`;
+  return `<li data-key="in-${esc(x.kind)}-${x.at}"><span class="feed-main">${esc(what)}<small>${esc(age)}</small></span><span class="feed-chip" data-outcome="${u.outcome}">${icon(ic, { size: 13 })}${word}</span></li>`;
 }
 
 function paceFeedRow(v, q, ctx) {
@@ -139,7 +145,7 @@ function paceFeedRow(v, q, ctx) {
   const sub = q.paceSource === 'door' ? `${ROLE[currentDoor(v, ctx)?.by] ?? 'Set at the door'}` : q.paceSource === 'measured' ? 'From guests’ “I’m in” times' : 'Assumed';
   const sets = !shut && (q.paceSource === 'door' || q.paceSource === 'measured');
   const [ic, word, outcome] = shut ? ['closed', 'No pace', 'against'] : sets ? ['check', 'Sets the pace', 'sets'] : ['help', q.paceSource === 'typical' ? 'Typical' : 'Assumed', 'older'];
-  return `<li><span class="feed-main">${esc(what)}<small>${esc(sub)}</small></span><span class="feed-chip" data-outcome="${outcome}">${icon(ic, { size: 13 })}${word}</span></li>`;
+  return `<li data-key="pace"><span class="feed-main">${esc(what)}<small>${esc(sub)}</small></span><span class="feed-chip" data-outcome="${outcome}">${icon(ic, { size: 13 })}${word}</span></li>`;
 }
 
 function feedPanel(v, ctx) {
@@ -167,7 +173,7 @@ export function renderConsole(ctx) {
   const cleared = ctx.ui.clearedQueue?.venueId === id;
   const audit = ctx.state.audit.filter((a) => a.venueId === id).slice(0, 8);
   return `<div class="page console-page" style="max-width:1100px">
-    <h1 class="page-title" id="page-h" tabindex="-1">Door console</h1>
+    ${backTitle('Door console')}
     <p class="page-sub">For bar owners and door staff.</p>
     <p class="console-lede">Wait ≈ people in line ÷ door pace. Anything older than 20 minutes is hidden.</p>
     <div class="field-group" style="margin-top:var(--s-4)">
@@ -175,7 +181,7 @@ export function renderConsole(ctx) {
       <div class="select"><select id="console-venue" data-input="console-venue" style="width:100%;min-height:46px">${venues.map((x) => `<option value="${x.id}" ${x.id === id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>${icon('chevronDown')}</div>
     </div>
     <div class="field-group role-group"><p class="label" id="role-label">Who’s at the door?</p>
-      <div class="segmented role-seg" role="group" aria-labelledby="role-label">${Object.entries(ROLE).map(([k, w]) => `<button type="button" data-action="console-role" data-role="${k}" aria-pressed="${role === k}">${w}</button>`).join('')}</div>
+      <div class="segmented role-seg" role="group" aria-labelledby="role-label" style="--n:${Object.keys(ROLE).length}">${Object.entries(ROLE).map(([k, w]) => `<button type="button" data-action="console-role" data-role="${k}" aria-pressed="${role === k}">${w}</button>`).join('')}</div>
       <p class="hint">${role === 'ambassador' ? 'Night Out’s street team.' : 'The bar’s door staff. Night Out never pays them.'}</p>
     </div>
     <div class="console-grid">

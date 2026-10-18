@@ -1,5 +1,5 @@
 import { exploreList, FILTERS, AREAS, areaLabel, isOpenAt } from '../lib/explore.js';
-import { esc, venueRow, venueCard, stateBox, banner, estimateFor, venuePhoto, promoLabel, promoItem } from '../ui/components.js';
+import { esc, mapCard, venueCard, stateBox, banner, estimateFor, venuePhoto, promoLabel, promoItem } from '../ui/components.js';
 import { icon, TONE_LABEL } from '../ui/icons.js';
 import { formatTime } from '../lib/clock.js';
 import { DEMO_SPOT, distanceTo } from '../lib/geo.js';
@@ -29,30 +29,40 @@ function pinPos(id) {
 export const QUICK_VIEWS = Object.freeze([['near', 'Nearest'], ['wait', 'Shortest line'], ['deals', 'Deals']]);
 export const quickViewOf = ({ sort, filters }) => (filters.includes('deals') ? 'deals' : sort === 'wait' ? 'wait' : sort === 'name' ? null : 'near');
 
-export function exploreChips(ctx) {
+/** The switch itself. The ink layer repeats the labels in black on white and is clipped to the selected segment, so the
+ *  pill glides over unequal widths with its labels exactly inverted (main.js placeSegInk). */
+export function sortSeg(ctx) {
   const current = quickViewOf(ctx.explore);
+  return `<div class="sort-seg" role="group" aria-label="Show bars">${QUICK_VIEWS.map(([id, label]) => `<button type="button" data-action="quick-view" data-view="${id}" aria-pressed="${current === id}">${label}</button>`).join('')}<span class="seg-ink" aria-hidden="true">${QUICK_VIEWS.map(([, label]) => `<span>${label}</span>`).join('')}</span></div>`;
+}
+/** A filter or A–Z order from an older link: one removable chip each, after the switch. */
+export function extraChips(ctx) {
   const extra = FILTERS.filter((f) => f.id !== 'deals' && ctx.explore.filters.includes(f.id))
     .map((f) => `<button type="button" class="chip chip-x" data-action="toggle-filter" data-filter="${f.id}" aria-label="Remove filter: ${esc(f.label)}">${esc(f.label)}${icon('x', { size: 14 })}</button>`);
   if (ctx.explore.sort === 'name') extra.push(`<button type="button" class="chip chip-x" data-action="quick-view" data-view="near" aria-label="Remove A–Z order">A–Z${icon('x', { size: 14 })}</button>`);
-  return `<div class="sort-seg" role="group" aria-label="Show bars">${QUICK_VIEWS.map(([id, label]) => `<button type="button" data-action="quick-view" data-view="${id}" aria-pressed="${current === id}">${label}</button>`).join('')}</div>${extra.join('')}`;
+  return extra.join('');
 }
+export const exploreChips = (ctx) => sortSeg(ctx) + extraChips(ctx);
 
 /** One compact row (team ask, 2026-10-18: "smaller, take up less space"): the sort switch, a search button and the
- *  Map toggle. Search opens in place of the row and stays open while there is a query. */
+ *  Map toggle. Search opens in place of the row and stays open while there is a query. Both rows share one grid cell
+ *  and stay in layout (hidden with visibility), so the field can grow out of the search button (QA plan 6.1). */
 export function exploreControls(ctx) {
   const { q, view } = ctx.explore;
   const open = !!(ctx.ui.searchOpen || q);
   return `<div id="explore-search" class="search-panel${open ? ' is-open' : ''}">
     <div class="chips">${exploreChips(ctx)}</div>
     <button type="button" class="tool-btn search-toggle" data-action="open-search" aria-label="Search bars" aria-expanded="${open}" aria-controls="q">${icon('search')}</button>
-    <button type="button" class="tool-btn map-btn" data-action="set-view" data-view="${view === 'map' ? 'list' : 'map'}" aria-pressed="${view === 'map'}" aria-label="${view === 'map' ? 'Show list' : 'Show map'}">${icon(view === 'map' ? 'list' : 'map')}</button>
-    <div class="search" role="search">
-      ${icon('search')}
-      <label for="q" class="sr-only">Search bars by name or street</label>
-      <input id="q" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" spellcheck="false" name="q" placeholder="Search bars" value="${esc(q)}" data-input="search">
-      <button type="button" class="icon-btn clear" data-action="clear-search" aria-label="Clear search" ${q ? '' : 'hidden'}>${icon('x')}</button>
+    <button type="button" class="tool-btn map-btn" id="map-toggle" data-action="set-view" data-view="${view === 'map' ? 'list' : 'map'}" aria-pressed="${view === 'map'}" aria-label="${view === 'map' ? 'Show list' : 'Show map'}"><span class="ic-stack" aria-hidden="true">${icon('map', { cls: 'ic-map' })}${icon('list', { cls: 'ic-list' })}</span></button>
+    <div class="search-row">
+      <div class="search" role="search">
+        ${icon('search')}
+        <label for="q" class="sr-only">Search bars by name or street</label>
+        <input id="q" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" spellcheck="false" name="q" placeholder="Search bars" value="${esc(q)}" data-input="search">
+        <button type="button" class="icon-btn clear" data-action="clear-search" aria-label="Clear search" ${q ? '' : 'hidden'}>${icon('x')}</button>
+      </div>
+      <button type="button" class="search-cancel" data-action="close-search">Cancel</button>
     </div>
-    <button type="button" class="search-cancel" data-action="close-search">Cancel</button>
   </div>`;
 }
 
@@ -84,9 +94,7 @@ export function exploreBanners(ctx) {
 
 export function exploreResults(ctx) {
   const { venues, now, explore, savedSet, ui } = ctx;
-  if (ui.loading && !ui.lastRefreshAt) {
-    return `<p class="summary-line" aria-hidden="true">Loading estimates…</p><div class="bar-grid sk-group" aria-hidden="true">${'<div class="sk-card"><div class="sk sk-photo"></div><div class="sk sk-l1"></div><div class="sk sk-l2"></div></div>'.repeat(6)}</div>`;
-  }
+  if (ui.loading && !ui.lastRefreshAt) return exploreSkeleton(ctx);
   if (venues.length === 0) {
     return stateBox({ iconName: 'help', title: 'No bars to show', body: 'Restore the bar list to continue.', actions: '<button type="button" class="btn btn-primary" data-action="dataset" data-kind="demo">Restore bars</button>' });
   }
@@ -95,12 +103,13 @@ export function exploreResults(ctx) {
     const bits = [];
     if (explore.q) bits.push(`“${esc(explore.q)}”`);
     for (const f of explore.filters) bits.push(esc(FILTERS.find((x) => x.id === f)?.label));
+    // A query alone needs no button here: the field's ✕ and Cancel already clear it (QA plan 9.1).
     const actions = [
       explore.filters.length ? '<button type="button" class="btn btn-primary" data-action="clear-filters">Clear filters</button>' : '',
-      explore.q ? '<button type="button" class="btn" data-action="clear-search">Clear search</button>' : '',
+      explore.q && explore.filters.length ? '<button type="button" class="btn" data-action="clear-search">Clear search</button>' : '',
     ].join('');
     const staleNote = excludedStale ? ` ${excludedStale} out of date hidden.` : '';
-    return stateBox({ iconName: 'search', title: 'No venues match', body: `Nothing matches ${bits.join(' + ')}.${staleNote}`, actions });
+    return stateBox({ iconName: 'search', title: 'No bars match', body: `Nothing matches ${bits.join(' + ')}.${staleNote}`, actions, cls: 'state-sm' });
   }
   const summary = resultsBar(ctx, { total, excludedStale });
   if (explore.view === 'map') return summary + mapView(ctx, results.concat(unknown));
@@ -108,8 +117,18 @@ export function exploreResults(ctx) {
   const list = (rows) => `<ul class="bar-grid">${rows.map((r) => venueCard(r.venue, now, { saved: savedSet.has(r.venue.id) })).join('')}</ul>`;
   if (explore.sort !== 'wait') return `${rail}${summary}${list(results)}`;
   return `${summary}
-    ${results.length ? `<h2 class="group-title">Line reports <small>${results.length}</small></h2>${list(results)}` : ''}
+    ${results.length ? `${unknown.length ? `<h2 class="group-title">Line reports <small>${results.length}</small></h2>` : ''}${list(results)}` : ''}
     ${unknown.length ? `<h2 class="group-title">Closed or no recent report <small>${unknown.length}</small></h2>${list(unknown)}` : ''}`;
+}
+
+/** First load (QA plan 6.5): placeholders shaped like what arrives (the deals row, the results bar and the cards), so
+ *  nothing below them moves when the content fades in. The loading words are for screen readers only. */
+function exploreSkeleton(ctx) {
+  const { explore } = ctx;
+  const rail = explore.view !== 'map' && !explore.q && !explore.filters.length && explore.sort === 'near' && dealsRail(ctx)
+    ? `<div class="deals-rail sk-rail" aria-hidden="true"><div class="rail-head"><span class="sk sk-h"></span></div><div class="rail-list">${'<span class="sk-tile"><span class="sk rail-photo"></span><span class="sk sk-l1"></span><span class="sk sk-l2"></span></span>'.repeat(2)}</div></div>`
+    : '';
+  return `<div class="sk-group">${rail}<div class="results-bar"><p class="summary-line sr-only">Loading estimates…</p></div><div class="bar-grid" aria-hidden="true">${'<div class="sk-card"><div class="sk sk-photo"></div><div class="sk sk-l1"></div><div class="sk sk-l2"></div></div>'.repeat(6)}</div></div>`;
 }
 
 /** "Deals right now": a delivery-app style row of live promos (badge on the photo); a tile opens that deal on the bar page. */
@@ -119,7 +138,7 @@ export function dealsRail(ctx) {
   if (!live.length) return '';
   return `<section class="deals-rail" aria-labelledby="rail-h" data-rail-sig="${esc(live.map(({ d }) => d.id).join(','))}">
     <div class="rail-head"><h2 id="rail-h">Deals right now</h2><button type="button" class="rail-all" data-action="quick-view" data-view="deals">See all${icon('chevronRight', { size: 16 })}</button></div>
-    <ul class="rail-list">${live.map(({ v, d }) => `<li><a class="rail-tile" href="#/venue/${encodeURIComponent(v.id)}?deal=${encodeURIComponent(d.id)}" aria-label="${esc(`${promoLabel(d)}: ${promoItem(d)} at ${v.name}, until ${formatTime(d.endsAt)}`)}">
+    <ul class="rail-list">${live.map(({ v, d }) => `<li data-key="${esc(d.id)}"><a class="rail-tile" href="#/venue/${encodeURIComponent(v.id)}?deal=${encodeURIComponent(d.id)}" aria-label="${esc(`${promoLabel(d)}: ${promoItem(d)} at ${v.name}, until ${formatTime(d.endsAt)}`)}">
       <span class="rail-photo">${venuePhoto(v)}<span class="promo-badge" data-type="${esc(d.promo?.type ?? 'price')}">${icon('tag', { size: 12 })}${esc(promoLabel(d))}</span></span>
       <span class="rail-name">${esc(v.name)}</span>
       <span class="rail-item">${esc(promoItem(d))} · until ${esc(formatTime(d.endsAt))}</span>
@@ -158,9 +177,7 @@ function mapView(ctx, rows, { action = 'map-select', preview = true } = {}) {
       </div>
       <p class="map-caption"><span>Not to scale</span><span>? no recent report · — closed</span></p>
     </div>
-    ${preview ? `<div class="map-preview">
-      ${selectedVenue ? `<ul class="venue-list">${venueRow(selectedVenue, now, { saved: savedSet.has(selectedVenue.id) })}</ul>` : '<p class="hint">Tap a pin to preview a bar.</p>'}
-    </div>` : ''}`;
+    ${preview ? `<div class="map-preview"${selectedVenue ? '' : ' hidden'}>${selectedVenue ? mapCard(selectedVenue, now, { saved: savedSet.has(selectedVenue.id) }) : ''}</div>` : ''}`;
 }
 
 function mapSvg() {
@@ -196,7 +213,7 @@ export function renderExplore(ctx) {
 /** Area picker sheet (no GPS: Night Out never asks for your location). Counts are bars in each area. */
 export function areaSheet(current, venues = []) {
   const n = (a) => (a.match ? venues.filter((v) => v.area === a.match).length : venues.length);
-  return `<div class="sheet-head"><h2 class="sheet-title" id="picker-title">Choose an area</h2>
+  return `<div class="sheet-head"><span class="sheet-grabber" aria-hidden="true"></span><h2 class="sheet-title" id="picker-title">Choose an area</h2>
       <button type="button" class="icon-btn sheet-close" data-action="close-picker" aria-label="Close">${icon('x')}</button></div>
     <div class="sheet-body"><fieldset><legend class="sr-only">Area</legend><div class="option-list">
       ${AREAS.map((a) => `<label class="option-row"><input type="radio" name="area" value="${a.id}" data-input="area" ${a.id === (current || '') ? 'checked' : ''}><span class="rd" aria-hidden="true">${icon('check')}</span><span>${esc(a.label)}</span><span class="n" aria-hidden="true">${n(a)}</span></label>`).join('')}

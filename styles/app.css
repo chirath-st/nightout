@@ -63,7 +63,7 @@
 
 /* ---------- Skeleton ---------- */
 .skeleton-row { display: grid; grid-template-columns: minmax(0, 1fr) 56px; gap: 16px; padding: 16px 0 14px; border-bottom: 1px solid var(--line); }
-.sk { background: var(--surface-2); border-radius: 6px; }
+.sk { background: var(--fill-2); border-radius: 6px; }
 .sk-lines { display: grid; gap: 8px; align-content: start; }
 .sk-l1 { height: 18px; width: 60%; } .sk-l2 { height: 14px; width: 45%; } .sk-l3 { height: 14px; width: 30%; } .sk-l4 { height: 12px; width: 70%; margin-top: 6px; }
 .sk-ring { width: 56px; height: 56px; border-radius: 50%; }
@@ -78,10 +78,7 @@
 .map-svg { width: 100%; height: auto; aspect-ratio: 400 / 440; }
 .map-svg text { text-transform: uppercase; letter-spacing: 0.06em; }
 .map-caption { display: flex; justify-content: space-between; gap: 8px; padding: 10px var(--gutter); font-size: var(--t-xs); color: var(--ink-3); border-top: 1px solid var(--line); flex-wrap: wrap; }
-.map-preview { margin-top: 12px; }
-.map-preview .venue-list { margin: 0; border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--raised); box-shadow: var(--shadow-float); overflow: hidden; }
-.map-preview .venue-row { border-bottom: 0; }
-.map-preview .hint { padding: 0 2px; }
+.map-preview { position: sticky; bottom: calc(var(--tabbar-h) + var(--safe-b) + 24px); z-index: 4; margin-top: 12px; }
 .map-stage { position: relative; }
 .map-pin-btn {
   position: absolute; transform: translate(-50%, -50%); min-width: 52px; height: 32px; padding: 0 10px; border-radius: var(--r-pill);
@@ -100,8 +97,12 @@
 .map-pin-btn.tone-pin-stale::after, .map-pin-btn.tone-pin-unknown::after, .map-pin-btn.tone-pin-closed::after { border-color: var(--ink-3); border-style: dashed; }
 /* Selected pin: a white ring, distinct from the focus outline. */
 .map-pin-btn[aria-pressed="true"] { transform: translate(-50%, -50%) scale(1.15); box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--ink), var(--shadow-pin); z-index: 3; }
-.map-pin-btn:active { transform: translate(-50%, -50%) scale(0.95); }
+.map-pin-btn:active { transform: translate(-50%, -50%) scale(.96); }
 .map-pin-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+/* Reduced motion: the selected pin keeps its ring but not the 1.15 scale; the 4% press stays. */
+@media (prefers-reduced-motion: reduce) {
+  .map-pin-btn, .map-pin-btn[aria-pressed="true"] { transform: translate(-50%, -50%); transition: transform var(--d-select) var(--ease-out), background-color var(--d-rm-in) linear; }
+}
 
 /* ---------- Venue detail ---------- */
 /* The disclosure badge icon stays 14px at every size (higher specificity than any hero art rule). */
@@ -243,7 +244,7 @@ legend, .sheet-body .label { font-weight: 700; font-size: 17px; line-height: 22p
 .result { display: grid; gap: var(--s-4); text-align: center; justify-items: center; padding: var(--s-3) 0; }
 .result-icon { width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; }
 .result-icon svg { width: 32px; height: 32px; }
-.result-ok .result-icon { background: var(--fresh-soft); color: var(--fresh); }
+.result-ok .result-icon { background: var(--accent); color: var(--accent-ink); }
 .result-err .result-icon { background: var(--danger-soft); color: var(--danger); }
 .result h2 { font-family: var(--font-display); font-weight: 800; font-size: 26px; line-height: 30px; text-wrap: balance; }
 .result p { color: var(--ink-2); font-size: 15px; line-height: 21px; max-width: 38ch; }
@@ -299,10 +300,45 @@ legend, .sheet-body .label { font-weight: 700; font-size: 17px; line-height: 22p
 .segmented button:active { transform: scale(0.97); }
 
 /* ---------- View transitions (same-document, progressive enhancement) ---------- */
-/* JS skips view transitions entirely under prefers-reduced-motion (instant swap). */
+/* Tabs swap instantly. List -> bar morphs the photo; drill-ins push and pop; Scan presents and dismisses (QA plan 5.1-5.3).
+   Under reduced motion every one of them is the short root cross-fade below (no shared photo, no translate). */
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--d-vt-root); animation-timing-function: var(--ease-out); }
+/* The overlay swallows taps while it runs: no group outlives the root fade (the UA default is 250ms). */
+::view-transition-group(root), ::view-transition-group(tabbar), ::view-transition-group(topbar) { animation-duration: var(--d-vt-root); animation-timing-function: var(--ease-out); }
 ::view-transition-group(venue-art) { animation-duration: var(--d-vt); animation-timing-function: var(--ease-in-out); }
 ::view-transition-old(venue-art), ::view-transition-new(venue-art) { height: 100%; object-fit: cover; overflow: clip; animation-duration: var(--d-vt); }
+/* One image scales (no two-crop double exposure) when both ends of the morph exist (main.js sets data-vt-pair). */
+html[data-vt-pair]::view-transition-old(venue-art) { display: none; }
+html[data-vt-pair]::view-transition-new(venue-art) { animation: none; }
+/* The hero chrome is named after the photo, so it layers above it: in after the photo starts moving (80 + 200 = --d-vt), out fast. */
+::view-transition-new(hero-scrim), ::view-transition-new(hero-title), ::view-transition-new(hero-back), ::view-transition-new(hero-save), ::view-transition-new(hero-cap) { animation: vt-chrome-in var(--d-reveal) var(--ease-out) 80ms both; }
+::view-transition-old(hero-scrim), ::view-transition-old(hero-title), ::view-transition-old(hero-back), ::view-transition-old(hero-save), ::view-transition-old(hero-cap) { animation: vt-chrome-out 120ms var(--ease-out) both; }
+/* Chrome copies a glass element's backdrop-filter onto its group as a square that outlives the fade: the snapshots carry the tint. */
+::view-transition-group(hero-back), ::view-transition-group(hero-save), ::view-transition-group(hero-cap), ::view-transition-group(topbar) { -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* Back to the list: the card's scrim, logo and name fade in as the photo lands, instead of popping out from under it. */
+::view-transition-new(card-scrim), ::view-transition-new(card-top), ::view-transition-new(card-id) { animation: vt-fade-in 120ms var(--ease-out) 160ms both; }
+@keyframes vt-chrome-in { from { opacity: 0; translate: 0 6px; } }
+@keyframes vt-chrome-out { to { opacity: 0; } }
+@keyframes vt-fade-in { from { opacity: 0; } }
+@keyframes vt-fade-out { to { opacity: 0; } }
+@media (prefers-reduced-motion: no-preference) {
+  /* Drill-in pushes from the right and Back pops from the left; the old page only fades. The top and tab bars are named so they hold still. */
+  html[data-nav="forward"]::view-transition-new(root) { animation: vt-push-in var(--d-vt-root) var(--ease-out) both; }
+  html[data-nav="forward"]::view-transition-old(root) { animation: vt-fade-out 120ms var(--ease-out) both; }
+  html[data-nav="back"]::view-transition-new(root) { animation: vt-pop-in var(--d-vt-root) var(--ease-out) both; }
+  html[data-nav="back"]::view-transition-old(root) { animation: vt-fade-out 120ms var(--ease-out) both; }
+  /* Scan is presented: it rises while the tab bar drops away; closing it sinks it and brings the tab bar back up. */
+  html[data-nav="present"]::view-transition-new(root) { animation: vt-rise 240ms var(--ease-out) both; }
+  html[data-nav="present"]::view-transition-old(tabbar) { animation: vt-drop var(--d-sheet-out) var(--ease-out) both; }
+  html[data-nav="dismiss"]::view-transition-old(root) { animation: vt-sink var(--d-sheet-out) var(--ease-out) both; }
+  html[data-nav="dismiss"]::view-transition-new(tabbar) { animation: vt-rise-bar 240ms var(--ease-out) both; }
+}
+@keyframes vt-push-in { from { opacity: 0; translate: 16px 0; } }
+@keyframes vt-pop-in { from { opacity: 0; translate: -16px 0; } }
+@keyframes vt-rise { from { opacity: 0; translate: 0 24px; } }
+@keyframes vt-sink { to { opacity: 0; translate: 0 24px; } }
+@keyframes vt-drop { to { translate: 0 100%; } }
+@keyframes vt-rise-bar { from { translate: 0 100%; } }
 
 /* ---------- Age gate ---------- */
 .age-body { padding: 28px 20px calc(28px + var(--safe-b)); display: grid; gap: 4px; }
@@ -333,8 +369,9 @@ legend, .sheet-body .label { font-weight: 700; font-size: 17px; line-height: 22p
 .waiting-card { margin-top: 18px; padding: 18px; border-radius: var(--r-xl); background: linear-gradient(160deg, #1F2A22 0%, var(--surface) 75%); border: 1px solid rgb(99 210 156 / 0.35); }
 .waiting-top { display: flex; align-items: center; gap: 10px; }
 .waiting-top h2 { font-size: 17px; line-height: 22px; font-weight: 700; overflow-wrap: anywhere; }
-.pulse { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--fresh); box-shadow: 0 0 0 0 rgb(99 210 156 / 0.6); }
-@media (prefers-reduced-motion: no-preference) { .pulse { animation: pulse var(--d-loop-pulse) var(--ease-out) var(--n-loop-pulse); } @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgb(99 210 156 / 0.6); } 100% { box-shadow: 0 0 0 12px rgb(99 210 156 / 0); } } }
+.pulse { position: relative; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--fresh); }
+.pulse::after { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid var(--fresh); opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: no-preference) { .pulse::after { animation: pulse-ring var(--d-loop-pulse) var(--ease-out) var(--n-loop-pulse); } @keyframes pulse-ring { from { scale: 1; opacity: .6; } to { scale: 2.6; opacity: 0; } } }
 .waiting-time { margin-top: 10px; font-size: var(--t-display); line-height: 1; font-weight: 800; letter-spacing: -0.02em; }
 .waiting-time small { margin-left: 6px; font-size: 17px; font-weight: 600; color: var(--ink-2); letter-spacing: 0; }
 .waiting-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
@@ -359,11 +396,14 @@ legend, .sheet-body .label { font-weight: 700; font-size: 17px; line-height: 22p
 .vf-hint svg { width: 28px; height: 28px; }
 .vf-tag { position: absolute; top: 14px; left: 14px; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: var(--r-pill); background: rgb(0 0 0 / 0.66); color: #fff; font-size: 12px; font-weight: 700; }
 
-@media (prefers-reduced-motion: no-preference) { .viewfinder.is-captured { animation: flash var(--d-flash) var(--ease-out); } @keyframes flash { 0% { filter: brightness(2.2); } 100% { filter: none; } } }
-.shutter-row { display: flex; justify-content: center; margin: 16px 0 6px; min-height: 76px; align-items: center; }
+/* Capture flash (scan and console): JS adds .is-flash and removes it on animationend. */
+.viewfinder.is-flash::after { content: ""; position: absolute; inset: 0; z-index: 3; background: #fff; pointer-events: none; animation: shutter var(--d-flash) var(--ease-out) both; }
+@keyframes shutter { from { opacity: .5; } to { opacity: 0; } }
+@media (prefers-reduced-motion: no-preference) { .viewfinder.is-flash:not(.lp-view) > :is(img, svg) { animation: vf-settle var(--d-flash) var(--ease-out); } @keyframes vf-settle { from { scale: 1.04; } } }
+@media (prefers-reduced-motion: reduce) { .viewfinder.is-flash::after { animation: shutter-rm var(--d-rm-in) linear both; } @keyframes shutter-rm { from { opacity: .3; } to { opacity: 0; } } }
 .shutter { width: 76px; height: 76px; border-radius: 50%; border: 4px solid #fff; background: transparent; padding: 5px; cursor: pointer; transition: transform var(--d-press) var(--ease-out); }
 .shutter span { display: block; width: 100%; height: 100%; border-radius: 50%; background: #fff; }
-.shutter:active { transform: scale(0.92); }
+.shutter:active { transform: scale(.96); }
 .bucket-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .bucket { position: relative; }
 .bucket input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
@@ -414,6 +454,14 @@ a { color: inherit; text-decoration: none; text-underline-offset: 3px; }
 img, svg { display: block; max-width: 100%; }
 .ic { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .num { font-family: var(--font-num); font-stretch: var(--w-cond); font-variant-numeric: tabular-nums lining-nums; }
+.roll { display: inline-block; font-variant-numeric: tabular-nums lining-nums; }
+/* Mask and clip only while rolling, so resting glyphs are never faded. overflow: clip needs iOS 16 (falls back to hidden). */
+.roll.is-rolling { overflow: hidden; overflow: clip; overflow-clip-margin: .06em;
+  -webkit-mask-image: linear-gradient(transparent, #000 .2em, #000 calc(100% - .2em), transparent);
+          mask-image: linear-gradient(transparent, #000 .2em, #000 calc(100% - .2em), transparent); }
+.roll .rl { position: relative; display: inline-block; }
+.roll .rl-old { position: absolute; inset: 0; translate: 0 calc(var(--dir, 1) * -0.75em); }
+.roll .rl-ghost { visibility: hidden; } /* holds a departing digit's width while it rolls out */
 .sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 a, button, label, summary, select, input, [role="button"] { touch-action: manipulation; }
 
@@ -443,7 +491,7 @@ main { min-width: 0; padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 40px
   position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 4px;
   height: calc(var(--topbar-h) + var(--safe-t));
   padding: var(--safe-t) calc(var(--gutter) + var(--safe-r)) 0 calc(var(--gutter) + var(--safe-l));
-  background: rgb(0 0 0 / .86); -webkit-backdrop-filter: blur(20px) saturate(160%); backdrop-filter: blur(20px) saturate(160%);
+  background: rgb(0 0 0 / .86); -webkit-backdrop-filter: blur(10px) saturate(140%); backdrop-filter: blur(10px) saturate(140%);
   border-bottom: 1px solid transparent; transition: border-color var(--d-select) var(--ease-out);
 }
 @media (prefers-reduced-transparency: reduce) { .topbar { background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none; } }
@@ -456,12 +504,7 @@ main { min-width: 0; padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 40px
 .topbar-area { display: none; align-items: center; gap: 6px; min-width: 0; min-height: 44px; color: var(--ink); font-size: 19px; font-weight: 800; letter-spacing: -.03em; white-space: nowrap; } /* [NEW] */
 .topbar-area > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .topbar-area .ic { width: 16px; height: 16px; stroke-width: 2.4; }
-.topbar .top-search { display: none; }
-.topbar[data-condensed] { border-bottom-color: var(--line); }
-.topbar[data-condensed] .wordmark { display: none; }
-.topbar[data-condensed] .topbar-area { display: inline-flex; }
-.topbar[data-condensed] .top-search { display: grid; margin-right: 2px; }
-@media (prefers-reduced-motion: no-preference) { .topbar[data-condensed] :is(.topbar-area, .top-search) { animation: fade-in var(--d-select) var(--ease-out); } }
+/* Condense (QA plan 6.2): the wordmark and the area share one cell and cross-fade both ways (see "Bars surfaces"). */
 @media (max-width: 359.98px) { .topbar-area { font-size: 17px; } }
 
 /* Points chip (top right): the demo balance, links to Points. */
@@ -470,7 +513,7 @@ main { min-width: 0; padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 40px
 .pts-chip::before { content: ""; position: absolute; inset: -8px -4px; } /* 46px hit area */
 .pts-chip .ic { width: 15px; height: 15px; fill: currentColor; stroke-width: 1.4; }
 .pts-chip .num { font-family: var(--font-num); font-stretch: var(--w-cond); font-size: 17px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: .01em; }
-.pts-chip:active { transform: scale(.96); }
+.pts-chip:active { transform: scale(.97); }
 .pts-chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .demo-chip {
   position: relative; display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 8px;
@@ -503,7 +546,7 @@ main { min-width: 0; padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 40px
 }
 .search input::placeholder { color: var(--ink-3); }
 .search input::-webkit-search-cancel-button { display: none; }
-.search input:focus-visible { border-color: var(--ink); }
+.search input:focus-visible { outline: none; box-shadow: none; border-color: var(--ink); }
 .search .clear { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; min-width: 0; min-height: 0; color: var(--ink-2); }
 .search .clear .ic { width: 16px; height: 16px; }
 .map-btn { position: relative; flex: none; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line-input); background: var(--surface-2); color: var(--ink); } /* [NEW] replaces List/Map */
@@ -553,16 +596,15 @@ main { min-width: 0; padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 40px
 .bar-link:focus-visible { outline-offset: 3px; }
 .bar-photo { position: relative; display: block; flex: none; aspect-ratio: 1 / 1; overflow: hidden; isolation: isolate; background: #111; }
 .bar-photo > img, .bar-photo > svg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 72%; z-index: -2; }
-.bar-photo::before, .bar-photo::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; }
-.bar-photo::before { background: var(--scrim-top); }
-.bar-photo::after { background: var(--scrim-bottom); }
+/* Top and bottom scrims in one element (not pseudos), so Back to the list can fade it in over the landing photo (QA plan 5.1). */
+.card-scrim { position: absolute; inset: 0; z-index: -1; background: var(--scrim-bottom), var(--scrim-top); pointer-events: none; }
 .card-top { position: absolute; top: 8px; left: 8px; right: 8px; display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; min-height: 0; }
 .bar-logo { flex: none; width: 34px; height: 34px; border-radius: var(--r-logo); overflow: hidden; display: grid; place-items: center; background: #000; box-shadow: inset 0 0 0 1px rgb(255 255 255 / .22); }
 .bar-logo img { width: 100%; height: 100%; object-fit: contain; }
 .mono { font-size: 11px; font-weight: 800; font-stretch: var(--w-exp); letter-spacing: .02em; line-height: 1; color: #fff; }
 .card-dist {
   display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 9px 0 7px; border-radius: var(--r-pill);
-  background: var(--glass); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); color: #fff;
+  background: var(--glass); color: #fff; /* solid glass: no backdrop blur on per-card elements */
   font-family: var(--font-num); font-stretch: var(--w-cond); font-size: 14px; font-weight: 700; letter-spacing: .01em; font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .card-dist .ic { width: 11px; height: 11px; }
@@ -646,8 +688,9 @@ main { min-width: 0; padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 40px
   .cs-value { font-size: 30px; }
   .deal-tag { font-size: 14px; }
 }
-.card-save { position: absolute; z-index: 1; top: 50px; right: 6px; width: 44px; height: 44px; color: #fff; }
-.card-save::before { content: ""; position: absolute; inset: 6px; border-radius: 50%; background: var(--glass); z-index: -1; }
+/* .bar-card scope: .icon-btn (same specificity, later in the file) would reset it to position: relative, below the card. */
+.bar-card .card-save { position: absolute; z-index: 1; top: 50px; right: 6px; width: 44px; height: 44px; color: #fff; }
+.card-save::before { content: ""; position: absolute; inset: 6px; border-radius: 50%; background: var(--glass); box-shadow: inset 0 0 0 1px rgb(255 255 255 / .16); z-index: -1; }
 
 /* ---------- Tab bar ---------- */
 .tabbar {
@@ -655,18 +698,26 @@ main { min-width: 0; padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 40px
   display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 6px max(4px, var(--safe-l)) calc(var(--safe-b) + 10px);
   background: var(--bg); border-top: 1px solid var(--line);
 }
-.tab { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 54px; color: var(--ink-3); transition: color var(--d-select) var(--ease-out); }
+.tab { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 54px; color: var(--ink-3); transition: color var(--d-select) var(--ease-out); }
 .tab-inner { position: relative; display: grid; place-items: center; width: 46px; height: 32px; border-radius: 10px; transition: transform var(--d-press) var(--ease-out), background-color var(--d-select) var(--ease-out); }
 .tab-inner svg { width: 24px; height: 24px; stroke-width: 1.7; }
-.tab-label { font-size: var(--t-2xs); font-weight: 600; line-height: 13px; letter-spacing: .01em; white-space: nowrap; } /* now visible */
+.tab-label { font-size: var(--t-2xs); font-weight: 700; line-height: 13px; letter-spacing: .01em; white-space: nowrap; } /* one weight in both states: no label reflow */
 .tab[aria-current="page"] { color: var(--ink); }
-.tab[aria-current="page"] .tab-label { font-weight: 800; }
-.tab[aria-current="page"] .fl { fill: currentColor; }
-.tab[aria-current="page"]::before { content: ""; position: absolute; top: -7px; left: 50%; width: 22px; height: 2px; margin-left: -11px; border-radius: 0 0 2px 2px; background: var(--ink); }
-.tab:active .tab-inner { transform: scale(.95); }
+.tab .fl { fill: currentColor; fill-opacity: 0; transition: fill-opacity var(--d-select) var(--ease-out); }
+.tab[aria-current="page"] .fl { fill-opacity: 1; }
+.tab:active .tab-inner { transform: scale(.96); }
 .tab-scan .tab-inner { box-shadow: inset 0 0 0 1.5px currentColor; } /* [NEW] distinct center shape; same colors as other tabs */
 .tab-scan[aria-current="page"] .tab-inner { background: var(--accent); color: var(--accent-ink); box-shadow: none; }
-.tab-scan[aria-current="page"]::before { display: none; }
+/* One pill slides to the selected tab (QA plan 3.1). It sits exactly behind .tab-inner: top 9px = tabbar padding-top 6px
+   + (54px cell - 48px content) / 2. Content still swaps at once; the first placement and keyboard moves jump (main.js). */
+.tab-indicator { position: absolute; z-index: 0; top: 9px; left: max(4px, var(--safe-l)); width: calc((100% - 2 * max(4px, var(--safe-l))) / 5); height: 32px;
+  display: grid; place-items: center; pointer-events: none; transform: translateX(calc(var(--tab-i, 0) * 100%)); transition: transform var(--d-thumb) var(--ease-in-out); }
+.tab-indicator::before { content: ""; width: 46px; height: 32px; border-radius: 10px; background: var(--fill-2); transition: scale var(--d-press) var(--ease-out); }
+.tabbar:not(:has([aria-current="page"])) .tab-indicator { opacity: 0; }
+/* Pressing the selected tab presses its pill with the icon. */
+.tabbar:has(> .tab[aria-current="page"]:active) .tab-indicator::before { scale: .96; --d-press: var(--d-press-down); }
+.kbd .tab-indicator { transition: none; }
+@media (prefers-reduced-motion: reduce) { .tab-indicator { transition: none; } }
 .tab .badge { position: absolute; top: -2px; right: 2px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--ink); color: var(--bg); font-size: 11px; font-weight: 800; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px var(--bg); }
 
 /* ---------- Buttons ---------- */
@@ -674,7 +725,7 @@ main { min-width: 0; padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 40px
   position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 18px;
   border-radius: var(--r-btn-lg); border: 1px solid var(--line-input); background: var(--surface-2); color: var(--ink);
   font-size: var(--t-base); font-weight: 700; line-height: 20px; letter-spacing: -.005em; cursor: pointer;
-  transition: transform var(--d-press) var(--ease-out), background-color var(--d-select) var(--ease-out);
+  transition: transform var(--d-press) var(--ease-out), background-color var(--d-select) var(--ease-out), border-color var(--d-select) var(--ease-out), color var(--d-select) var(--ease-out);
 }
 .btn .ic { width: 18px; height: 18px; }
 .btn:active { transform: scale(.97); }
@@ -691,7 +742,12 @@ main { min-width: 0; padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 40px
 .btn-danger { color: var(--danger); }
 .icon-btn { position: relative; width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 50%; color: var(--ink); transition: transform var(--d-press) var(--ease-out), background-color var(--d-select) var(--ease-out); }
 .icon-btn .ic { width: 22px; height: 22px; }
-.icon-btn:active { transform: scale(.95); background: var(--fill-2); }
+.ic-stack { display: grid; flex: none; }
+.ic-stack > .ic { grid-area: 1 / 1; }
+.ic-stack .ic-fill { opacity: 0; scale: .6; transition: opacity var(--d-icon) var(--ease-out), scale var(--d-icon) var(--ease-out); }
+[aria-pressed="true"] > .ic-stack .ic-fill { opacity: 1; scale: 1; }
+@media (prefers-reduced-motion: reduce) { .ic-stack .ic-fill { scale: 1; transition: opacity var(--d-rm-in) linear; } }
+.icon-btn:not(:disabled):active { transform: scale(.96); background: var(--fill-2); }
 @media (hover: hover) and (pointer: fine) {
   .btn:hover { border-color: var(--ink-3); }
   .btn-primary:hover { background: #EDEDED; border-color: #EDEDED; }
@@ -709,17 +765,17 @@ main { min-width: 0; padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 40px
   min-height: 292px; margin: 0 calc(-1 * var(--gutter)); padding: 76px var(--gutter) 16px; background: #111;
 }
 .detail-hero > img, .detail-hero > svg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 64%; z-index: -2; }
-.detail-hero::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--scrim-hero); }
+/* The scrim is an element (not ::before) so a view transition can fade it in above the moving photo (QA plan 5.1). */
+.hero-scrim { position: absolute; inset: 0; z-index: -1; background: var(--scrim-hero); pointer-events: none; }
 .hero-btn {
   position: absolute; top: calc(10px + var(--safe-t)); width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; color: #fff;
   background: var(--glass); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); border: 1px solid rgb(255 255 255 / .16);
   transition: transform var(--d-press) var(--ease-out);
 }
 .hero-btn .ic { width: 22px; height: 22px; }
-.hero-btn:active { transform: scale(.94); }
+.hero-btn:active { transform: scale(.96); }
 .back-link.hero-btn { left: 12px; }
 .save-detail.hero-btn { right: 12px; }
-.save-detail[aria-pressed="true"] .ic { fill: currentColor; }
 .hero-caption {
   position: absolute; top: calc(20px + var(--safe-t)); left: 66px; max-width: calc(100% - 132px); display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 10px;
   border-radius: var(--r-pill); background: var(--glass); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
@@ -732,6 +788,16 @@ main { min-width: 0; padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 40px
 .hero-logo { width: 40px; height: 40px; border-radius: 10px; }
 .hero-logo .mono { font-size: 13px; }
 .hero-name { font-size: var(--t-hero); font-weight: 800; letter-spacing: -.04em; line-height: .98; color: #fff; text-wrap: balance; overflow-wrap: anywhere; }
+/* Depth on scroll (QA plan 5.5): the photo recedes at 0.25x with a scale inside the 4% cap, and the title lifts away.
+   Transform/opacity only, scroll-driven where supported (iOS 26+); older browsers keep a still hero. */
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .detail-hero > img { animation: hero-recede linear both; animation-timeline: scroll(root); animation-range: 0 292px; }
+    .hero-title { animation: hero-title-out linear both; animation-timeline: scroll(root); animation-range: 120px 260px; }
+  }
+}
+@keyframes hero-recede { to { transform: translateY(73px) scale(1.04); } }
+@keyframes hero-title-out { to { opacity: 0; translate: 0 -12px; } }
 
 .queue-block { margin-top: 22px; }
 .qb-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -782,10 +848,10 @@ main { min-width: 0; padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 40px
   font-size: var(--t-xs); font-weight: 600; line-height: 1.15; text-align: center; transition: transform var(--d-press) var(--ease-out);
 }
 .act .ic { width: 22px; height: 22px; }
-.act:active { transform: scale(.97); }
+.act:not([aria-disabled="true"]):active { transform: scale(.97); }
 .act-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 800; }
 .act-pts { position: absolute; top: 7px; right: 9px; font-family: var(--font-num); font-stretch: var(--w-cond); font-size: 14px; font-weight: 800; color: var(--accent-sub); }
-.act[aria-pressed="true"] .ic { fill: currentColor; }
+.act[aria-pressed="true"] > .ic { fill: currentColor; }
 /* 320–359px venue: smaller hero, caption on its own row, no scale, so the actions stay on the first screen. */
 @media (max-width: 359.98px) {
   .detail-hero { min-height: 250px; }
@@ -817,7 +883,7 @@ main { min-width: 0; padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 40px
 .deal-time { font-family: var(--font-num); font-stretch: var(--w-cond); font-size: 24px; font-weight: 800; line-height: .95; white-space: nowrap; font-variant-numeric: tabular-nums; } /* [NEW] */
 .deal-time small { font-family: var(--font-sans); font-stretch: var(--w-norm); font-size: 12px; font-weight: 600; color: var(--ink-2); margin-left: 2px; }
 .deal-left { display: block; width: 100%; height: 3px; border-radius: 2px; background: var(--meter-off); overflow: hidden; } /* [NEW] time left */
-.deal-left i { display: block; width: var(--left); height: 100%; background: var(--ink); }
+.deal-left i { display: block; width: 100%; height: 100%; background: var(--ink); transform: scaleX(var(--left, 0)); transform-origin: left; } /* --left: 0-1 */
 .deal-sub { font-size: var(--t-xs); line-height: 1.2; color: var(--ink-3); white-space: nowrap; }
 .deal-row[data-state="ended"] .deal-title { color: var(--ink-2); text-decoration: line-through; text-decoration-color: var(--ink-3); }
 @media (max-width: 359.98px) { .deal-row { grid-template-columns: 32px minmax(0, 1fr) 92px; column-gap: 10px; padding-left: 12px; } .deal-icon { width: 32px; height: 32px; } .deal-stub { padding-right: 12px; } .deal-sub { white-space: normal; text-wrap: balance; } }
@@ -899,6 +965,10 @@ details.how p, details.how li { padding: 0 16px; font-size: var(--t-sm); line-he
 
 .shutter { width: 76px; height: 76px; border-radius: 50%; border: 4px solid #fff; padding: 5px; }
 .shutter span { display: block; width: 100%; height: 100%; border-radius: 50%; background: #fff; }
+/* translate (not transform) centres it, so the :active scale still composes. */
+.viewfinder .shutter { position: absolute; z-index: 2; left: 50%; bottom: 12px; translate: -50% 0; width: 64px; height: 64px; }
+.viewfinder.is-captured .shutter { opacity: 0; pointer-events: none; transition: opacity var(--d-toast-out) var(--ease-out); }
+@media (prefers-reduced-motion: reduce) { .viewfinder.is-captured .shutter { transition: opacity var(--d-rm-out) linear; } }
 
 /* ---------- Sheets ---------- */
 dialog.sheet {
@@ -974,7 +1044,7 @@ dialog.sheet::backdrop { background: var(--scrim); }
 .plain-list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: var(--t-base); }
 .plain-list .plus { font-family: var(--font-num); font-stretch: var(--w-cond); font-size: 20px; font-weight: 800; color: var(--ink); }
 .plain-list .muted { color: var(--ink-3); }
-.toast-region { position: fixed; z-index: 60; left: max(0px, calc(50% - var(--phone-w) / 2)); right: max(0px, calc(50% - var(--phone-w) / 2)); bottom: calc(var(--tabbar-h) + var(--safe-b) + 24px); display: grid; justify-items: center; padding: 0 var(--gutter); pointer-events: none; }
+.toast-region { position: fixed; z-index: 60; left: max(0px, calc(50% - var(--phone-w) / 2)); right: max(0px, calc(50% - var(--phone-w) / 2)); bottom: calc(var(--tabbar-h) + var(--safe-b) + 24px + var(--toast-lift, 0px)); /* --toast-lift: main.js liftToasts */ display: grid; justify-items: center; padding: 0 var(--gutter); pointer-events: none; }
 .toast { pointer-events: auto; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 4px 4px 4px 14px; border-radius: 16px; background: var(--accent); color: var(--accent-ink); box-shadow: var(--shadow-float); font-size: 14px; font-weight: 600; line-height: 1.3; transition: transform var(--d-toast) var(--ease-out), opacity var(--d-toast) var(--ease-out); }
 .toast .ok { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-ink); color: var(--accent); } /* [NEW] */
 .toast .ok .ic { width: 14px; height: 14px; stroke-width: 3; }
@@ -993,11 +1063,6 @@ dialog.sheet::backdrop { background: var(--scrim); }
 .state p { max-width: 30ch; font-size: 14px; line-height: 1.4; color: var(--ink-3); }
 .state .actions { display: flex; gap: 8px; margin-top: 8px; }
 .field-error { display: flex; gap: 6px; align-items: center; margin-top: 8px; color: var(--danger); font-size: var(--t-sm); font-weight: 600; }
-
-/* ---------- Reduced motion ---------- */
-@media (prefers-reduced-motion: reduce) {
-  .bar-link:active, .btn:active, .chip:active, .act:active, .tab:active .tab-inner, .hero-btn:active, .icon-btn:active, .poll-opt:active, .segmented button:active { transform: none; }
-}
 
 /* Classes NOT carried over from the current app.css (delete them):
    - silver card styling: .bar-link silver bg, .card-status pill, .cs-icon, .cs-text
@@ -1139,25 +1204,38 @@ dialog.sheet[open] { transform: none; transition-duration: var(--d-sheet-in); tr
 dialog.sheet.is-closing { transform: translateY(100%); transition-duration: var(--d-sheet-out); transition-timing-function: var(--ease-out); }
 dialog.sheet.is-dragging { transition: none; }
 dialog.sheet::backdrop { opacity: 0; transition: opacity var(--d-sheet-out) var(--ease-out); }
-dialog.sheet[open]::backdrop { opacity: 1; transition-duration: var(--d-sheet-in); }
+dialog.sheet[open]::backdrop { opacity: 1; transition-duration: var(--d-sheet-in); transition-timing-function: var(--ease-sheet); }
 @starting-style { dialog.sheet[open]::backdrop { opacity: 0; } }
-dialog.sheet.is-closing::backdrop { opacity: 0; }
+dialog.sheet.is-closing::backdrop { opacity: 0; transition-duration: var(--d-sheet-out); transition-timing-function: var(--ease-out); }
 .sheet-head { touch-action: none; }
 @media (prefers-reduced-motion: reduce) {
   dialog.sheet, dialog.sheet[open], dialog.sheet.is-closing { transform: none; transition: opacity var(--d-rm-in) linear; }
   dialog.sheet[open] { opacity: 1; }
   @starting-style { dialog.sheet[open] { opacity: 0; } }
   dialog.sheet.is-closing { opacity: 0; transition-duration: var(--d-rm-out); }
+  dialog.sheet::backdrop, dialog.sheet[open]::backdrop { transition: opacity var(--d-rm-in) linear; }
+  dialog.sheet.is-closing::backdrop { transition-duration: var(--d-rm-out); }
 }
-/* Toasts leave faster than they arrive. */
-.toast.is-leaving { transition-duration: var(--d-toast-out); }
+/* Toasts leave faster and shorter than they arrive (6px in 160ms against 12px in 220ms), and stop catching taps at once. */
+.toast.is-leaving { opacity: 0; transform: translateY(6px); visibility: hidden; pointer-events: none;
+  transition: opacity var(--d-toast-out) var(--ease-out), transform var(--d-toast-out) var(--ease-out), visibility 0s linear var(--d-toast-out); }
+.toast p { transition: opacity var(--d-swap) var(--ease-out), filter var(--d-swap) var(--ease-out); }
+.toast.is-swapping p { opacity: .6; filter: blur(2px); transition: none; }
+/* Scan has no tab bar: sit low, except on step 2, where the Send report bar holds the bottom. */
+[data-route="scan"]:not(:has(.scan-submit)) .toast-region { bottom: calc(var(--safe-b) + 16px); }
+@media (prefers-reduced-motion: reduce) {
+  .toast { transition: opacity var(--d-rm-in) linear; }
+  @starting-style { .toast { transform: none; } }
+  .toast.is-leaving { transform: none; transition: opacity var(--d-rm-out) linear, visibility 0s linear var(--d-rm-out); }
+  .toast p { transition: opacity var(--d-rm-in) linear; }
+  .toast.is-swapping p { filter: none; }
+}
 /* Press feedback where it was missing (transform in the transition list, or the scale snaps). */
 .segmented button { transition: background-color var(--d-select) var(--ease-out), color var(--d-select) var(--ease-out), transform var(--d-press) var(--ease-out); }
 .segmented button:active { transform: scale(.97); }
 .bucket > span { transition: background-color var(--d-select) var(--ease-out), color var(--d-select) var(--ease-out), transform var(--d-press) var(--ease-out); }
-.bucket input:active + span { transform: scale(.97); }
-.option-row { transition: background-color var(--d-select) var(--ease-out); }
-.option-row:active { background: var(--surface); }
+.bucket input:not(:disabled):active + span { transform: scale(.97); }
+.option-row { transition: background-color var(--d-select) var(--ease-out); } /* pressed fill: see "Presses" at the end */
 /* Loops stop when nobody can see them. */
 html[data-hidden] *, html[data-hidden] *::before, html[data-hidden] *::after { animation-play-state: paused !important; }
 /* Reduced motion: list/detail becomes a short cross-fade instead of a hard cut. */
@@ -1175,6 +1253,8 @@ html[data-hidden] *, html[data-hidden] *::before, html[data-hidden] *::after { a
 .points-next { margin-top: 16px; }
 .pn-track { position: relative; display: block; height: 6px; border-radius: 3px; background: var(--meter-off); overflow: hidden; }
 .pn-track i { position: absolute; inset: 0; background: var(--ink); transform: scaleX(var(--pn, 0)); transform-origin: left center; border-radius: 3px; transition: transform var(--d-fill) var(--ease-out); }
+/* Points is patched in place now (QA plan 4.4), so the fill can glide; under reduced motion it changes at once. */
+@media (prefers-reduced-motion: reduce) { .pn-track i { transition: none; } }
 .points-next p { margin-top: 8px; font-size: var(--t-sm); color: var(--ink-2); }
 .points-next b { font-size: 18px; color: var(--ink); }
 .checkin-btn { margin-top: 20px; }
@@ -1270,7 +1350,7 @@ button.list-link { width: 100%; border: 0; border-bottom: 1px solid var(--line);
 .scan-venue > span:not(.bar-logo):not(.btn) { flex: 1; min-width: 0; display: grid; gap: 1px; }
 .scan-venue small { display: block; }
 .scan-nearest { width: 100%; margin-top: 0; padding: 12px; border: 0; border-radius: var(--r-lg); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-strong); color: inherit; font: inherit; text-align: left; cursor: pointer; transition: transform var(--d-press) var(--ease-out); }
-.scan-nearest:active { transform: scale(.985); }
+.scan-nearest:active { transform: scale(.98); }
 .scan-nearest:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .scan-nearest .btn { pointer-events: none; }
 .vf-tip { left: 50%; transform: translateX(-50%); }
@@ -1302,16 +1382,29 @@ fieldset:disabled .bucket input, fieldset:disabled .door-seg input { cursor: not
 img.real-photo { object-position: var(--pos, 50% 50%) !important; }
 
 /* ---------- Sort row: one segmented control (Nearest / Shortest wait / Deals), no counts ---------- */
-.sort-seg { flex: 1 0 auto; display: flex; gap: 2px; padding: 3px; border-radius: var(--r-pill); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line-input); }
-.sort-seg button { position: relative; flex: 1 1 auto; min-width: 0; height: 34px; padding: 0 12px; border: 0; border-radius: var(--r-pill); background: transparent; color: var(--ink-2); font: inherit; font-size: 14px; font-weight: 650; letter-spacing: -.005em; white-space: nowrap; cursor: pointer; transition: background-color var(--d-select) var(--ease-out), color var(--d-select) var(--ease-out), transform var(--d-press) var(--ease-out); }
+.sort-seg { position: relative; flex: 1 0 auto; display: flex; gap: 2px; padding: 3px; border-radius: var(--r-pill); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line-input); }
+.sort-seg button { position: relative; border: 0; border-radius: var(--r-pill); background: transparent; color: var(--ink-2); font: inherit; cursor: pointer; transition: transform var(--d-press) var(--ease-out); }
+/* Sizing shared with the ink labels (every rule that sizes a button names .seg-ink > span too), and one weight in both
+   states: the segments never shift when the selection changes (QA plan 3.3). */
+.sort-seg button, .seg-ink > span { flex: 1 1 auto; min-width: 0; height: 34px; padding: 0 12px; font-size: 14px; font-weight: 700; letter-spacing: -.005em; white-space: nowrap; }
 .sort-seg button::before { content: ""; position: absolute; inset: -5px 0; } /* 44px hit area */
-.sort-seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 750; }
 .sort-seg button:active { transform: scale(.97); }
+/* The selected look is one ink layer (white, black labels) clipped to the selected segment. The clip glides between
+   segments of different widths, so the labels under the moving pill are exactly inverted. --x/--y/--w/--h: main.js. */
+.seg-ink { position: absolute; inset: 0; display: flex; gap: 2px; padding: inherit; border-radius: inherit; pointer-events: none;
+  background: var(--accent); color: var(--accent-ink);
+  clip-path: inset(var(--y, 3px) calc(100% - var(--x, 0px) - var(--w, 0px)) calc(100% - var(--y, 3px) - var(--h, 0px)) var(--x, 0px) round 999px);
+  transform-origin: calc(var(--x, 0px) + var(--w, 0px) / 2) 50%;
+  transition: clip-path var(--d-thumb) var(--ease-in-out), scale var(--d-press) var(--ease-out); }
+.seg-ink > span { display: grid; place-items: center; }
+.sort-seg:not(:has(> button[aria-pressed="true"])) .seg-ink { opacity: 0; }
+/* Pressing the selected segment presses the pill with it. */
+.sort-seg:has(> button[aria-pressed="true"]:active) .seg-ink { scale: .97; --d-press: var(--d-press-down); }
+.kbd .seg-ink { transition: scale var(--d-press) var(--ease-out); }
+@media (prefers-reduced-motion: reduce) { .seg-ink { transition: scale var(--d-press) var(--ease-out); } } /* the ink jumps; the press stays */
 .sort-seg button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 .chip-x { gap: 6px; padding-right: 10px; }
 .chip-x .ic { width: 14px; height: 14px; color: var(--ink-2); }
-
-@media (prefers-reduced-motion: reduce) { .sort-seg button:active { transform: none; } }
 
 /* ---------- Splash: the nib writes the mark (design panel wf_257e7d2b-276: pen concept + paint drips) ---------- */
 /* ===== splash: a glowing nib writes the mark; drips fall, the glass fills, the swash flicks out ===== */
@@ -1505,10 +1598,14 @@ section.ideas { margin-top: 28px; display: grid; gap: 10px; }
 .promo-next { font-size: 12px; font-weight: 600; color: var(--ink-3); }
 
 .line-badge { flex: none; display: flex; align-items: center; gap: 8px; }
-.lb-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--ink-4); }
-.line-badge[data-level="quiet"] .lb-dot { background: var(--quiet); box-shadow: 0 0 10px 2px rgb(95 227 161 / .55); }
-.line-badge[data-level="lively"] .lb-dot { background: var(--lively); box-shadow: 0 0 10px 2px rgb(255 201 77 / .55); }
-.line-badge[data-level="packed"] .lb-dot { background: var(--packed); box-shadow: 0 0 12px 3px rgb(255 107 94 / .6); }
+.lb-dot { position: relative; width: 14px; height: 14px; border-radius: 50%; background: var(--ink-4); }
+.line-badge[data-level="quiet"] { --glow: rgb(95 227 161 / .55); }
+.line-badge[data-level="lively"] { --glow: rgb(255 201 77 / .55); }
+.line-badge[data-level="packed"] { --glow: rgb(255 107 94 / .6); }
+.line-badge[data-level="quiet"] .lb-dot { background: var(--quiet); }
+.line-badge[data-level="lively"] .lb-dot { background: var(--lively); }
+.line-badge[data-level="packed"] .lb-dot { background: var(--packed); }
+.line-badge:is([data-level="quiet"], [data-level="lively"], [data-level="packed"]) .lb-dot::after { content: ""; position: absolute; inset: -8px; border-radius: 50%; background: radial-gradient(closest-side, var(--glow), transparent); opacity: .85; pointer-events: none; }
 .line-badge[data-state="paused"] .lb-dot { background: transparent; box-shadow: inset 0 0 0 2.5px var(--lively); }
 .line-badge[data-state="closed"] .lb-dot, .line-badge[data-state="none"] .lb-dot { background: #3A3A3A; box-shadow: none; }
 .line-badge[data-state="none"] .lb-dot { background: transparent; box-shadow: inset 0 0 0 2px #5A5A5A; }
@@ -1520,9 +1617,10 @@ section.ideas { margin-top: 28px; display: grid; gap: 10px; }
 .line-badge[data-state="closed"]:not(:has(.lb-num)) .lb-word { color: var(--ink-3); }
 .bar-card:has(.line-badge[data-state="closed"]) .bar-photo > img { filter: grayscale(1) brightness(.55); }
 .bar-card:has(.line-badge[data-state="closed"]) .bar-name { color: var(--ink-2); }
+/* tick() adds .is-new only when a card's line turns packed; renders (sort, refresh, search) never replay it. */
 @media (prefers-reduced-motion: no-preference) {
-  .line-badge[data-level="packed"] .lb-dot { animation: lb-glow var(--d-loop-pulse) ease-in-out var(--n-loop-pulse); }
-  @keyframes lb-glow { 50% { box-shadow: 0 0 16px 5px rgb(255 107 94 / .7); } }
+  .line-badge.is-new[data-level="packed"] .lb-dot::after { animation: lb-glow var(--d-loop-pulse) var(--ease-in-out) var(--n-loop-pulse); }
+  @keyframes lb-glow { 50% { opacity: 1; scale: 1.25; } }
 }
 .group-dest .line-badge .lb-num { font-size: 20px; }
 
@@ -1544,7 +1642,8 @@ section.ideas { margin-top: 28px; display: grid; gap: 10px; }
 
 .promo-badge.is-lg { height: 30px; padding: 0 12px; font-size: 15px; }
 .promo-badge.is-lg .ic { width: 14px; height: 14px; }
-.promo-row { display: grid; gap: 8px; padding: 14px; border-radius: var(--r-md); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
+/* One column: the bar page ticket must not inherit .deal-row's 36px / 1fr / 104px tracks (it renders as "deal-row promo-row"). */
+.promo-row { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 0; gap: 8px; padding: 14px; border-radius: var(--r-md); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
 .promo-row[data-state="ended"] { opacity: 1; }
 .promo-row[data-state="ended"] .promo-badge { background: var(--fill-2); color: var(--ink-2); }
 .promo-row.is-target { box-shadow: inset 0 0 0 2px var(--ink); }
@@ -1556,7 +1655,8 @@ section.ideas { margin-top: 28px; display: grid; gap: 10px; }
 .promo-row .deal-title { font-size: var(--t-sm); color: var(--ink-2); font-weight: 600; }
 .promo-row .deal-meta { font-size: var(--t-xs); color: var(--ink-3); }
 .promo-row .deal-left { display: block; height: 4px; border-radius: 2px; background: var(--line-strong); overflow: hidden; }
-.promo-row .deal-left i { display: block; height: 100%; width: var(--left); background: var(--ink); }
+.promo-row .deal-left i { transition: transform var(--d-fill) var(--ease-out); }
+@media (prefers-reduced-motion: reduce) { .promo-row .deal-left i { transition: none; } }
 .promo-terms { display: flex; gap: 6px; align-items: flex-start; font-size: var(--t-xs); line-height: 1.4; color: var(--ink-3); }
 .promo-terms .ic { flex: none; margin-top: 1px; }
 .deals-rail ul.rail-list { padding-inline: var(--gutter); scroll-padding-inline: var(--gutter); }
@@ -1586,6 +1686,8 @@ button.member-row:focus-visible { outline: 2px solid var(--focus); outline-offse
 .vip-card.is-tinted .vip-brand { color: #fff; }
 .sheet-head:has(.sheet-back) { grid-template-columns: 44px minmax(0, 1fr) 44px; padding-left: 8px; }
 .sheet-head:has(.sheet-back) .sheet-title { grid-column: 2; }
+.sheet-head:has(.sheet-back) .sheet-back { grid-column: 1; }
+.sheet-head:has(.sheet-back) .sheet-close { grid-column: 3; }
 
 /* ---------- Review fixes (2026-10-17) ---------- */
 .promo-item { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
@@ -1621,7 +1723,7 @@ button.member-row:focus-visible { outline: 2px solid var(--focus); outline-offse
 
 .count-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 12px; margin-top: 14px; }
 .count-row .label { margin: 0; }
-#photo-count { display: block; font-family: var(--font-num); font-size: 40px; line-height: 1; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.pc-vis { display: block; font-family: var(--font-num); font-size: 40px; line-height: 1; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 .count-step { gap: 2px; }
 .count-step .icon-btn .num { font-size: 14px; font-weight: 700; }
 .line-photo .btn-quiet.btn-block { margin-top: 10px; min-height: 44px; border: 1px solid var(--line-input); justify-content: center; }
@@ -1632,7 +1734,9 @@ button.member-row:focus-visible { outline: 2px solid var(--focus); outline-offse
 .ms-sub { font-size: var(--t-xs); line-height: 1.4; color: var(--ink-2); overflow-wrap: anywhere; }
 .ms-sub b { color: var(--ink); font-weight: 700; }
 .photo-cta { position: sticky; bottom: calc(var(--tabbar-h) + var(--safe-b) + 8px); z-index: 3; margin-top: 14px; }
-.photo-cta .btn[aria-disabled="true"] { opacity: .45; }
+.photo-cta { padding-top: 12px; background: linear-gradient(180deg, rgb(11 11 11 / 0), var(--surface) 40%); } /* --surface = .panel */
+.photo-cta .btn[aria-disabled="true"] { opacity: 1; background: var(--surface-2); border-color: var(--line-strong); color: var(--ink-3); }
+.photo-cta .btn { transition: background-color var(--d-select) var(--ease-out), color var(--d-select) var(--ease-out), border-color var(--d-select) var(--ease-out), transform var(--d-press) var(--ease-out); }
 [data-route="console"] .toast-region { bottom: calc(var(--tabbar-h) + var(--safe-b) + 84px); }
 .door-row { margin: 0 0 14px; padding: 0; border: 0; min-width: 0; }
 .door-row legend { margin-bottom: 8px; font-weight: 700; }
@@ -1657,10 +1761,9 @@ button.member-row:focus-visible { outline: 2px solid var(--focus); outline-offse
 .feed-chip[data-outcome="backs"] { color: var(--fresh); }
 .feed-chip[data-outcome="against"] { background: var(--aging-soft); color: var(--aging); box-shadow: none; }
 @media (prefers-reduced-motion: no-preference) {
-  .lp-view.is-flash { animation: flash var(--d-flash) var(--ease-out); }
-  .lp-view .head.is-new .mark { animation: mark-pop 220ms var(--ease-out) both; transform-box: fill-box; transform-origin: center; }
-  .lp-view.is-filling .head.is-marked .mark { animation: mark-pop 220ms var(--ease-out) both; animation-delay: calc(max(0, var(--i) - var(--from)) * var(--step)); transform-box: fill-box; transform-origin: center; }
-  @keyframes mark-pop { 0% { opacity: 0; transform: scale(.4); } 70% { opacity: 1; transform: scale(1.12); } 100% { opacity: 1; transform: none; } }
+  .lp-view .head.is-new .mark { animation: mark-pop 200ms var(--ease-out) both; transform-box: fill-box; transform-origin: center; }
+  .lp-view.is-filling .head.is-marked .mark { animation: mark-pop 200ms var(--ease-out) both; animation-delay: calc(max(0, var(--i) - var(--from)) * var(--step)); transform-box: fill-box; transform-origin: center; }
+  @keyframes mark-pop { 0% { opacity: 0; scale: .9; } 70% { opacity: 1; scale: 1.03; } 100% { opacity: 1; scale: 1; } }
 }
 
 .panel > .section-head { margin: 0 0 12px; }
@@ -1668,12 +1771,12 @@ button.member-row:focus-visible { outline: 2px solid var(--focus); outline-offse
 .console-page .line-photo { scroll-margin-top: calc(var(--topbar-h) + var(--safe-t) + 8px); }
 
 /* ---------- Compact Bars header (team ask, 2026-10-18): sort switch + search + map on one row ---------- */
-.search-panel { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
-.search-panel > .chips { flex: 1; min-width: 0; margin: 0; padding: 0; gap: 6px; }
+.search-panel { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; column-gap: 6px; margin-top: 8px; }
+.search-panel > .chips { grid-area: 1 / 1; min-width: 0; margin: 0; padding: 0; gap: 6px; }
 .search-panel .sort-seg { padding: 2px; }
-.search-panel .sort-seg button { height: 30px; padding: 0 10px; font-size: 13px; }
+.search-panel .sort-seg button, .search-panel .seg-ink > span { height: 30px; padding: 0 10px; font-size: 13px; }
 .search-panel .sort-seg button::before { inset: -7px 0; }
-@media (max-width: 359.98px) { .search-panel { gap: 4px; } .search-panel .sort-seg button { padding: 0 6px; font-size: 12.5px; } }
+@media (max-width: 359.98px) { .search-panel { column-gap: 4px; } .search-row { gap: 4px; } .search-panel .sort-seg button, .search-panel .seg-ink > span { padding: 0 6px; font-size: 12.5px; } }
 .tool-btn { position: relative; flex: none; width: 34px; height: 34px; display: grid; place-items: center; padding: 0; border-radius: 50%; border: 1px solid var(--line-input); background: var(--surface-2); color: var(--ink); cursor: pointer; }
 .tool-btn::before { content: ""; position: absolute; inset: -5px; } /* 44px hit area */
 .tool-btn .ic { width: 17px; height: 17px; }
@@ -1682,8 +1785,6 @@ button.member-row:focus-visible { outline: 2px solid var(--focus); outline-offse
 .search-panel .search input { height: 34px; }
 .search-cancel { position: relative; flex: none; height: 34px; padding: 0 2px 0 6px; border: 0; background: none; color: var(--ink); font: inherit; font-size: var(--t-sm); font-weight: 600; cursor: pointer; }
 .search-cancel::before { content: ""; position: absolute; inset: -5px -4px; }
-.search-panel:not(.is-open) > :is(.search, .search-cancel) { display: none; }
-.search-panel.is-open > :is(.chips, .search-toggle, .map-btn) { display: none; }
 .tool-btn:focus-visible, .search-cancel:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 /* ---------- Compact Events header (team ask, 2026-10-18) ---------- */
@@ -1702,3 +1803,372 @@ a.groups-link:active { background: var(--surface); }
 .ev-list { margin-top: 10px; }
 .ev-filters .chip-select select { field-sizing: content; max-width: 150px; text-overflow: ellipsis; }
 .topbar .wm-logo { height: 34px; }
+
+/* ---------- Presses (QA plan 2.1): fast in, slow out, kept under reduced motion (all <= 4%) ---------- */
+/* Every press transition reads --d-press (tokens.css: --d-press-up, 240ms). A pressed control flips it to --d-press-down,
+   so even a quick tap bottoms out in 50ms, and the release (whose after-change style is the rest state) eases back over
+   240ms. Descendants inherit it (.tab-inner, .rail-photo, .avatars, a bucket's span). */
+:is(.bar-link, .btn, .chip, .act, .hero-btn, .icon-btn, .tool-btn, .poll-opt, .sort-seg button, .segmented button, .segmented label,
+  .window-option, .shutter, .bucket, .pts-chip, .back-link, .scan-nearest, .rail-tile, .rail-all, button.group-spots, .map-pin-btn, .tab):active,
+.ev-card:has(> .ev-link:active), .idea-card:has(> .idea-link:active) { --d-press: var(--d-press-down); }
+/* Presses that were missing. */
+.tool-btn { transition: transform var(--d-press) var(--ease-out), background-color var(--d-select) var(--ease-out); }
+.tool-btn:active { transform: scale(.96); }
+.tool-btn:not([aria-pressed="true"]):active { background: var(--fill-2); }
+.rail-photo, .rail-all, .avatars, .ev-card, .idea-card { transition: transform var(--d-press) var(--ease-out); }
+.rail-tile:active .rail-photo, .ev-card:has(> .ev-link:active), .idea-card:has(> .idea-link:active) { transform: scale(.98); }
+.rail-all:active { transform: scale(.97); }
+.segmented label { transition: background-color var(--d-select) var(--ease-out), color var(--d-select) var(--ease-out), transform var(--d-press) var(--ease-out); }
+.segmented label:not(:has(input:disabled)):active { transform: scale(.97); }
+/* Rows: a visible fill (surface on a sheet's raised plate was invisible). */
+button.member-row { transition: background-color var(--d-select) var(--ease-out); }
+.option-row:active, button.member-row:active { background: var(--fill-2); }
+
+/* ---------- Segmented thumb (QA plan 3.2): one thumb slides under equal-width segments ---------- */
+/* --n (option count) comes from the markup; --i (selected index) from the DOM state, so a control whose node survives
+   needs no JS. Labels change color in step with the thumb, so a label inverts as the thumb passes under it. */
+.segmented { position: relative; isolation: isolate; --i: 0; }
+.segmented:has(> :nth-child(2):is([aria-pressed="true"], [aria-checked="true"]), > :nth-child(2) input:checked) { --i: 1; }
+.segmented:has(> :nth-child(3):is([aria-pressed="true"], [aria-checked="true"]), > :nth-child(3) input:checked) { --i: 2; }
+.segmented:has(> :nth-child(4):is([aria-pressed="true"], [aria-checked="true"]), > :nth-child(4) input:checked) { --i: 3; }
+.segmented::before { content: ""; position: absolute; z-index: -1; top: 3px; bottom: 3px; left: 3px; border-radius: 11px; background: var(--accent);
+  width: calc((100% - 6px - (var(--n, 2) - 1) * 4px) / var(--n, 2)); transform: translateX(calc(var(--i) * (100% + 4px)));
+  transform-origin: calc(var(--i) * (100% + 4px) + 50%) 50%;
+  transition: transform var(--d-thumb) var(--ease-in-out), scale var(--d-press) var(--ease-out); }
+.segmented:not(:has([aria-pressed="true"], [aria-checked="true"], input:checked))::before { opacity: 0; }
+/* Pressing the selected segment presses the thumb with its label. */
+.segmented:has(> [aria-pressed="true"]:active, > label:active input:checked)::before { scale: .97; --d-press: var(--d-press-down); }
+.segmented [aria-pressed="true"], .segmented [aria-checked="true"], .segmented label:has(input:checked) { background: transparent; }
+.segmented button, .segmented label { font-weight: 700; transition: color var(--d-thumb) var(--ease-in-out), transform var(--d-press) var(--ease-out); }
+.ev-views button .num { min-width: 1ch; } /* always rendered, so the Saved label never jumps when the count appears */
+/* No slide: the first pick in a control that had none (main.js .no-slide), and keyboard moves. */
+.segmented.no-slide::before, .kbd .segmented::before { transition: scale var(--d-press) var(--ease-out); }
+.kbd .segmented :is(button, label) { transition: color var(--d-select) var(--ease-out), transform var(--d-press) var(--ease-out); }
+@media (prefers-reduced-motion: reduce) {
+  .segmented::before { transition: scale var(--d-press) var(--ease-out); }
+  .segmented button, .segmented label { transition: color var(--d-rm-in) linear, transform var(--d-press) var(--ease-out); }
+}
+
+/* ---------- Switch thumb (QA plan 3.4) ---------- */
+/* The knob glides (--d-thumb) and crossfades its own color with the track, so there is no white-on-white frame. A press
+   stretches it toward the middle (iOS); `translate` moves it, so the stretch stays anchored to the side it sits on. */
+.switch span { pointer-events: none; } /* the track painted over the input and swallowed taps on the switch itself */
+.switch span::after { transform-origin: left center; transition: translate var(--d-thumb) var(--ease-in-out), background-color var(--d-select) var(--ease-out), scale var(--d-press-up) var(--ease-out); }
+.switch input:checked + span::after { transform: none; translate: 20px 0; }
+.switch input:not(:disabled):active + span::after { scale: 1.12 1; transition-duration: var(--d-press-down), var(--d-select), var(--d-press-down); }
+.switch input:checked:not(:disabled):active + span::after { translate: calc(20px - 27px * .12) 0; } /* right edge stays put */
+@media (prefers-reduced-motion: reduce) {
+  .switch span::after { transition: background-color var(--d-rm-in) linear; }
+  .switch input:not(:disabled):active + span::after { scale: none; }
+  .switch input:checked:not(:disabled):active + span::after { translate: 20px 0; }
+}
+
+/* ---------- Patch in place, rolling numbers and live data (QA plan batch 4) ---------- */
+/* Bar page estimate (4.1, 4.2). The unit is an inline-block so it glides with the number when the ≈ comes or goes. */
+.qb-wait { transition: color var(--d-select) var(--ease-out); }
+.qb-wait small { display: inline-block; }
+/* The range on the 0–30 scale: two round caps and a middle bar, all on transforms, so a new range glides (--d-ring). The
+   caps are zero-width boxes moved by container units, so nothing overflows the track (no horizontal scroll). */
+.qb-scale-range { left: 5px; right: 5px; width: auto; min-width: 0; border-radius: 0; background: none; box-shadow: none; }
+.qb-scale-range > i { position: absolute; top: 0; bottom: 0; left: 0; transform-origin: left center; transition: transform var(--d-ring) var(--ease-out); }
+.qb-scale-range > :is(.r-lo, .r-hi) { width: 0; }
+.qb-scale-range > .r-lo { left: calc(var(--lo) / var(--max) * 100%); }
+.qb-scale-range > .r-hi { left: calc(var(--hi) / var(--max) * 100%); }
+.qb-scale-range > :is(.r-lo, .r-hi)::before { content: ""; position: absolute; left: -5px; top: 0; width: 10px; height: 10px; border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 3px var(--bg); }
+.qb-scale-range > .r-mid { right: 0; background: var(--ink); transform: translateX(calc(var(--lo) / var(--max) * 100%)) scaleX(calc((var(--hi) - var(--lo)) / var(--max))); }
+/* Freshness mark: a zero-width rail carries it along the track, so the age glides. */
+.qf-rail { position: absolute; top: 0; bottom: 0; width: 0; pointer-events: none; left: clamp(7px, calc(var(--age, 0) / 26 * 100%), calc(100% - 7px)); }
+.qf-rail .qf-mark { left: 0; }
+@supports (width: 1cqw) {
+  .qb-scale-range, .qf-track { container-type: inline-size; }
+  .qb-scale-range > .r-lo { left: 0; transform: translateX(calc(100cqw * var(--lo) / var(--max))); }
+  .qb-scale-range > .r-hi { left: 0; transform: translateX(calc(100cqw * var(--hi) / var(--max))); }
+  .qf-rail { left: 7px; translate: calc((100cqw - 14px) * var(--age, 0) / 26) 0; transition: translate var(--d-ring) var(--ease-out); }
+}
+.qf-legend span { transition: color var(--d-select) var(--ease-out); }
+/* Deal tickets (4.3) and bar cards (4.11): live → ended and a line's level change color in place. */
+.promo-row .promo-badge { transition: background-color var(--d-select) var(--ease-out), color var(--d-select) var(--ease-out); }
+.deal-state-word, .promo-row .deal-title { transition: color var(--d-select) var(--ease-out); }
+.lb-dot { transition: background-color var(--d-select) var(--ease-out), box-shadow var(--d-select) var(--ease-out); }
+.lb-word { transition: color var(--d-select) var(--ease-out); }
+@media (prefers-reduced-motion: reduce) { .qf-rail, .qb-scale-range > i { transition: none; } }
+/* Toggle buttons keep their node (4.5, 4.6): the two labels share one box and cross-fade, so the icon beside them never
+   shifts; the fill crosses over --d-select (.btn). */
+.lbl-stack { display: inline-grid; }
+.lbl-stack > * { grid-area: 1 / 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: opacity var(--d-swap) var(--ease-out); }
+[aria-pressed="true"] > .lbl-stack > :first-child, [aria-pressed="false"] > .lbl-stack > :last-child { opacity: 0; }
+/* 320–359px: "Joined" reserves its width in both states, so its check drops to keep the group footer on the screen. */
+@media (max-width: 359.98px) { .group-foot .lbl-stack .ic { display: none; } }
+/* Points (4.4): the star nods from its center. */
+.pts-chip > .ic { transform-origin: 50% 50%; }
+/* Poll (4.10): the check has its own slot, so the label never moves; it fades and grows in. */
+.poll-check { display: inline-grid; width: 16px; height: 16px; opacity: 0; scale: .9; transition: opacity var(--d-icon) var(--ease-out), scale var(--d-icon) var(--ease-out); }
+.poll-check .ic { width: 16px; height: 16px; }
+.poll-opt[aria-pressed="true"] .poll-check { opacity: 1; scale: 1; }
+/* Scan line size (4.9): the disc fills with the tile; the check is its own layer that grows in over --d-icon. */
+.bucket > span::after { transition: background-color var(--d-select) var(--ease-out), box-shadow var(--d-select) var(--ease-out); }
+.bucket input:checked + span::after { background-image: none; }
+.bucket > span::before { content: ""; position: absolute; z-index: 1; top: 12px; right: 12px; width: 18px; height: 18px; pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 12.5 4 4L18 8'/%3E%3C/svg%3E") center / 12px no-repeat;
+  opacity: 0; scale: .6; transition: opacity var(--d-icon) var(--ease-out), scale var(--d-icon) var(--ease-out); }
+.bucket input:checked + span::before { opacity: 1; scale: 1; }
+/* Map/list toggle (4.12): both glyphs drawn; the incoming one fades and grows in (--d-icon), the outgoing leaves faster. */
+.map-btn .ic-stack > .ic { transition: opacity var(--d-quick) var(--ease-out), scale var(--d-quick) var(--ease-out); }
+.map-btn[aria-pressed="false"] .ic-list, .map-btn[aria-pressed="true"] .ic-map { opacity: 0; scale: .9; }
+.map-btn[aria-pressed="false"] .ic-map, .map-btn[aria-pressed="true"] .ic-list { transition-duration: var(--d-icon); }
+/* A cancelled pass dims in place (4.12); the status chip keeps its outline and place. */
+.pass-card :is(.pass-grid, .pass-invalid, .pass-venue) { transition: opacity var(--d-select) var(--ease-out); }
+.pass-card[data-status="cancelled"] :is(.pass-grid, .pass-invalid, .pass-venue) { opacity: .45; }
+.pass-status { transition: background-color var(--d-select) var(--ease-out), color var(--d-select) var(--ease-out), border-color var(--d-select) var(--ease-out); }
+.pass-card[data-status="cancelled"] .pass-status { border-color: var(--line-input); }
+/* Events filter pills (4.12): a set filter fills over --d-select; the results stay instant. */
+.select select { transition: background-color var(--d-select) var(--ease-out), color var(--d-select) var(--ease-out), border-color var(--d-select) var(--ease-out); }
+.select > svg { transition: color var(--d-select) var(--ease-out); }
+@media (prefers-reduced-motion: reduce) {
+  .lbl-stack > * { transition: opacity var(--d-rm-in) linear; }
+  .poll-check, .bucket > span::before, .map-btn .ic-stack > .ic { scale: 1; transition: opacity var(--d-rm-in) linear; }
+  .map-btn[aria-pressed] .ic-stack > .ic { scale: 1; }
+}
+
+/* ---------- Bars surfaces (QA plan batch 6) ---------- */
+/* 6.1 Search. The sort row (switch, search, map) and the search row share one grid cell and both stay in layout; the
+   idle one is hidden with visibility once its fade is done. The row on its way out sits on top with no pointer events,
+   so its button covers the start of the morph. The field's pill is its own layer (JS grows it out of the button). */
+.search-panel > .search-toggle { grid-area: 1 / 2; }
+.search-panel > .map-btn { grid-area: 1 / 3; }
+.search-panel > :is(.chips, .search-toggle, .map-btn) { position: relative; z-index: 1; }
+.search-row { grid-area: 1 / 1 / 2 / -1; display: flex; align-items: center; gap: 6px; min-width: 0; }
+.search-panel { --sp-d: var(--d-morph-out); --sp-v: 0s; --sp-ease: var(--ease-out); }
+.search-panel.is-open { --sp-d: var(--d-quick); --sp-v: var(--d-quick); }
+.search-panel > .chips { transition: opacity var(--sp-d) var(--sp-ease), visibility 0s linear var(--sp-v); }
+.search-panel > :is(.search-toggle, .map-btn) { transition: transform var(--d-press) var(--ease-out), background-color var(--d-select) var(--ease-out), opacity var(--sp-d) var(--sp-ease), visibility 0s linear var(--sp-v); }
+.search-panel.is-open > :is(.chips, .search-toggle, .map-btn) { opacity: 0; visibility: hidden; pointer-events: none; }
+.search-panel:not(.is-open) > .search-row { opacity: 0; visibility: hidden; transition: opacity var(--d-quick) var(--ease-out) 60ms, visibility 0s linear var(--d-morph-out); }
+.search-panel .search::before { content: ""; position: absolute; inset: 0; border-radius: var(--r-pill); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line-input); transform-origin: 0 50%; pointer-events: none; }
+.search-panel .search:has(input:focus-visible)::before { box-shadow: inset 0 0 0 1px var(--ink); }
+.search-panel .search input, .search-panel .search input:focus-visible { position: relative; border-color: transparent; background: transparent; }
+.search-panel.is-instant, .search-panel.is-instant > * { transition: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .search-panel { --sp-d: var(--d-rm-in); --sp-ease: linear; }
+  .search-panel.is-open { --sp-d: var(--d-rm-out); --sp-v: var(--d-rm-out); }
+  .search-panel.is-open > .search-row { transition: opacity var(--d-rm-in) linear; }
+  .search-panel:not(.is-open) > .search-row { transition: opacity var(--d-rm-out) linear, visibility 0s linear var(--d-rm-out); }
+}
+
+/* 6.2 Top bar. The wordmark and the area share one cell (both always rendered) and cross-fade in both directions:
+   the incoming one over --d-select, the outgoing one over --d-quick, then visibility hides it (JS adds the 4px / 3px
+   lift). A hairline fades in over the first 48px of scroll where scroll timelines exist, else when condensed. */
+.topbar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; column-gap: 4px; }
+.topbar-spacer { display: none; }
+.topbar > :is(.wordmark, .topbar-area) { grid-area: 1 / 1; justify-self: start; max-width: 100%; }
+.topbar > .top-search { grid-area: 1 / 2; margin-right: 2px; }
+.topbar > #demo-slot { grid-area: 1 / 3; }
+.topbar > .topbar-area { display: inline-flex; }
+.topbar > :is(.wordmark, .topbar-area, .top-search) { --tb-d: var(--d-select); --tb-v: 0s; --tb-ease: var(--ease-out); }
+.topbar:not([data-condensed]) > :is(.topbar-area, .top-search), .topbar[data-condensed] > .wordmark { opacity: 0; visibility: hidden; pointer-events: none; --tb-d: var(--d-quick); --tb-v: var(--d-quick); }
+.topbar > :is(.wordmark, .topbar-area) { transition: opacity var(--tb-d) var(--tb-ease), visibility 0s linear var(--tb-v); }
+.topbar > .top-search { transition: transform var(--d-press) var(--ease-out), background-color var(--d-select) var(--ease-out), opacity var(--tb-d) var(--tb-ease), visibility 0s linear var(--tb-v); }
+.topbar.is-instant > * { transition: none !important; }
+.topbar::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; background: var(--line); opacity: 0; pointer-events: none; transition: opacity var(--d-select) var(--ease-out); }
+.topbar[data-condensed]::after { opacity: 1; }
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .topbar::after { transition: none; animation: hairline linear both; animation-timeline: scroll(root); animation-range: 0 48px; } /* no scroll: no line */
+  }
+}
+@keyframes hairline { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .topbar::after { transition: opacity var(--d-rm-in) linear; }
+  .topbar > :is(.wordmark, .topbar-area, .top-search) { --tb-d: var(--d-rm-in); --tb-ease: linear; }
+  .topbar:not([data-condensed]) > :is(.topbar-area, .top-search), .topbar[data-condensed] > .wordmark { --tb-d: var(--d-rm-out); --tb-v: var(--d-rm-out); }
+}
+
+/* 6.3 Map preview: one compact card (the bar card's parts) floating above the tab bar. A pin-to-pin change cross-fades
+   two cards in one cell. The selected pin's tail joins its white ring instead of cutting it. */
+.map-preview:not([hidden]) { display: grid; }
+.map-preview > * { grid-area: 1 / 1; min-width: 0; }
+.map-card { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: center; padding-right: 4px; border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--raised); box-shadow: var(--shadow-float); overflow: hidden; }
+.map-card-link { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 2px 10px 10px; color: inherit; border-radius: calc(var(--r-lg) - 1px) 0 0 calc(var(--r-lg) - 1px); transition: background-color var(--d-select) var(--ease-out); }
+.map-card-link:active { background: var(--surface); }
+.map-card-link:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.mc-photo { position: relative; width: 56px; height: 56px; border-radius: 10px; overflow: hidden; background: #111; }
+.mc-photo > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.mc-main { display: grid; justify-items: start; gap: 6px; min-width: 0; }
+.mc-name { max-width: 100%; font-size: var(--t-md); font-weight: 700; letter-spacing: -.02em; line-height: 1.15; overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; } /* fits the 56px photo's height, so a pin change never resizes the card */
+.map-card .card-dist { height: 24px; font-size: 13px; background: var(--fill-2); }
+.mc-status { justify-self: end; }
+.map-pin-btn[aria-pressed="true"]::after { border-color: var(--ink); }
+
+/* 6.4 Refresh: the icon spins (constant motion: linear) while a refresh runs; JS settles it on its next full turn. */
+@media (prefers-reduced-motion: no-preference) { .refresh-btn[aria-disabled="true"] .ic { animation: spin .9s linear infinite; } }
+@media (prefers-reduced-motion: reduce) {
+  .results-bar .refresh-btn { transition: transform var(--d-press) var(--ease-out), background-color var(--d-select) var(--ease-out), opacity var(--d-rm-in) linear; }
+  .results-bar .refresh-btn[aria-disabled="true"] { opacity: .5; }
+}
+
+/* 6.5 First load: placeholders the size of what arrives (the deals row, the results bar, the cards). */
+.sk-card { display: grid; align-content: start; border-radius: var(--r-card); background: var(--surface); overflow: hidden; }
+.sk-card .sk-photo { aspect-ratio: 1 / 1; border-radius: 0; }
+.sk-card :is(.sk-l1, .sk-l2) { height: 12px; margin-inline: 12px; }
+.sk-card .sk-l1 { width: 55%; margin-top: 16px; }
+.sk-card .sk-l2 { width: 35%; margin: 10px 12px 26.8px; }
+.sk-rail .rail-head { min-height: 44px; }
+.sk-rail .sk-h { width: 150px; height: 20px; }
+.sk-rail .rail-list { overflow: hidden; }
+.sk-tile { flex: none; display: grid; align-content: start; gap: 4px; width: 196px; }
+.sk-tile .rail-photo { box-shadow: none; background: var(--fill-2); }
+.sk-tile .sk-l1 { width: 60%; height: 14px; margin: 2.1px 0; }
+.sk-tile .sk-l2 { width: 80%; height: 12px; margin: 2.4px 0; }
+@media (max-width: 359.98px) {
+  .sk-card .sk-photo { aspect-ratio: 2.6 / 1; }
+  .sk-card .sk-l2 { margin-bottom: 14.4px; }
+}
+
+/* 6.6 List photos fade in once, when decoded (JS marks the ones still loading). */
+:is(.bar-photo, .rail-photo) > img { transition: opacity var(--d-reveal) var(--ease-out); }
+:is(.bar-photo, .rail-photo) > img.is-pending { opacity: 0; }
+@media (prefers-reduced-motion: reduce) { :is(.bar-photo, .rail-photo) > img { transition: opacity var(--d-rm-in) linear; } }
+
+/* 6.8 Banners: spaced only when there is one (JS hands the height over on transforms). */
+#explore-banners { display: grid; gap: 8px; }
+#explore-banners:not(:empty) { margin-top: var(--s-3); }
+
+/* 6.9 Toasts stack (at most two): the one behind steps up and back so its Undo stays in reach. Reduced motion: the
+   offset applies at once, only the opacity fades. */
+.toast-region > .toast { grid-area: 1 / 1; align-self: end; z-index: 1; }
+.toast-region > .toast.is-behind { z-index: 0; }
+.toast.is-behind, .toast.is-behind.is-leaving { transform: translateY(var(--peek, -14px)) scale(.95); }
+.toast.is-behind { opacity: .6; }
+.toast.is-behind.is-leaving { opacity: 0; }
+
+/* ---------- Sheets (QA plan batch 7) ---------- */
+/* 7.3 A picked row holds its fill for a beat before the sheet closes (a color: kept under reduced motion). */
+.option-row.is-picked { background: var(--fill-2); transition: none; }
+/* 7.5 Help: the answer clears the plate's edge; its wrapper clips while it opens and folds. The chevron turns as soon as
+   a fold starts. */
+.how-a { overflow: hidden; }
+details.how .how-a > p { padding: 0 16px 14px; }
+details.how.is-closing summary::after { transform: rotate(45deg) translateY(-2px); }
+
+/* ---------- Lists, forms and the rare success beats (QA plan batch 8) ---------- */
+/* 8.1 An item on its way out (JS fades it) takes no taps. */
+.is-leaving { pointer-events: none; }
+/* 8.2 Bar hop: the stops stay in the page and open in place below the switch (rows 0fr → 1fr, --d-tray) as they fade in
+   (--d-fade). They share one form row with the switch, and their 18px space above is inside the clip, so a closed editor
+   takes no room. The clip has inline and bottom room for focus rings, given back with negative margins. Keyboard and
+   reduced motion: the layout changes at once (reduced motion keeps a short fade). */
+.hop-edit { display: grid; grid-template-rows: 0fr; gap: 0; margin: 0; transition: grid-template-rows var(--d-tray) var(--ease-in-out); }
+.is-hop .hop-edit { grid-template-rows: 1fr; }
+.hop-clip { min-width: 0; min-height: 0; padding: 0 8px 8px; margin: 0 -8px -8px; overflow: hidden; opacity: 0; transition: opacity var(--d-fade) var(--ease-out); }
+.is-hop .hop-clip { opacity: 1; }
+.hop-fields { min-width: 0; display: grid; gap: 8px; border: 0; padding: 0; margin: 18px 0 0; }
+.hop-edit-row .select select { min-height: 48px; border-radius: var(--r-btn-lg); }
+.kbd .hop-edit { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .hop-edit { transition: none; }
+  .hop-clip { transition: opacity var(--d-rm-in) linear; }
+}
+/* 8.3 A field that failed says so in its outline too (the error line drops in, JS). */
+:is(.text-input, .select select)[aria-invalid="true"] { border-color: var(--danger); }
+/* 8.5 Scan. Each progress segment fills to --fill (0, .55, 1) on a transform; its node survives the step change. */
+.scan-steps i, .scan-steps i.is-done, .scan-steps i.is-now { position: relative; overflow: hidden; background: var(--line-strong); }
+.scan-steps i::after { content: ""; position: absolute; inset: 0; background: var(--ink); transform: scaleX(var(--fill, 0)); transform-origin: left center; transition: transform var(--d-fill) var(--ease-out); }
+/* The Send bar rises in once when step 2 arrives. */
+.scan-submit { transition: translate var(--d-reveal) var(--ease-out), opacity var(--d-reveal) var(--ease-out); }
+@starting-style { .scan-submit { translate: 0 12px; opacity: 0; } }
+/* Capture: the line-size and door choices fade up from .4 as their fieldsets turn on. */
+.scan-flow .bucket > span { transition: background-color var(--d-select) var(--ease-out), color var(--d-select) var(--ease-out), transform var(--d-press) var(--ease-out), opacity var(--d-fade) var(--ease-out); }
+.scan-flow fieldset .segmented { transition: opacity var(--d-fade) var(--ease-out); }
+.scan-pts .roll { line-height: inherit; }
+/* A blocked Send says why right above the button (it stays in view while the missing piece is scrolled to). */
+.scan-submit > .field-error { justify-content: center; margin: 0 0 10px; }
+@media (prefers-reduced-motion: reduce) {
+  .scan-steps i::after { transition: none; }
+  .scan-submit { transition: opacity var(--d-rm-in) linear; }
+  @starting-style { .scan-submit { translate: none; } }
+  .scan-flow .bucket > span { transition: background-color var(--d-select) var(--ease-out), color var(--d-select) var(--ease-out), transform var(--d-press) var(--ease-out), opacity var(--d-rm-in) linear; }
+  .scan-flow fieldset .segmented { transition: opacity var(--d-rm-in) linear; }
+}
+/* 8.6 The published count's chip (JS flies it), and the preview heading clears the tab bar when it is scrolled to. */
+.fly-chip { position: fixed; z-index: 45; pointer-events: none; display: inline-block; padding: 5px 11px 4px; border-radius: var(--r-pill); background: var(--accent); color: var(--accent-ink);
+  font-family: var(--font-num); font-stretch: var(--w-cond); font-size: 22px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; transform-origin: 0 50%; box-shadow: var(--shadow-float); }
+#qb-console { scroll-margin-bottom: calc(var(--tabbar-h) + var(--safe-b) + 16px); }
+
+/* ---------- Static polish (QA plan batch 9) ---------- */
+/* 9.1 Bars rhythm: 12 under the controls, 8 between the deals row, the results bar and the cards. */
+.search-panel { margin-bottom: var(--s-3); }
+.deals-rail { margin-top: 0; margin-bottom: var(--s-2); }
+.results-bar + .bar-grid { margin-top: var(--s-2); }
+.group-title { margin: var(--s-4) 0 var(--s-1); }
+.state.state-sm :is(h1, h2) { font-size: 20px; }
+/* 9.2 The walk pill stays inside a narrow card (miles drop below 190px). */
+.card-top { align-items: center; }
+.card-dist { min-width: 0; overflow: hidden; }
+@container card (max-width: 190px) { .card-dist .cd-mi { display: none; } }
+/* 9.3 Freshness is one line, so names in a row line up. */
+.card-fresh { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-fresh .ic { display: inline-block; vertical-align: -2px; margin-right: 4px; }
+/* 9.4 Bar page: one section rhythm (32px) and one heading system. */
+section.ideas { margin-top: 0; }
+.typical, .pass-cta { margin-top: 0; }
+.pass-cta > .section-head { margin-bottom: 2px; }
+.pass-cta .section-head h2 { text-transform: none; color: var(--ink); }
+/* 9.7 Events views and filter pills: 34px to the eye, 44px to the finger. */
+.ev-views button { position: relative; }
+.ev-views button::before { content: ""; position: absolute; inset: -5px 0; }
+.ev-filters { margin-top: 10px; }
+.ev-filters .chip-select select { height: 44px; min-height: 44px; border-block: 5px solid transparent; border-inline: 0; background-clip: padding-box; box-shadow: inset 0 0 0 1px var(--line-input);
+  transition: background-color var(--d-select) var(--ease-out), color var(--d-select) var(--ease-out), box-shadow var(--d-select) var(--ease-out); }
+.ev-filters .chip-select.is-set select { border-color: transparent; box-shadow: inset 0 0 0 1px var(--accent); }
+/* 9.8 Cards: one radius and one material; shorter photos; the host on one line. */
+.ev-card, .idea-card, .group-card, .idea-card[data-status="approved"] { border-radius: var(--r-card); background: var(--surface); border: 1px solid var(--line-strong); box-shadow: none; }
+.idea-card[data-status="declined"] { border-color: var(--line); }
+.ev-photo { aspect-ratio: 2 / 1; }
+.group-host { gap: 8px; }
+.group-host-text { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.group-host-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.group-host-text .handle { flex: none; min-height: 24px; } /* one line with the name, still a 24px box */
+.group-host-text .handle::before { inset: -10px -4px; } /* 44px to the finger */
+/* 9.9 Window times: condensed numerals on one line, so every tile is the same height. */
+.w-time { font-family: var(--font-num); font-stretch: var(--w-cond); font-size: 19px; font-weight: 800; white-space: nowrap; }
+/* 9.10 Narrow phones and long bar names. */
+.select select { text-overflow: ellipsis; }
+.field-pair { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
+@media (max-width: 359.98px) {
+  .field-pair { grid-template-columns: minmax(0, 1fr); }
+  .venue-actions { grid-template-columns: 1.4fr repeat(3, minmax(0, 1fr)); }
+  .act { font-size: 11px; }
+  .act-pts { top: 5px; right: 6px; font-size: 12px; }
+  .hop-edit-row { grid-template-columns: minmax(0, 1fr) 44px; }
+  .hop-edit-row > .hop-time { grid-column: 1; grid-row: 2; }
+  .hop-edit-row > .icon-btn { grid-column: 2; grid-row: 1; }
+}
+/* 9.11 Forms: one 18px rhythm; night cards share a height. */
+.form-stack > .field-group { margin-top: 0; }
+.radio-card { display: grid; }
+.radio-card span { height: 100%; }
+/* 9.12 Room under titles. */
+.title-row + .safety-note { margin-top: var(--s-3); }
+.page-title + .state, .title-row + .state { margin-top: var(--s-4); }
+/* 9.13 Icon-only Back on drill-in pages. */
+.back-title { justify-content: flex-start; gap: 8px; margin-left: -4px; }
+.back-link.back-icon { flex: none; width: 44px; height: 44px; padding: 0; justify-content: center; border-radius: 50%; }
+.back-link.back-icon svg { width: 22px; height: 22px; }
+.back-title .page-title { min-width: 0; }
+/* 9.14 Scan waiting actions on one row; history amounts in one type; the QR hint centered. */
+.waiting-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.history-list li > .num:last-child { font-family: var(--font-num); font-stretch: var(--w-cond); font-size: 20px; font-weight: 800; }
+.picker .hint.center { justify-content: center; text-align: center; }
+/* 9.15 Console: the guests' preview is not a card inside a card; steppers share a right edge. */
+.console-grid .queue-block { margin-top: 0; padding: 0; border: 0; background: none; border-radius: 0; box-shadow: none; }
+.cap-row { grid-template-columns: minmax(0, 1fr) 176px; }
+.cap-row .stepper { justify-self: end; }
+.stepper output { min-width: 5ch; }
+/* 9.16 Billing on one line. */
+.sub-facts dd { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 9.17 One rounded ring per control (never transitioned): the tab rings its pill, the rail tile its photo. */
+.tab:focus-visible { outline: none; box-shadow: none; }
+.tab:focus-visible .tab-inner { outline: 2px solid var(--focus); outline-offset: 2px; }
+.rail-tile:focus-visible { outline: none; box-shadow: none; }
+.area-pill, .rail-all { border-radius: var(--r-sm); }
+@media (max-width: 359.98px) { .hop-edit-list { gap: 14px; } .hop-edit-row { row-gap: 6px; } } /* stops read as pairs */

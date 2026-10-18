@@ -83,7 +83,7 @@ export function scanEstimate(ctx, flow) {
   }
   const est = describeEstimate({ queue: q }, ctx.now);
   const st = crowdStatus(est);
-  const value = est.waitHigh == null ? esc(st.label) : est.waitHigh <= 5 && q.peopleHigh <= 2 ? 'No wait' : `${est.waitLow}–${est.waitHigh}<small>min wait</small>`;
+  const value = est.waitHigh == null ? esc(st.label) : est.waitHigh <= 5 && q.peopleHigh <= 2 ? 'No wait' : `<span class="roll">${est.waitLow}–${est.waitHigh}</span><small>min wait</small>`;
   return `<div><p class="eyebrow">Your estimate</p><p class="v num">${value}</p></div>
     <div class="lv"><b>${meter(st.level)}${esc(st.label)}</b><span>${esc(latestLine)}</span></div>`;
 }
@@ -96,22 +96,19 @@ function captureStep(ctx, flow) {
     <div class="viewfinder ${flow.captured ? 'is-captured' : ''}">
       ${flow.captured
         ? `${venuePhoto(venue)}<span class="vf-tag">${icon('check', { size: 14 })}Photo taken</span><button type="button" class="icon-btn vf-retake" data-action="scan-retake" aria-label="Retake photo">${icon('retake')}</button>`
-        : `<span class="vf-corners" aria-hidden="true"></span><span class="vf-tag vf-tip">Frame the line, not faces</span>`}
-      
+        : `<span class="vf-corners" aria-hidden="true"></span><span class="vf-tag vf-tip">Frame the line, not faces</span><button type="button" class="shutter" data-action="scan-shutter" aria-label="Take photo of the line"><span></span></button>`}
     </div>
-    ${flow.captured ? '' : `<div class="shutter-row"><button type="button" class="shutter" data-action="scan-shutter" aria-label="Take photo of the line"><span></span></button></div>`}
     <fieldset class="field-group" ${off}>
       <legend class="eyebrow">How many people are in line?</legend>
       <div class="bucket-row">${LINE_BUCKETS.map((b) => `<label class="bucket${b.id === 'none' ? ' is-wide' : ''}"><input type="radio" name="bucket" value="${b.id}" data-input="scan-bucket" ${flow.bucket === b.id ? 'checked' : ''}><span><b>${b.id === 'none' ? '0' : esc(b.label)}</b><em>${WORDS[b.id]}</em><i>${minutesFor(b, pace)}</i></span></label>`).join('')}</div>
     </fieldset>
     <fieldset class="field-group" ${off}>
       <legend class="eyebrow">At the door</legend>
-      <div class="segmented door-seg">${DOOR_STATES.map(([id, label]) => `<label><input type="radio" name="door" value="${id}" data-input="scan-door" ${(flow.door ?? 'moving') === id ? 'checked' : ''}><span>${label}</span></label>`).join('')}</div>
+      <div class="segmented door-seg" style="--n:${DOOR_STATES.length}">${DOOR_STATES.map(([id, label]) => `<label><input type="radio" name="door" value="${id}" data-input="scan-door" ${(flow.door ?? 'moving') === id ? 'checked' : ''}><span>${label}</span></label>`).join('')}</div>
     </fieldset>
     <div class="scan-estimate" id="scan-estimate" role="status">${scanEstimate(ctx, flow)}</div>
     <div class="switch-row scan-inline" ${flow.captured ? '' : 'hidden'}><label for="scan-inline"><span class="label" style="margin:0">I’m in this line</span><span class="hint">+${POINTS.GOT_IN} when you tell us you’re in</span></label>
-      <span class="switch"><input id="scan-inline" type="checkbox" role="switch" data-input="scan-inline" ${flow.inLine ? 'checked' : ''}><span></span></span></div>
-    ${flow.error ? `<p class="field-error" role="alert">${icon('alert')}${esc(flow.error)}</p>` : ''}`;
+      <span class="switch"><input id="scan-inline" type="checkbox" role="switch" data-input="scan-inline" ${flow.inLine ? 'checked' : ''}><span></span></span></div>`;
 }
 
 function doneStep(ctx, flow) {
@@ -127,7 +124,7 @@ function doneStep(ctx, flow) {
         : `Your report doesn’t match the ${o.leadNoun} from ${age}. If another guest agrees in the next ${left} min, the wait shows as uncertain.`)
     : `Your report now sets the crowd estimate for ${bar}.`;
   return `<div class="result result-ok scan-done">
-      <p class="scan-pts num" tabindex="-1" data-autofocus>+${POINTS.REPORT}<small>pts</small></p>
+      <p class="scan-pts num" tabindex="-1" data-autofocus>+<span class="roll">${POINTS.REPORT}</span><small>pts</small></p>
       <h2>Report sent</h2>
       <p>${what}</p>
       <div class="actions"><a class="btn btn-primary" href="#/venue/${encodeURIComponent(flow.venueId)}">See ${bar}</a><button type="button" class="btn" data-action="scan-restart">Report another bar</button></div>
@@ -141,11 +138,11 @@ export function renderScan(ctx, flow) {
   const step = n === 3 ? doneStep(ctx, flow) : n === 2 ? captureStep(ctx, flow) : pickStep(ctx, flow);
   return `<div class="scan-flow" data-step="${n}">
     <div class="scan-head"><button type="button" class="icon-btn" data-action="scan-close" aria-label="${n === 2 ? 'Close and discard report' : 'Close'}">${icon('x')}</button><h1 id="page-h" tabindex="-1">Scan the line</h1><span class="scan-count" aria-label="Step ${n} of 3">${n}/3</span></div>
-    <div class="scan-steps" aria-hidden="true">${[1, 2, 3].map((i) => `<i class="${i < n || n === 3 ? 'is-done' : i === n ? 'is-now' : ''}"></i>`).join('')}</div>
+    <div class="scan-steps" aria-hidden="true">${[1, 2, 3].map((i) => `<i class="seg${i < n || n === 3 ? ' is-done' : i === n ? ' is-now' : ''}" style="--fill:${i < n || n === 3 ? 1 : i === n ? 0.55 : 0}"></i>`).join('')}</div>
     ${n === 1 ? waitingCard(ctx) : ''}
     <div class="scan-step">${step}</div>
     ${n === 3 ? waitingCard(ctx) : ''}
     
   </div>
-  ${n === 2 ? `<div class="scan-submit"><button type="button" class="btn btn-primary btn-lg btn-block" data-action="scan-submit" ${scanSubmitReady(flow) ? '' : 'aria-disabled="true"'}>Send report<span class="trail">+${POINTS.REPORT}</span></button></div>` : ''}`;
+  ${n === 2 ? `<div class="scan-submit">${flow.error ? `<p class="field-error" role="alert">${icon('alert')}${esc(flow.error)}</p>` : ''}<button type="button" class="btn btn-primary btn-lg btn-block" data-action="scan-submit" ${scanSubmitReady(flow) ? '' : 'aria-disabled="true"'}>Send report<span class="trail">+${POINTS.REPORT}</span></button></div>` : ''}`;
 }

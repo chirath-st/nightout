@@ -50,7 +50,7 @@ export function renderPassSheet(ctx, flow) {
           <div><p class="label" id="party-label">Party size</p><p class="hint" id="party-hint">${chosen ? `Up to ${maxPartyFor(chosen.w)} for this window` : 'Choose a window first'}</p></div>
           <div class="stepper" role="group" aria-labelledby="party-label">
             <button type="button" class="icon-btn" data-action="party" data-delta="-1" aria-label="Fewer people" ${party <= 1 || pending ? 'disabled' : ''}>${icon('minus')}</button>
-            <output aria-label="Party size">${party}</output>
+            <output class="roll" aria-label="Party size">${party}</output>
             <button type="button" class="icon-btn" data-action="party" data-delta="1" aria-label="More people" ${!chosen || party >= maxPartyFor(chosen.w) || pending ? 'disabled' : ''}>${icon('plus')}</button>
           </div>
         </div>

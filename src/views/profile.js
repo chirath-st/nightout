@@ -33,7 +33,7 @@ export function vipCard(card, ctx, { main = false } = {}) {
   </article>`;
 }
 
-export function renderProfile(ctx, { editing = false, errors = {} } = {}) {
+export function renderProfile(ctx, { editing = false, errors = {}, values = null } = {}) {
   const st = ctx.state;
   const p = st.profile;
   const sub = st.subscription;
@@ -47,19 +47,19 @@ export function renderProfile(ctx, { editing = false, errors = {} } = {}) {
       <div class="profile-id">
         <p class="profile-name">${esc(p.name)}</p>
         ${p.handle ? `<button type="button" class="handle" data-action="ig-link" data-handle="${esc(p.handle)}" aria-label="Instagram @${esc(p.handle)}">${icon('at', { size: 14 })}${esc(p.handle)}</button>` : '<p class="hint" style="margin:0">No Instagram added</p>'}
-        <button type="button" class="btn btn-sm" data-action="edit-profile" aria-expanded="${editing}">${editing ? 'Cancel' : `${icon('plus', { size: 14 })}Edit profile`}</button>
+        <button type="button" class="btn btn-sm" data-action="edit-profile" aria-expanded="${editing}">${editing ? 'Cancel' : 'Edit profile'}</button>
       </div>
     </section>
     
     ${editing ? `<form id="profile-form" class="form-stack panel" novalidate>
-      <div class="field"><label class="label" for="p-name">Name</label><input id="p-name" name="displayname" class="text-input" maxlength="30" value="${esc(p.name)}" ${errors.name ? 'aria-invalid="true" aria-describedby="err-p-name"' : ''}>
+      <div class="field"><label class="label" for="p-name">Name</label><input id="p-name" name="displayname" class="text-input" maxlength="30" value="${esc(values?.displayname ?? p.name)}" ${errors.name ? 'aria-invalid="true" aria-describedby="err-p-name"' : ''}>
         ${errors.name ? `<p class="field-error" id="err-p-name">${icon('alert')}${esc(errors.name)}</p>` : ''}</div>
-      <div class="field"><label class="label" for="p-ig">Instagram handle (optional)</label><div class="input-prefix"><span aria-hidden="true">@</span><input id="p-ig" name="instagram" class="text-input" maxlength="30" autocomplete="off" autocapitalize="none" spellcheck="false" value="${esc(p.handle)}" ${errors.handle ? 'aria-invalid="true" aria-describedby="err-p-ig"' : ''}></div>
+      <div class="field"><label class="label" for="p-ig">Instagram handle (optional)</label><div class="input-prefix"><span aria-hidden="true">@</span><input id="p-ig" name="instagram" class="text-input" maxlength="30" autocomplete="off" autocapitalize="none" spellcheck="false" value="${esc(values?.instagram ?? p.handle)}" ${errors.handle ? 'aria-invalid="true" aria-describedby="err-p-ig"' : ''}></div>
         ${errors.handle ? `<p class="field-error" id="err-p-ig">${icon('alert')}${esc(errors.handle)}</p>` : ''}</div>
       <button type="submit" class="btn btn-primary btn-block">Save profile</button>
     </form>` : ''}
     <dl class="fact-strip">
-      <div><dt>Points</dt><dd>${new Intl.NumberFormat('en-US').format(balanceOf(st.points))}<span class="fact-sub">Balance</span></dd></div>
+      <div><dt>Points</dt><dd><span class="roll" data-points-fact>${new Intl.NumberFormat('en-US').format(balanceOf(st.points))}</span><span class="fact-sub">Balance</span></dd></div>
       <div><dt>Check-ins</dt><dd>${st.checkins.length}<span class="fact-sub">Bars visited</span></dd></div>
       <div><dt>Groups</dt><dd>${st.groups.joined.length + st.groups.created.length}<span class="fact-sub">Joined or posted</span></dd></div>
     </dl>
@@ -71,14 +71,14 @@ export function renderProfile(ctx, { editing = false, errors = {} } = {}) {
       <button type="button" class="btn" data-action="vip-add"${cards.length >= SAMPLE_BAR_CARDS.length ? ' aria-disabled="true"' : ''}>${icon('plus', { size: 18 })}Add a bar’s card</button>
     </div>
     
-    ${cards.length ? `<ul class="vip-list">${cards.map((c) => `<li>${vipCard(c, ctx)}<button type="button" class="btn btn-sm btn-ghost" data-action="vip-remove" data-id="${esc(c.id)}" aria-label="Remove ${esc(c.title)}">Remove</button></li>`).join('')}</ul>` : ''}
+    ${cards.length ? `<ul class="vip-list">${cards.map((c) => `<li data-key="${esc(c.id)}">${vipCard(c, ctx)}<button type="button" class="btn btn-sm btn-ghost" data-action="vip-remove" data-id="${esc(c.id)}" aria-label="Remove ${esc(c.title)}">Remove</button></li>`).join('')}</ul>` : ''}
 
     <div class="section-head"><h2>My subscription</h2></div>
     <section class="sub-card" aria-label="Night Out Plus subscription">
       <div class="sub-top"><span class="sub-name">${icon('star', { size: 18 })}Night Out Plus</span><span class="sub-state" data-on="${sub.plan === 'plus'}">${sub.plan === 'plus' ? 'Active' : 'Off'}</span></div>
       ${sub.plan === 'plus' ? `<dl class="sub-facts">
         <div><dt>Next renewal</dt><dd>${esc(dateFmt(renewalAt(sub, ctx.now)))}</dd></div>
-        <div><dt>Billing</dt><dd>${esc(plan.label)} · ${esc(plan.price)}</dd></div>
+        <div><dt>Billing</dt><dd>${esc(plan.price.replace(' a month', '/mo').replace(' a year', '/yr'))}</dd></div>
       </dl>` : '<p class="hint" style="margin:0">Not subscribed.</p>'}
       <ul class="sub-perks">${PLUS_PERKS.map((x) => `<li>${icon('check', { size: 16 })}${esc(x)}</li>`).join('')}</ul>
       <button type="button" class="btn btn-block" data-action="manage-sub">Manage subscription</button>
@@ -142,7 +142,7 @@ export function helpSheet() {
     ['How do points work?', 'Earn them for check-ins and crowd updates, then redeem for non-alcohol rewards. Points have no cash value.'],
   ];
   return `${sheetHead('Help & support')}<div class="sheet-body">
-    ${qa.map(([q, a]) => `<details class="how"><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('')}
+    ${qa.map(([q, a]) => `<details class="how"><summary>${esc(q)}</summary><div class="how-a"><p>${esc(a)}</p></div></details>`).join('')}
     
     <button type="button" class="btn btn-block" data-action="help-about" style="margin-top:12px">About Night Out</button>
   </div>`;

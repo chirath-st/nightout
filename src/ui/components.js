@@ -79,7 +79,8 @@ export function estimateBlock(venue, now, { headingId = 'qb-h', showHow = true, 
   const h = `h${headingLevel}`;
   const rangeTone = ['fresh', 'aging', 'uncertain'].includes(est.tone) && est.waitLow != null;
   const word = { stale: 'Out of date', unknown: 'No reports', closed: 'Closed', capacity: 'At capacity', paused: 'Entry paused' }[est.tone];
-  const big = rangeTone ? `${est.tone === 'fresh' ? '' : '<span class="approx">≈</span>'}${est.waitLow}–${est.waitHigh}<small>min</small>` : esc(word ?? est.headline);
+  // The range is a .roll: the live tick rolls it in place (main.js patchEstimateBlock); at rest it is plain text.
+  const big = rangeTone ? `${est.tone === 'fresh' ? '' : '<span class="approx">≈</span>'}<span class="roll">${est.waitLow}–${est.waitHigh}</span><small>min</small>` : esc(word ?? est.headline);
   const age = est.observedAt != null ? Math.max(0, Math.round((now - est.observedAt) / 60000)) : null;
   const band = est.tone === 'fresh' ? 0 : est.tone === 'aging' || est.tone === 'uncertain' ? 1 : 2;
   const people = est.peopleLabel ? est.peopleLabel.replace(' in line', '') : null;
@@ -91,7 +92,10 @@ export function estimateBlock(venue, now, { headingId = 'qb-h', showHow = true, 
     stale: age != null ? `Last report ${age} min ago.` : 'No recent report.',
     unknown: 'No one has reported this line yet.',
   }[est.tone] ?? [people && `About ${people.replace(/^~/, '')} in line`, pace && `door moving ~${pace} a min${q?.doorsTotal > 1 ? ` (${q.doorsOpen} of ${q.doorsTotal} doors)` : ''}${q?.paceSource === 'measured' ? ' (measured)' : q?.paceSource === 'assumed' ? ' (assumed)' : ''}`].filter(Boolean).join(', ');
-  const doorLine = est.tone === 'uncertain' && est.detail ? [`${est.detail}.`, door].filter(Boolean).join(' ') : door;
+  // Range tones show the level word and meter only: the people and the door pace are in the fact strip (QA plan 9.5). An
+  // uncertain estimate keeps its reason; capacity, paused, stale and unknown keep their door sentence.
+  const reason = est.tone === 'uncertain' && est.detail ? `${est.detail}.` : '';
+  const doorLine = rangeTone ? reason : [reason, door].filter(Boolean).join(' ');
   const levelGlyph = { closed: 'moon', paused: 'pause', stale: 'aging', unknown: 'help' }[est.tone];
   const levelHead = levelGlyph ? `${icon(levelGlyph, { size: 18, cls: 'cs-glyph' })}${esc(st.label)}` : `${meter(st.level, { maybe: st.maybe, lg: true })}${esc(st.label)}`;
   const sentence = est.observedAt != null && est.tone !== 'closed'
@@ -100,9 +104,9 @@ export function estimateBlock(venue, now, { headingId = 'qb-h', showHow = true, 
   return `<section class="queue-block" data-est="${esc(venue.id)}" data-variant="block" data-tone="${est.tone}" data-level="${headingLevel}" aria-labelledby="${headingId}">
     <div class="qb-top"><${h} class="qb-label" id="${headingId}">Wait at the door</${h}></div>
     <p class="qb-wait"><span class="sr-only">Estimated wait </span>${big}</p>
-    ${rangeTone ? `<div class="qb-scale" aria-hidden="true" style="--lo:${Math.min(est.waitLow, 30)};--hi:${Math.min(est.waitHigh, 30)};--max:30"><span class="qb-scale-track"><b style="left:33.33%"></b><b style="left:66.66%"></b><span class="qb-scale-range"></span></span><span class="qb-scale-axis"><span style="left:0">0</span><span style="left:33.33%">10</span><span style="left:66.66%">20</span><span style="left:100%">30+ min</span></span></div>` : ''}
+    ${rangeTone ? `<div class="qb-scale" aria-hidden="true" style="--lo:${Math.min(est.waitLow, 30)};--hi:${Math.min(est.waitHigh, 30)};--max:30"><span class="qb-scale-track"><b style="left:33.33%"></b><b style="left:66.66%"></b><span class="qb-scale-range"><i class="r-lo"></i><i class="r-hi"></i><i class="r-mid"></i></span></span><span class="qb-scale-axis"><span style="left:0">0</span><span style="left:33.33%">10</span><span style="left:66.66%">20</span><span style="left:100%">30+ min</span></span></div>` : ''}
     <p class="qb-level"><b>${levelHead}</b>${doorLine ? `<span>${esc(doorLine)}</span>` : ''}</p>
-    ${age != null && est.tone !== 'closed' ? `<div class="qb-fresh" aria-hidden="true" style="--age:${Math.min(age, 26)}"><span class="qf-track"><i class="qf-1"></i><i class="qf-2"></i><i class="qf-3"></i><b class="qf-mark"></b></span><span class="qf-legend"><span class="${band === 0 ? 'is-on' : ''}">Fresh</span><span class="${band === 1 ? 'is-on' : ''}">May have changed</span><span class="${band === 2 ? 'is-on' : ''}">Out of date</span></span></div>` : ''}
+    ${age != null && est.tone !== 'closed' ? `<div class="qb-fresh" aria-hidden="true" style="--age:${Math.min(age, 26)}"><span class="qf-track"><i class="qf-1"></i><i class="qf-2"></i><i class="qf-3"></i><span class="qf-rail"><b class="qf-mark"></b></span></span><span class="qf-legend"><span class="${band === 0 ? 'is-on' : ''}">Fresh</span><span class="${band === 1 ? 'is-on' : ''}">May have changed</span><span class="${band === 2 ? 'is-on' : ''}">Out of date</span></span></div>` : ''}
     ${sentence ? `<p class="qb-detail">${sentence}</p>` : ''}
     ${q?.note && !['paused', 'stale', 'unknown'].includes(est.tone) ? `<p class="qb-detail">Venue note: ${esc(q.note)}</p>` : ''}
     ${showHow ? howItWorks() : ''}
@@ -121,12 +125,12 @@ export function factStrip(venue, now) {
   const [ch] = venue.hours?.close.split(':').map(Number) ?? [];
   const closes = venue.hours ? `${ch === 0 ? 12 : ch > 12 ? ch - 12 : ch}<small>${ch >= 12 ? 'PM' : 'AM'}</small>` : '—';
   const cell = (dt, dd, sub) => `<div><dt>${dt}</dt><dd>${dd}<span class="fact-sub">${esc(sub)}</span></dd></div>`;
-  return `<dl class="fact-strip">
+  return `<dl class="fact-strip" data-est="${esc(venue.id)}" data-variant="facts">
     ${cell('In line', esc(people), 'people')}
     ${cell('Door pace', pace, est.tone === 'paused' ? 'Paused' : est.tone === 'capacity' ? 'One in, one out' : q?.paceSource === 'assumed' ? 'Assumed' : q?.doorsTotal > 1 ? `${q.doorsOpen} of ${q.doorsTotal} doors` : q?.paceSource === 'measured' ? 'Measured' : 'Letting in')}
     ${cell('Confidence', esc(est.confidence ?? '—'), est.tone === 'uncertain' ? 'Reports differ' : est.shortSource ?? 'No source')}
     ${cell('Distance', dist == null ? '—' : `${esc(formatMiles(dist).replace(' mi', ''))}<small>mi</small>`, 'Straight line')}
-    ${cell('Cover', venue.cover == null ? '—' : `$${venue.cover}`, 'At the door')}
+    ${cell('Cover', venue.cover == null ? '—' : venue.cover === 0 ? 'Free' : `$${venue.cover}`, 'At the door')}
     ${cell('Closes', closes, venue.closedTonight ? 'Closed tonight' : open === false ? 'Closed now' : 'Open now')}
   </dl>`;
 }
@@ -236,7 +240,7 @@ export function cardFresh(venue, now) {
   const est = estimateFor(venue, now);
   const age = est.observedAt != null ? Math.max(0, Math.round((now - est.observedAt) / 60000)) : null;
   const text = {
-    aging: `${icon('aging', { size: 12 })}${age}m ago · may have changed`,
+    aging: `${icon('aging', { size: 12 })}${age}m ago`, // the glyph says "may have changed" (the sr summary says it in words)
     uncertain: 'Reports differ',
     unknown: 'Be first to report',
     stale: `${icon('aging', { size: 12 })}Last report ${age}m ago`,
@@ -308,7 +312,7 @@ function artSrc(venue) {
 }
 /** Photo slot: the venue's own photo when licensed or permitted (venue.photo), else the drawn night storefront. */
 export function venuePhoto(venue, { title = false } = {}) {
-  if (venue.photo) return `<img class="real-photo" src="${esc(venue.photo)}" alt="${title ? esc(venue.photoAlt ?? `Photo of ${venue.name}`) : ''}"${venue.photoPos ? ` style="--pos:${esc(venue.photoPos)}"` : ''} loading="lazy" decoding="async">`;
+  if (venue.photo) return `<img class="real-photo" src="${esc(venue.photo)}" alt="${title ? esc(venue.photoAlt ?? `Photo of ${venue.name}`) : ''}"${venue.photoPos ? ` style="--pos:${esc(venue.photoPos)}"` : ''} loading="${title ? 'eager' : 'lazy'}" decoding="async">`;
   return `<img class="night-art" src="${artSrc(venue)}" alt="${title ? esc(`Illustration of a bar at night, not a photo of ${venue.name}`) : ''}" decoding="async">`;
 }
 /** Logo slot: the bar's real logo (demo use, see data/venues.js MEDIA), else an initials badge. */
@@ -326,7 +330,7 @@ export function venueCard(venue, now, { saved = false, save = false } = {}) {
   const walk = walkMinutes(distanceTo(venue));
   return `<li class="bar-card" data-venue-row="${esc(venue.id)}" data-area="${esc(venue.area ?? '')}">
     <a class="bar-link" href="#/venue/${encodeURIComponent(venue.id)}" data-nav-venue="${esc(venue.id)}">
-      <span class="bar-photo" data-thumb="${esc(venue.id)}">${venuePhoto(venue)}
+      <span class="bar-photo" data-thumb="${esc(venue.id)}">${venuePhoto(venue)}<span class="card-scrim" aria-hidden="true"></span>
         <span class="card-top" aria-hidden="true"><span class="bar-logo">${venueLogo(venue)}</span><span class="card-dist">${walk != null ? `${icon('walk', { size: 13 })}<b class="num">${walk} min</b><span class="cd-mi">${esc(dist)}</span>` : 'n/a'}</span></span>
         <span class="bar-id"><span class="bar-name">${esc(venue.name)}</span><span aria-hidden="true">${cardFresh(venue, now)}</span></span>
       </span>
@@ -335,6 +339,21 @@ export function venueCard(venue, now, { saved = false, save = false } = {}) {
     </a>
     ${save ? saveButton(venue, saved, 'save card-save') : ''}
   </li>`;
+}
+
+/** Map preview (QA plan 6.3): one compact row built from the bar card's parts (photo, name, walk pill, line badge), so
+ *  the map speaks the same metric as the list. The photo carries data-thumb, so opening it morphs into the bar page. */
+export function mapCard(venue, now, { saved = false } = {}) {
+  const walk = walkMinutes(distanceTo(venue));
+  return `<div class="map-card" data-venue-row="${esc(venue.id)}">
+    <a class="map-card-link" href="#/venue/${encodeURIComponent(venue.id)}" data-nav-venue="${esc(venue.id)}">
+      <span class="mc-photo" data-thumb="${esc(venue.id)}">${venuePhoto(venue)}</span>
+      <span class="mc-main" aria-hidden="true"><span class="mc-name">${esc(venue.name)}</span>${walk != null ? `<span class="card-dist">${icon('walk', { size: 13 })}<b class="num">${walk} min</b></span>` : ''}</span>
+      <span class="mc-status" aria-hidden="true">${cardStatus(venue, now)}</span>
+      ${srSummary(venue, now)}
+    </a>
+    ${saveButton(venue, saved, 'save mc-save')}
+  </div>`;
 }
 
 export const coverText = (venue) => (venue.cover === 0 ? 'No cover' : venue.cover == null ? 'Cover not listed' : `${dollars(venue.cover)} cover`);
@@ -356,26 +375,36 @@ export function venueRow(venue, now, { saved = false, selected = false } = {}) {
   </li>`;
 }
 
+/** One heart for every Save: outline and fill stacked; aria-pressed drives the fill (CSS morph), so a toggle never rebuilds it. */
+export const heartStack = (size = 20) => `<span class="ic-stack" aria-hidden="true">${icon('heart', { cls: 'ic-line', size })}${icon('heartFill', { cls: 'ic-fill', size })}</span>`;
+
+/** Two labels in one grid cell, cross-faded by the button's aria-pressed (CSS): the box is as wide as the wider label, so
+ *  nothing beside it shifts. The hidden label is aria-hidden, so the button's name is only the visible one. */
+export const lblStack = (off, on, pressed) => `<span class="lbl-stack"><span${pressed ? ' aria-hidden="true"' : ''}>${off}</span><span${pressed ? '' : ' aria-hidden="true"'}>${on}</span></span>`;
+
 export function saveButton(venue, saved, extraCls = 'save') {
-  return `<button type="button" class="icon-btn ${extraCls}" data-action="toggle-save" data-id="${esc(venue.id)}" aria-pressed="${saved}" aria-label="Save ${esc(venue.name)}">${icon(saved ? 'heartFill' : 'heart')}</button>`;
+  return `<button type="button" class="icon-btn ${extraCls}" data-action="toggle-save" data-id="${esc(venue.id)}" aria-pressed="${saved}" aria-label="Save ${esc(venue.name)}">${heartStack()}</button>`;
 }
 
 export function skeletonRows(n = 5) {
   return `<div class="sk-group" aria-hidden="true">${Array.from({ length: n }, () => '<div class="skeleton-row"><div class="sk-lines"><div class="sk sk-l1"></div><div class="sk sk-l2"></div><div class="sk sk-l3"></div><div class="sk sk-l4"></div></div><div class="sk sk-ring"></div></div>').join('')}</div>`;
 }
 
-export function stateBox({ iconName = 'info', title, body, actions = '', headingLevel = 2 }) {
+export function stateBox({ iconName = 'info', title, body, actions = '', headingLevel = 2, cls = '' }) {
   const h = `h${headingLevel}`;
   const attrs = headingLevel === 1 ? ' id="page-h" tabindex="-1"' : '';
-  return `<div class="state"><div class="state-icon">${icon(iconName)}</div><${h}${attrs}>${esc(title)}</${h}>${body ? `<p>${body}</p>` : ''}${actions ? `<div class="actions">${actions}</div>` : ''}</div>`;
+  return `<div class="state${cls ? ` ${cls}` : ''}"><div class="state-icon">${icon(iconName)}</div><${h}${attrs}>${esc(title)}</${h}>${body ? `<p>${body}</p>` : ''}${actions ? `<div class="actions">${actions}</div>` : ''}</div>`;
 }
 
 export function banner(kind, iconName, html, actions = '') {
   return `<div class="banner banner-${kind}" role="${kind === 'error' ? 'alert' : 'status'}">${icon(iconName)}<div>${html}</div>${actions ? `<div class="banner-actions">${actions}</div>` : ''}</div>`;
 }
 
+/** "12:30–1:00 AM": the meridiem is said once when both ends share it (QA plan 9.9). */
 export function windowLabel(start, end) {
-  return `${formatTime(start)}–${formatTime(end)}`;
+  const a = formatTime(start), b = formatTime(end);
+  const ma = a.match(/\s?(AM|PM)$/), mb = b.match(/\s?(AM|PM)$/);
+  return ma && mb && ma[1] === mb[1] ? `${a.slice(0, ma.index)}–${b}` : `${a}–${b}`;
 }
 
 export function passCard(pass, now, { headingLevel = 3 } = {}) {
@@ -403,6 +432,6 @@ export const wordmark = () => `<svg class="wm-logo" viewBox="0 0 722 207" aria-h
 /** Top-right points chip: your balance, linking to Points. */
 export function pointsChip(balance) {
   const n = new Intl.NumberFormat('en-US').format(balance);
-  return `<a class="pts-chip" href="#/points" aria-label="${n} points. Open Points">${icon('star', { size: 15 })}<span class="num" data-pts-value>${n}</span></a>`;
+  return `<a class="pts-chip" href="#/points" aria-label="${n} points. Open Points">${icon('star', { size: 15 })}<span class="num roll" data-pts-value>${n}</span></a>`;
 }
 

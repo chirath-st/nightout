@@ -96,7 +96,7 @@
 
   /* ---------- Materials ---------- */
   --glass: rgb(0 0 0 / 0.62);   /* chips/buttons over photos: white text 6.19:1 even over a pure-white pixel */
-  --glass-blur: blur(14px) saturate(140%);
+  --glass-blur: blur(10px) saturate(140%);   /* <= 10px, fixed chrome only (never per card) */
   --scrim: rgb(0 0 0 / 0.66);   /* sheet backdrop */
   --scrim-top: linear-gradient(180deg, rgb(0 0 0 / 0.5) 0%, rgb(0 0 0 / 0) 36%);
   /* Card bottom scrim: >=.66 black under the top of a 2-line name (white 7.2:1), .84 under the micro-line (ink-2 7.7:1). */
@@ -110,7 +110,24 @@
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);   /* emilkowalski/skills animate */
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
-  --d-press: 120ms;      /* :active scale (never below .95) */
+  --d-press-down: 50ms;  /* :active scale-in (never below .95) */
+  --d-press-up: 240ms;   /* release back to rest */
+  --d-press: var(--d-press-up); /* every press transition reads this; a pressed control flips it to --d-press-down (app.css "Presses") */
+  --d-swap: 150ms;       /* text and label crossfade with a 2px blur settle */
+  --d-icon: 160ms;       /* icon morph: heart, map/list, check */
+  --d-thumb: 220ms;      /* sliding segmented thumb and tab pill */
+  --d-flip: 220ms;       /* siblings closing a gap, stack and feed inserts */
+  --d-tray: 260ms;       /* sheet height between steps */
+  --d-morph: 240ms;      /* the search field grows out of its button (O2) */
+  --d-morph-out: 180ms;  /* ...and folds back into it */
+  --d-tray-out: 180ms;   /* a disclosure folding shut */
+  --d-flash-pick: 120ms; /* a picked row's fill before its sheet closes */
+  --d-roll: 280ms;       /* digit roll (transform; old glyph fades over --d-icon) */
+  --d-shake: 240ms;      /* blocked action, partial keyframes on translate */
+  --d-quick: 120ms;      /* small exits (a deal badge, the outgoing map/list glyph) and the per-tap count swap */
+  --d-boop: 300ms;       /* the points star nods once on an earn */
+  --d-sheet-lock: 320ms; /* no drag starts until the sheet has finished opening */
+  --d-fly: 320ms;        /* a published count flies to where it lands (> 300: it crosses a panel) */
   --d-fade: 150ms;       /* short cross-fades */
   --d-select: 160ms;     /* chip, tab, toggle fills; status edge hue */
   --d-toast-out: 160ms;  /* exits are shorter than entrances */
@@ -129,6 +146,8 @@
   --n-loop-pulse: 2;
   --spring-drawer: var(--ease-sheet);   /* Apple drawer spring (damping .8, response .3); upgraded below */
   --d-spring-drawer: 400ms;
+  --spring-pop: var(--ease-out);        /* rare success pop (Apple bounce .25, 2.8% peak); upgraded below */
+  --d-spring-pop: 380ms;
 
   /* ---------- Layout ---------- */
   --phone-w: 430px;     /* app column, centered on wider screens over #050505 */
@@ -153,7 +172,8 @@
 @supports (transition-timing-function: linear(0, 1)) {
   :root {
     --spring-drawer: linear(0, 0.051, 0.167, 0.311, 0.457, 0.59, 0.705, 0.797, 0.869, 0.922, 0.96, 0.985, 1.001, 1.01, 1.014, 1.015, 1.014, 1.013, 1.01, 1.008, 1.006, 1.004, 1.003, 1.002, 1);
+    --spring-pop: linear(0, 0.022, 0.079, 0.158, 0.249, 0.347, 0.443, 0.536, 0.622, 0.699, 0.767, 0.826, 0.875, 0.915, 0.948, 0.973, 0.993, 1.007, 1.017, 1.023, 1.027, 1.028, 1.028, 1.027, 1.025, 1.022, 1.02, 1.017, 1.014, 1.012, 1.009, 1.007, 1.006, 1.004, 1.003, 1.002, 1);
   }
 }
-@media (prefers-reduced-motion: reduce) { :root { --spring-drawer: var(--ease-out); } }
+@media (prefers-reduced-motion: reduce) { :root { --spring-drawer: var(--ease-out); --spring-pop: var(--ease-out); } }
 

@@ -26,8 +26,8 @@ export function renderPoints(ctx) {
     </div>
     <section class="points-card" aria-label="Your points">
       <p class="eyebrow">Your balance</p>
-      <p class="points-total num">${fmt(balance)}<small>pts</small></p>
-      ${next ? `<div class="points-next"><span class="pn-track" aria-hidden="true"><i style="--pn:${next.progress.toFixed(3)}"></i></span>
+      <p class="points-total num"><span class="roll" data-points-total>${fmt(balance)}</span><small>pts</small></p>
+      ${next ? `<div class="points-next"><span class="pn-track" aria-hidden="true" data-reward="${esc(next.reward.id)}"><i style="--pn:${next.progress.toFixed(3)}"></i></span>
         <p><b class="num">${fmt(next.need)}</b> points to your next reward: ${esc(next.reward.title)}</p></div>` : '<p class="points-note">You can afford every reward.</p>'}
       <p class="points-note">No cash value.</p>
     </section>
@@ -72,12 +72,12 @@ export function renderPoints(ctx) {
     <div class="section-head"><h2>Your rewards</h2></div>
     ${vouchers.length ? `<ul class="plain-list">${vouchers.map((v) => {
       const r = REWARDS.find((x) => x.id === v.rewardId);
-      return `<li><span><b>${esc(r?.title ?? 'Reward')}</b><small>Code ${esc(v.ref)} · not valid toward alcohol</small></span><span class="num muted">${esc(formatTime(v.at))}</span></li>`;
+      return `<li data-key="${esc(v.id)}"><span><b>${esc(r?.title ?? 'Reward')}</b><small>Code ${esc(v.ref)} · not valid toward alcohol</small></span><span class="num muted">${esc(formatTime(v.at))}</span></li>`;
     }).join('')}</ul>` : '<p class="hint">Nothing redeemed yet.</p>'}
     ${passes ? `<a class="list-link" href="#/passes">${icon('ticket', { size: 20 })}<span>Priority passes (${passes})</span>${icon('chevronRight', { size: 18 })}</a>` : ''}
 
     <div class="section-head"><h2 id="history-h">Point history</h2></div>
-    <ul class="plain-list">${history.map((e) => `<li><span>${esc(e.label)}${e.at != null ? `<small>${esc(formatTime(e.at))}</small>` : ''}</span><span class="num ${e.delta >= 0 ? 'plus' : 'muted'}">${e.delta >= 0 ? '+' : '−'}${fmt(Math.abs(e.delta))}</span></li>`).join('')}</ul>
+    <ul class="plain-list history-list">${history.map((e) => `<li data-key="${esc(e.id)}"><span>${esc(e.label)}${e.at != null ? `<small>${esc(formatTime(e.at))}</small>` : ''}</span><span class="num ${e.delta >= 0 ? 'plus' : 'muted'}">${e.delta >= 0 ? '+' : '−'}${fmt(Math.abs(e.delta))}</span></li>`).join('')}</ul>
   </div>`;
 }
 
