@@ -775,6 +775,12 @@ function mainHtml() {
   }
 }
 
+/** A screen that failed to draw shows a way out instead of a blank page (and the error goes to the console). */
+function errorHtml(err) {
+  console.error(err);
+  return `<div class="page"><div class="state"><div class="state-icon">${icon('help')}</div><h1 id="page-h" tabindex="-1">Something went wrong</h1><p>This screen couldn’t load. Your saved bars and points are safe.</p><div class="actions"><a class="btn btn-primary" href="#/">Go to bars</a><button type="button" class="btn" data-action="reload-app">Reload</button></div></div></div>`;
+}
+
 /** scroll: 'restore' (Back/Forward), 'top' (new navigation) or 'keep' (in-place refresh). */
 function render({ focus = 'heading', scroll = 'keep' } = {}) {
   if (!document.getElementById('picker')?.open) app.ui.holdPoints = false;
@@ -782,7 +788,9 @@ function render({ focus = 'heading', scroll = 'keep' } = {}) {
   const main = document.getElementById('main');
   const railList = main.querySelector('.deals-rail:not(.sk-rail) .rail-list');
   if (railList) railScroll = railList.scrollLeft;
-  main.innerHTML = mainHtml();
+  let html;
+  try { html = mainHtml(); } catch (err) { html = errorHtml(err); }
+  main.innerHTML = html;
   restoreRail(main.querySelector('.deals-rail:not(.sk-rail) .rail-list'));
   revealPhotos(main);
   app.renderedHash = location.hash || '#/';
@@ -3092,6 +3100,7 @@ function handleAction(a, el, e) {
       toast('Clock moved forward 10 minutes.');
       return true;
     case 'reset-demo': resetDemo(); return true;
+    case 'reload-app': location.reload(); return true;
     case 'age-ok':
       app.state.ageConfirmed = true; persist();
       closeDialogAnimated(document.getElementById('age-gate'), () => pageHeading()?.focus());
@@ -3509,7 +3518,16 @@ function boot() {
   picker.addEventListener('cancel', (e) => { e.preventDefault(); closePickerToOpener(); });
   picker.addEventListener('click', (e) => { if (isBackdropClick(e, picker)) closePickerToOpener(); });
   wireDrag(picker, { onDismiss: closePickerToOpener });
-  route();
+  // The 21+ gate is wired before the first route, so nothing a screen does can leave the app open past it.
+  const splash = runSplash();
+  if (!app.state.ageConfirmed) {
+    const gate = document.getElementById('age-gate');
+    gate.addEventListener('cancel', (e) => e.preventDefault());
+    // Chromium may close a modal opened without user activation on Escape; reopen until confirmed.
+    gate.addEventListener('close', () => { if (!app.state.ageConfirmed) gate.showModal(); });
+    splash.then(() => { if (!app.state.ageConfirmed && !gate.open) gate.showModal(); });
+  }
+  try { route(); } catch (err) { document.getElementById('main').innerHTML = errorHtml(err); }
   dailyLogin();
   setInterval(tick, 15_000);
   document.addEventListener('visibilitychange', () => {
@@ -3520,14 +3538,6 @@ function boot() {
     live.forEach((t) => { if (!t.matches(':hover, :focus-within')) armToast(t, t._timeout); });
     tick();
   });
-  const splash = runSplash();
-  if (!app.state.ageConfirmed) {
-    const gate = document.getElementById('age-gate');
-    gate.addEventListener('cancel', (e) => e.preventDefault());
-    // Chromium may close a modal opened without user activation on Escape; reopen until confirmed.
-    gate.addEventListener('close', () => { if (!app.state.ageConfirmed) gate.showModal(); });
-    splash.then(() => { if (!app.state.ageConfirmed && !gate.open) gate.showModal(); });
-  }
   document.documentElement.dataset.ready = 'true';
   if (new URLSearchParams(location.search).has('qa')) {
     // QA-only hook (used by app/QA.md checks): age estimates while a page stays open.

@@ -1,9 +1,8 @@
 // SIMULATED events, vibe and "who's going" numbers for the demo. No bar has announced these events,
 // set these prices or shared crowd ages; every one is shown with a "sample" label. Times are on the demo
 // week: day 0 is the demo night (hours < 12 are after midnight), days 1–6 are the following nights.
-import { atNight, atNightOn } from './venues.js';
+import { atNightOn } from './venues.js';
 
-const DAY = 24 * 60 * 60_000;
 
 /** Music genres and themes used by the Events filters. */
 export const GENRES = Object.freeze(['Hip-hop & R&B', 'Top 40', 'House & EDM', 'Throwbacks', 'Live music', 'Karaoke']);
@@ -14,26 +13,36 @@ const EVENTS = [
   { id: 'ps-retro', venueId: 'pitch-social', day: 0, at: [21, 0], until: null, title: 'Retro Night', theme: 'Theme night', genres: ['Throwbacks', 'Hip-hop & R&B'], music: 'Hip-hop, R&B and throwbacks', host: 'Resident DJ', cover: 10, going: 48 },
   { id: 'sp-neon', venueId: 'scarlet-pub', day: 0, at: [22, 0], until: [2, 0], title: 'Neon Night', theme: 'Theme night', genres: ['Top 40', 'House & EDM'], music: 'Top 40 and house', host: 'DJ set', cover: 5, going: 32 },
   { id: 'hk-late', venueId: 'hueys-knight-club', day: 0, at: [23, 0], until: [2, 0], title: 'Late Night DJ', theme: 'DJ night', genres: ['House & EDM', 'Hip-hop & R&B'], music: 'EDM and hip-hop', host: 'Guest DJ', cover: 10, going: 64 },
-  { id: 'oq-karaoke', venueId: 'olde-queens', day: 0, at: [22, 0], until: [1, 0], title: 'Saturday Karaoke', theme: 'Karaoke', genres: ['Karaoke', 'Throwbacks'], music: 'Sing-along hits', host: 'Karaoke host', cover: 0, going: 21 },
+  { id: 'oq-karaoke', venueId: 'olde-queens', dow: 6, at: [22, 0], until: [1, 0], title: 'Saturday Karaoke', theme: 'Karaoke', genres: ['Karaoke', 'Throwbacks'], music: 'Sing-along hits', host: 'Karaoke host', cover: 0, going: 21 },
   { id: 'tv-trivia', venueId: 'the-vine', day: 0, at: [23, 0], until: [0, 30], title: 'Late Trivia', theme: 'Trivia', genres: [], music: 'Background playlist', host: 'Quizmaster', cover: 0, going: 18, adults: true },
   { id: 'ob-latenight', venueId: 'olive-branch', day: 0, at: [23, 0], until: [2, 0], title: 'Late Night Throwbacks', theme: 'DJ night', genres: ['Throwbacks', 'Top 40'], music: '2000s and 2010s hits', host: 'DJ set', cover: 5, going: 44 },
   { id: 'sf-replay', venueId: 'stuff-yer-face', day: 0, at: [22, 0], until: [1, 0], title: 'Late Game Replay', theme: 'Game day', genres: [], music: 'Game audio on every screen', host: null, cover: 0, going: 16 },
   { id: 'tb-late', venueId: 'thirty-burgers', day: 0, at: [23, 30], until: [1, 30], title: 'Late Bites & Beats', theme: 'Live music', genres: ['Live music', 'Top 40'], music: 'Acoustic covers', host: 'Live duo', cover: 0, going: 13 },
-  { id: 'sf-game', venueId: 'stuff-yer-face', day: 1, at: [13, 0], until: [17, 0], title: 'Sunday Game Day', theme: 'Game day', genres: [], music: 'Game audio on every screen', host: null, cover: 0, going: 26 },
+  { id: 'sf-game', venueId: 'stuff-yer-face', dow: 0, at: [13, 0], until: [17, 0], title: 'Sunday Game Day', theme: 'Game day', genres: [], music: 'Game audio on every screen', host: null, cover: 0, going: 26 },
   { id: 'oq-openmic', venueId: 'olde-queens', day: 3, at: [21, 0], until: [0, 0], title: 'Open Mic', theme: 'Live music', genres: ['Live music'], music: 'Open mic, sign up at the bar', host: null, cover: 0, going: 12 },
   { id: 'aw-quiz', venueId: 'ale-n-wich', day: 4, at: [21, 0], until: [23, 0], title: 'Pub Quiz', theme: 'Trivia', genres: [], music: 'Classic rock playlist', host: 'Quizmaster', cover: 0, going: 15, adults: true },
-  { id: 'ev-acoustic', venueId: 'evelyns', day: 5, at: [21, 0], until: [23, 30], title: 'Acoustic Thursday', theme: 'Live music', genres: ['Live music'], music: 'Acoustic covers', host: 'Live duo', cover: 0, going: 19 },
-  { id: 'ob-throwback', venueId: 'olive-branch', day: 5, at: [22, 0], until: [2, 0], title: 'Throwback Thursday', theme: 'Theme night', genres: ['Throwbacks'], music: '2000s and 2010s hits', host: 'DJ set', cover: 5, going: 37 },
-  { id: 'ps-after-dark', venueId: 'pitch-social', day: 6, at: [21, 0], until: null, title: 'Friday After Dark', theme: 'DJ night', genres: ['Hip-hop & R&B', 'Throwbacks'], music: 'Hip-hop, R&B and throwbacks', host: 'Resident DJ', cover: 10, going: 55 },
+  { id: 'ev-acoustic', venueId: 'evelyns', dow: 4, at: [21, 0], until: [23, 30], title: 'Acoustic Thursday', theme: 'Live music', genres: ['Live music'], music: 'Acoustic covers', host: 'Live duo', cover: 0, going: 19 },
+  { id: 'ob-throwback', venueId: 'olive-branch', dow: 4, at: [22, 0], until: [2, 0], title: 'Throwback Thursday', theme: 'Theme night', genres: ['Throwbacks'], music: '2000s and 2010s hits', host: 'DJ set', cover: 5, going: 37 },
+  { id: 'ps-after-dark', venueId: 'pitch-social', dow: 5, at: [21, 0], until: null, title: 'Friday After Dark', theme: 'DJ night', genres: ['Hip-hop & R&B', 'Throwbacks'], music: 'Hip-hop, R&B and throwbacks', host: 'Resident DJ', cover: 10, going: 55 },
   { id: 'tb-beats', venueId: 'thirty-burgers', day: 6, at: [20, 0], until: [23, 0], title: 'Burgers & Beats', theme: 'Live music', genres: ['Live music', 'Top 40'], music: 'Live band covers', host: 'Live band', cover: 0, going: 22 },
 ];
 
-/** Events on the demo week with absolute times. `endsAt` null means "until late". */
+/** Events on the demo week with absolute times. `endsAt` null means "until late". An event named for a weekday
+ *  ("Saturday Karaoke") has `dow` (0 = Sun) and lands on that weekday in the coming week; others keep their `day`.
+ *  Calendar math throughout, so a clock change can't shift an event by an hour. */
 export function buildEvents(demoStart) {
-  return EVENTS.map(({ day, at, until, ...e }) => {
-    const startsAt = atNight(demoStart, at[0], at[1]) + day * DAY;
-    const endsAt = until ? atNight(demoStart, until[0], until[1]) + day * DAY : null;
-    return { ...e, kind: 'bar', day, startsAt, endsAt: endsAt != null && endsAt <= startsAt ? endsAt + DAY : endsAt, adults: true, synthetic: true };
+  const baseDow = new Date(demoStart).getDay();
+  return EVENTS.map(({ day, dow, at, until, ...e }) => {
+    let d = dow == null ? day : (dow - baseDow + 7) % 7;
+    const startOn = (n) => atNightOn(demoStart, n, at[0], at[1]);
+    const endOn = (n) => {
+      if (!until) return null;
+      const end = atNightOn(demoStart, n, until[0], until[1]);
+      return end <= startOn(n) ? atNightOn(demoStart, n + 1, until[0], until[1]) : end;
+    };
+    // A weekday event that already ended before tonight began (e.g. today's afternoon game) moves to next week.
+    if (dow != null && (endOn(d) ?? startOn(d) + 5 * 60 * 60_000) <= demoStart) d += 7;
+    return { ...e, kind: 'bar', day: d, startsAt: startOn(d), endsAt: endOn(d), adults: true, synthetic: true };
   });
 }
 

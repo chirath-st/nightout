@@ -15,7 +15,7 @@ export function allGroups(ctx) {
 
 export function groupCard(g, ctx) {
   const venue = ctx.venues.find((v) => v.id === g.venueId);
-  const joined = ctx.state.groups.joined.includes(g.id) || g.mine;
+  const joined = ctx.state.groups.joined.includes(g.id) || !!g.mine;
   const going = g.going + (ctx.state.groups.joined.includes(g.id) ? 1 : 0);
   const full = going >= g.spots && !joined;
   const ended = ctx.now >= groupEndsAt(g);

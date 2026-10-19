@@ -1,10 +1,14 @@
 // Hash router. Hash routes keep browser Back and deep links working on a plain static server.
 // Search/filter state lives in the query so returning restores the same decision context.
 
+/** decodeURIComponent that returns null for a malformed escape (a hand-typed or truncated link like #/venue/%). */
+const safeDecode = (s) => { try { return decodeURIComponent(s); } catch { return null; } };
+
 export function parseHash(hash) {
   const raw = (hash || '').replace(/^#/, '') || '/';
   const [path, qs = ''] = raw.split('?');
-  const parts = path.split('/').filter(Boolean).map(decodeURIComponent);
+  const parts = path.split('/').filter(Boolean).map(safeDecode);
+  if (parts.includes(null)) return { name: 'notfound', params: {}, query: {} };
   const query = Object.fromEntries(new URLSearchParams(qs));
   if (parts.length === 0) return { name: 'tonight', params: {}, query };
   const [head, id, sub] = parts;
