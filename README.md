@@ -1,12 +1,11 @@
-# Night Out
+# Night Out — Sample Preview
 
-Prototype web app for checking bar lines in New Brunswick, NJ. Open it on a phone:
 https://chirath-st.github.io/nightout/
 
-**Everything is simulated.** Bar names, street addresses, logos and photos are real and belong to their
-owners; they are shown only so the demo is recognizable, and permission will be requested before any launch.
-Every wait, group, point, reward, price and pass is made up. No bar is affiliated with or has endorsed Night Out. Nothing is purchased,
-no ID or birthday is collected, and nothing you do leaves your browser (it is saved only on your device).
+Build: public-demo-20261026-1. Visitor-only preview using the current app navigation and rendering fixes.
 
-This repository holds only the built app files. It is published automatically from the team's private
-working repository.
+Queues, waiting times, report counts, deals and events are fictional interface examples, not information for planning a visit. Public directory names/addresses do not establish venue affiliation or approval. No venue photographs or third-party logos are included; drawings are procedural illustrations and initials.
+
+No staff console, accounts, server connection, reports, camera, photo upload/counting, payments, tickets or redemption. Saved bars and preview preferences stay in this browser. Sharing or opening directions is a separate user action. A network connection is needed to load the page; offline installation is not promised. This web preview is not an App Store release or the native iOS build.
+
+Open in Safari on iPhone, then use Share → Add to Home Screen if desired. The 21+ screen is an age statement, not identity verification.
