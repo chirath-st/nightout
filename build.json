@@ -1,36 +1,36 @@
 {
-  "version": "public-demo-20261026-1",
+  "version": "public-demo-20261027-1",
   "flavor": "public-visitor-demo",
   "sample_data": true,
   "backend_connected": false,
   "staff_console": false,
-  "camera": false,
+  "camera": "local-demo: browser file input with capture; the photo stays in tab memory, nothing uploaded (CSP connect-src none)",
   "photo_ai": false,
   "venue_affiliation": false,
   "files": {
     "index.html": {
-      "bytes": 104399,
-      "sha256": "4e9371c52376d7e845ba58bcbd5b08492bbfb42d14ee28a05f9ae8d8a557b7bc"
+      "bytes": 104452,
+      "sha256": "f2ed9522ee788a6f7a54b383d26e1999f92efd89c47b549d165d72a62da98356"
     },
     "app.js": {
-      "bytes": 193655,
-      "sha256": "22c580bb45ee8525dab248a5439b1225c3abad4ac75b9a7b88d2103a4a58b67b"
+      "bytes": 212765,
+      "sha256": "6b234201cda751638c377c1ecd895a92c974f65250e8b65c510957fc4579b3b4"
     },
     "styles/tokens.css": {
-      "bytes": 3954,
-      "sha256": "d3bfb41a01fcfcd9b68f986338864912f3264f9811b77c8df63106350b5101e0"
+      "bytes": 4083,
+      "sha256": "7b2a4f893d9e120e230e578617242a6ab311e8a95e9c9a92187d00b6c858a186"
     },
     "styles/app.css": {
-      "bytes": 175972,
-      "sha256": "b8bc77c2e10005484272271503c5a8cd448234027e36a096c85ad3b8cb2cab03"
+      "bytes": 175818,
+      "sha256": "28d8cec594bac4bd351ba291215233adb989b5ee7c984688fe19b191c0c6b124"
     },
     "styles/public-demo.css": {
-      "bytes": 728,
-      "sha256": "75b45e53839fdd01111a83227a7442006f9a10be0020c3e2107f143e2aa8fd80"
+      "bytes": 1126,
+      "sha256": "7aaa9bb449494ccda8f4b4c6a0112e3241b3044549f0ab84d386b1798a4a7522"
     },
     "manifest.webmanifest": {
-      "bytes": 317,
-      "sha256": "707529bc611e32f5675daa86546af11f59d5406541b67bab6c02e2620537979b"
+      "bytes": 353,
+      "sha256": "24756377ef97b09d836b095a8399e6ac090a77d911ba766ff803f757f3ac647c"
     },
     "robots.txt": {
       "bytes": 26,
@@ -41,8 +41,8 @@
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "README.md": {
-      "bytes": 1027,
-      "sha256": "fddb417ae0028d53dc4f0f06e43d90e60ea2a550c0066255bd6c9e8fea766abb"
+      "bytes": 1247,
+      "sha256": "8fe027cb24abcafca520b85700a9ee8932987996ce3e587dc33c55e65acf0b34"
     }
   }
 }
