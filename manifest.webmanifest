@@ -7,5 +7,5 @@
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
-  "description": "Sample visitor preview. No live queues or venue affiliation. Report is a local camera demo: no upload or photo AI."
+  "description": "The Night Out app with sample data. No live queues or venue affiliation. Photos stay on your device: no upload or photo AI."
 }

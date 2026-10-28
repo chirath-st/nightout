@@ -1,0 +1,15 @@
+/* Web host only (not in the iPhone app): the sample / no-affiliation banner above the tab bar, and room for it. */
+:root{--demo-banner-h:49px}
+@media (max-width:359px){:root{--demo-banner-h:65px}}
+.public-demo-banner{position:fixed;z-index:31;bottom:calc(var(--tabbar-h) + var(--safe-b) + 11px);left:max(0px,calc(50% - var(--phone-w)/2));right:max(0px,calc(50% - var(--phone-w)/2));padding:8px 12px;background:#171717;color:#ddd;border-top:1px solid #444;font:500 11px/1.45 system-ui,sans-serif;text-align:center}
+.public-demo-banner a{color:#fff;text-decoration:underline;text-underline-offset:2px}
+main{padding-bottom:calc(var(--tabbar-h) + var(--safe-b) + 47px + var(--demo-banner-h))}
+html{scroll-padding-bottom:calc(var(--tabbar-h) + var(--safe-b) + 27px + var(--demo-banner-h))}
+.map-preview{bottom:calc(var(--tabbar-h) + var(--safe-b) + 23px + var(--demo-banner-h))}
+.photo-cta{bottom:calc(var(--tabbar-h) + var(--safe-b) + 19px + var(--demo-banner-h))}
+.toast-region{bottom:calc(var(--tabbar-h) + var(--safe-b) + 24px + var(--demo-banner-h) + var(--toast-lift, 0px))}
+[data-route="console"] .toast-region{bottom:calc(var(--tabbar-h) + var(--safe-b) + 84px + var(--demo-banner-h) + var(--toast-lift, 0px))}
+[data-route="scan"]:not(:has(.scan-submit)) .toast-region{bottom:calc(var(--safe-b) + 16px + var(--demo-banner-h))}
+[data-route="scan"] main{padding-bottom:calc(var(--safe-b) + 140px + var(--demo-banner-h))}
+[data-route="scan"] .public-demo-banner{bottom:var(--safe-b)}
+[data-route="scan"] .scan-submit{padding-bottom:calc(var(--safe-b) + 12px + var(--demo-banner-h))}
