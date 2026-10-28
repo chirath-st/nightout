@@ -3,6 +3,7 @@
 // ambassador, or as a demo role the bar's bouncer), guests' Scan reports, door status and pace per door, and guests'
 // measured "I'm in" waits. Pure functions, unit-tested. SIMULATED: every photo, role and count is made up.
 import { waitRange, validPeople, LINE_BUCKETS } from './queue.js';
+import { LIVE } from './backend.js';
 
 const MIN = 60_000;
 export const WINDOW = 20; // minutes an input stays live
@@ -167,7 +168,7 @@ export function scanOutcome(venue, reportId) {
   const q = venue.queue ?? {};
   return {
     kind: mine.outcome === 'backs' ? 'backs' : 'against',
-    leadNoun: lead.input.kind === 'photo' ? (globalThis.__STORE__ ? 'head count' : 'line photo') : lead.input.kind === 'venue' ? 'venue update' : 'crowd report',
+    leadNoun: lead.input.kind === 'photo' ? (globalThis.__STORE__ || LIVE ? 'head count' : 'line photo') : lead.input.kind === 'venue' ? 'venue update' : 'crowd report',
     leadAt: lead.input.at, staffLead: !!lead.input.staff,
     conflict: !!q.conflict && q.conflictWhy !== 'photos', photosDisagree: q.conflictWhy === 'photos',
   };

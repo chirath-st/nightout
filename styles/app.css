@@ -351,7 +351,6 @@ legend, .sheet-body .label { font-weight: 700; font-size: 17px; line-height: 22p
 .input-prefix .text-input { padding-left: 30px; }
 .plain-list li > span:first-child { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
 .plain-list small { color: var(--ink-3); font-size: var(--t-xs); }
-.list-switch { border-bottom: 1px solid var(--line); padding: 12px 2px; }
 
 /* ---------- Scan ---------- */
 .waiting-card { margin-top: 18px; padding: 18px; border-radius: var(--r-xl); background: linear-gradient(160deg, #1F2A22 0%, var(--surface) 75%); border: 1px solid rgb(99 210 156 / 0.35); }
@@ -1064,6 +1063,7 @@ dialog.sheet::backdrop { background: var(--scrim); }
 .reward-side { display: grid; justify-items: end; gap: 6px; } /* [NEW] cost over action */
 .reward.is-short .reward-title { color: var(--ink-2); }
 .reward.is-locked { background: repeating-linear-gradient(135deg, rgb(255 255 255 / .03) 0 6px, transparent 6px 12px); }
+.reward > .hint { grid-column: 1 / -1; margin: 0; } /* a reward's answer (its code, or why not) under the row that asked */
 
 /* ---------- Lists, toasts, banners, empty ---------- */
 .list-group { border-top: 1px solid var(--line); }
@@ -1076,7 +1076,11 @@ dialog.sheet::backdrop { background: var(--scrim); }
 .plain-list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: var(--t-base); }
 .plain-list .plus { font-family: var(--font-num); font-stretch: var(--w-cond); font-size: 20px; font-weight: 800; color: var(--ink); }
 .plain-list .muted { color: var(--ink-3); }
-.toast-region { position: fixed; z-index: 60; left: max(0px, calc(50% - var(--phone-w) / 2)); right: max(0px, calc(50% - var(--phone-w) / 2)); bottom: calc(var(--tabbar-h) + var(--safe-b) + 24px + var(--toast-lift, 0px)); /* --toast-lift: main.js liftToasts */ display: grid; justify-items: center; padding: 0 var(--gutter); pointer-events: none; }
+.toast-region { position: fixed; z-index: 60; left: max(0px, calc(50% - var(--phone-w) / 2)); right: max(0px, calc(50% - var(--phone-w) / 2)); bottom: calc(var(--tabbar-h) + var(--safe-b) + 24px); display: grid; justify-items: center; padding: 0 var(--gutter); pointer-events: none;
+  translate: 0 calc(-1 * var(--toast-lift, 0px)); } /* --toast-lift: main.js liftToasts */
+/* A toast already on screen glides to its new height; one just appearing starts there (no slide from an old lift). */
+.toast-region.is-settled { transition: translate var(--d-tray) var(--ease-out); }
+@media (prefers-reduced-motion: reduce) { .toast-region.is-settled { transition: none; } }
 .toast { pointer-events: auto; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 4px 4px 4px 14px; border-radius: 16px; background: var(--accent); color: var(--accent-ink); box-shadow: var(--shadow-float); font-size: 14px; font-weight: 600; line-height: 1.3; transition: transform var(--d-toast) var(--ease-out), opacity var(--d-toast) var(--ease-out); }
 .toast .ok { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-ink); color: var(--accent); } /* [NEW] */
 .toast .ok .ic { width: 14px; height: 14px; stroke-width: 3; }
@@ -1124,6 +1128,7 @@ button, .btn, .chip, .tab, .venue-link, .back-link, .demo-chip, .window-option, 
 .filter-summary span { min-width: 0; overflow-wrap: anywhere; }
 dialog.picker { max-width: var(--phone-w); }
 .picker .hint { display: flex; gap: 6px; align-items: center; margin-top: 14px; }
+.picker .hint + .btn { margin-top: 12px; } /* the focus ring never clips the hint above it */
 
 /* ============ Layer 3 ============ */
 /* ---------- Points ---------- */
@@ -1331,7 +1336,8 @@ html[data-hidden] *, html[data-hidden] *::before, html[data-hidden] *::after { a
 button.list-link { width: 100%; border: 0; border-bottom: 1px solid var(--line); background: none; color: inherit; font: inherit; font-size: var(--t-md); font-weight: 600; text-align: left; cursor: pointer; }
 .list-link.static { cursor: default; }
 .list-link.static:active { background: none; }
-.list-switch { min-height: 64px; padding: 10px 2px; border-bottom: 1px solid var(--line); }
+.list-switch { min-height: 64px; padding: 10px 2px; gap: 14px; border-bottom: 1px solid var(--line); }
+.list-switch > .ic:first-child { flex: none; color: var(--ink-2); } /* the same icon column as the rows under it */
 .list-switch label { flex: 1; min-width: 0; display: grid; gap: 2px; cursor: pointer; }
 .list-switch .hint { margin: 0; }
 .opt-sub { display: block; font-size: var(--t-xs); font-weight: 500; color: var(--ink-3); }
@@ -1405,6 +1411,8 @@ fieldset:disabled .bucket input, fieldset:disabled .door-seg input { cursor: not
 .scan-estimate .v.is-empty { font-family: var(--font-sans); font-stretch: var(--w-norm); font-size: var(--t-lg); color: var(--ink-3); line-height: 1.2; }
 
 .scan-inline { margin-top: 12px; }
+/* "No line": there's no wait to time, so the in-line switch steps out (the report sends in_line false). */
+.scan-flow:has(input[name="bucket"][value="none"]:checked) .scan-inline { display: none; }
 .scan-done { padding-top: 24px; text-align: center; }
 .scan-pts { font-family: var(--font-num); font-stretch: var(--w-cond); font-size: 104px; font-weight: 800; line-height: .9; letter-spacing: -.01em; }
 .scan-pts small { margin-left: 6px; font-size: 22px; font-weight: 700; color: var(--ink-2); }
@@ -1786,7 +1794,7 @@ button.member-row:focus-visible { outline: 2px solid var(--focus); outline-offse
 .photo-cta { padding-top: 12px; background: linear-gradient(180deg, rgb(11 11 11 / 0), var(--surface) 40%); } /* --surface = .panel */
 .photo-cta .btn[aria-disabled="true"] { opacity: 1; background: var(--surface-2); border-color: var(--line-strong); color: var(--ink-3); }
 .photo-cta .btn { transition: background-color var(--d-select) var(--ease-out), color var(--d-select) var(--ease-out), border-color var(--d-select) var(--ease-out), transform var(--d-press) var(--ease-out); }
-[data-route="console"] .toast-region { bottom: calc(var(--tabbar-h) + var(--safe-b) + 84px + var(--toast-lift, 0px)); } /* lift: main.js liftToasts (line-photo button) */
+[data-route="console"]:has(.photo-cta) .toast-region { bottom: calc(var(--tabbar-h) + var(--safe-b) + 84px); } /* above the line-photo button; lift: main.js liftToasts */
 .door-row { margin: 0 0 14px; padding: 0; border: 0; min-width: 0; }
 .door-row legend { margin-bottom: 8px; font-weight: 700; }
 .door-row .radio-card span { min-height: 48px; font-size: var(--t-sm); }
@@ -1811,7 +1819,6 @@ button.member-row:focus-visible { outline: 2px solid var(--focus); outline-offse
 .feed-chip[data-outcome="against"] { background: var(--aging-soft); color: var(--aging); box-shadow: none; }
 @media (prefers-reduced-motion: no-preference) {
   .lp-view .head.is-new .mark { animation: mark-pop 200ms var(--ease-out) both; transform-box: fill-box; transform-origin: center; }
-  .lp-view.is-filling .head.is-marked .mark { animation: mark-pop 200ms var(--ease-out) both; animation-delay: calc(max(0, var(--i) - var(--from)) * var(--step)); transform-box: fill-box; transform-origin: center; }
   @keyframes mark-pop { 0% { opacity: 0; scale: .9; } 70% { opacity: 1; scale: 1.03; } 100% { opacity: 1; scale: 1; } }
 }
 
@@ -2083,7 +2090,7 @@ button.member-row { transition: background-color var(--d-select) var(--ease-out)
 
 /* 6.8 Banners: spaced only when there is one (JS hands the height over on transforms). */
 #explore-banners { display: grid; gap: 8px; }
-#explore-banners:not(:empty) { margin-top: var(--s-3); }
+#explore-banners:not(:empty) { margin-top: var(--s-3); margin-bottom: var(--s-3); }
 
 /* 6.9 Toasts stack (at most two): the one behind steps up and back so its Undo stays in reach. Reduced motion: the
    offset applies at once, only the opacity fades. */
@@ -2209,6 +2216,7 @@ section.ideas { margin-top: 0; }
 .back-link.back-icon { flex: none; width: 44px; height: 44px; padding: 0; justify-content: center; border-radius: 50%; }
 .back-link.back-icon svg { width: 22px; height: 22px; }
 .back-title .page-title { min-width: 0; }
+.back-title > .btn { margin-left: auto; flex: none; } /* a page action (Post a group) sits at the row's end */
 /* 9.14 Scan waiting actions on one row; history amounts in one type; the QR hint centered. */
 .waiting-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
 .history-list li > .num:last-child { font-family: var(--font-num); font-stretch: var(--w-cond); font-size: 20px; font-weight: 800; }
@@ -2253,7 +2261,10 @@ html:not([data-modality="touch"]) :is(
 /* 44pt touch targets. */
 .scan-locate, #scan-q { min-height: 44px; }
 .qb-retry { margin-top: 12px; }
-.terms-points { margin: 4px 0 12px; padding-left: 20px; display: grid; gap: 8px; font-size: var(--t-md); }
+/* A code you just redeemed: its row is tinted once (motion-safe; reduced motion gets the tint without the fade-in time). */
+@media (prefers-reduced-motion: no-preference) { .plain-list > li.is-new { animation: row-new 1.2s var(--ease-out); } }
+@keyframes row-new { from { background: var(--surface-2); box-shadow: 0 0 0 6px var(--surface-2); } }
+.terms-points { margin: 4px 0 12px; padding-left: 20px; display: grid; gap: 8px; font-size: var(--t-md); list-style: disc; }
 .terms-sheet .hint a { color: var(--ink); text-decoration: underline; text-underline-offset: .2em; }
 /* Business view (Profile > Business view, a demo login as one venue): the console in sections. Monochrome like the rest;
    green only on a valid code (with the word "Valid"), the signal gold stays the report color. */
@@ -2264,6 +2275,8 @@ html:not([data-modality="touch"]) :is(
 .biz-venue { margin-top: var(--s-4); }
 .biz-venue select { width: 100%; min-height: 46px; }
 .biz-tabs { width: 100%; margin-top: var(--s-4); position: sticky; top: calc(var(--topbar-h) + var(--safe-t) + 6px); z-index: 2; background: var(--bg); }
+/* Stuck under the top bar, the 6px between them is painted too, so content never shows through the gap (BJ13). */
+.biz-tabs::after { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 7px; background: var(--bg); pointer-events: none; }
 /* Moving focus up past the sticky section tabs never parks a control under them (AX11). */
 .biz-page :is(a, button, input, select, textarea, [tabindex]) { scroll-margin-top: 56px; }
 .biz-tabs button { min-height: 44px; padding: 0 2px; font-size: var(--t-sm); font-weight: 600; white-space: nowrap; }
@@ -2285,6 +2298,12 @@ html:not([data-modality="touch"]) :is(
 .redeem-result[data-kind="valid"] { border-color: var(--quiet); }
 .redeem-result[data-kind="valid"] > svg { color: var(--quiet); }
 .redeem-result:not([data-kind="valid"]) > svg { color: var(--ink-2); }
+/* Already redeemed reads as a stop, not as "check the letters" (BJ8): a 2px ink edge and the × glyph. */
+.redeem-result[data-kind="used"] { border: 2px solid var(--ink); }
+.redeem-result[data-kind="used"] > svg { color: var(--ink); }
+/* Just redeemed here: the same quiet green as Valid. */
+.redeem-result[data-kind="done"] { border-color: var(--quiet); }
+.redeem-result[data-kind="done"] > svg { color: var(--quiet); }
 .biz-codes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .biz-code { display: grid; gap: 2px; min-height: 44px; padding: 8px 12px; border-radius: var(--r-md); border: 1px solid var(--line-input); background: transparent; color: var(--ink); text-align: left; }
 .biz-code .num { font-weight: 700; letter-spacing: .06em; }
@@ -2307,3 +2326,12 @@ html:not([data-modality="touch"]) :is(
 .biz-photo-grid img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .biz-photo-x { position: absolute; top: 4px; right: 4px; width: 44px; height: 44px; border-radius: 50%; background: rgb(0 0 0 / .66); color: var(--ink); }
 @media (min-width: 900px) { .biz-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* Business view in a live team build (views/business.js renderVenueLive): Sign out in the head, a hand count with
+   heads tapped on a photo that stays on the phone. */
+.biz-signout { margin-left: auto; flex: none; }
+.biz-head + .undo-row { margin-top: var(--s-4); }
+.biz-head ~ .undo-row > span:last-child { display: flex; gap: 4px; }
+.count-input { width: 96px; margin-top: 6px; font-size: var(--t-xl); font-weight: 700; text-align: center; }
+.mark-photo .scene-btn > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.mark-dot { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; border: 3px solid rgb(0 0 0 / .75); background: var(--accent); box-shadow: 0 0 0 1px #fff; pointer-events: none; }
+.biz-status { margin-top: 12px; }

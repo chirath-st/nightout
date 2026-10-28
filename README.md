@@ -1,4 +1,4 @@
-# Night Out — Sample Preview (public-demo-20261027-2)
+# Night Out — Sample Preview (public-demo-20261028-1)
 
 The same app as the iPhone build, from the same source files. Everything in src/ and styles/app.css, styles/tokens.css is
 byte-identical to the iPhone app's bundle. Differences are host-only: this page's index.html (security policy, banner,

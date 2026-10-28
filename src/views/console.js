@@ -9,7 +9,8 @@ import { lineScene, DRAW_MAX } from '../ui/lineart.js';
 import { formatTime } from '../lib/clock.js';
 import { dealPanel, passPanel, backTitle } from './pages.js';
 import { ideaPanel } from './ideas.js';
-import { businessHead, redeemPanel, reportPanel, photosPanel, BIZ_SECTIONS } from './business.js';
+import { businessHead, redeemPanel, reportPanel, photosPanel, renderVenueLive, BIZ_SECTIONS } from './business.js';
+import { LIVE } from '../lib/backend.js';
 
 const ROLE = { ambassador: 'Ambassador', bouncer: 'Bouncer' };
 const DOOR_WORDS = [['moving', 'Letting in'], ['capacity', 'One in, one out'], ['paused', 'Paused'], ['closed', 'Closed']];
@@ -45,7 +46,8 @@ function paceLine(q) {
 }
 
 function mathStrip(v, ctx) {
-  const photo = ctx.console.photo?.venueId === v.id ? ctx.console.photo : null;
+  // Only a counted photo changes the math: a fresh snap with nothing marked yet would preview a 0-head count.
+  const photo = ctx.console.photo?.venueId === v.id && ctx.console.photo.touched ? ctx.console.photo : null;
   const q = v.queue;
   const pace = Number.isFinite(q?.admitPerMin) && q.admitPerMin > 0 ? q.admitPerMin : null;
   let line1;
@@ -75,20 +77,13 @@ export function photoPanel(v, ctx) {
   const photo = ctx.console.photo?.venueId === v.id ? ctx.console.photo : null;
   const door = currentDoor(v, ctx);
   const doors = v.doors.map((d) => ({ ...d, status: door?.list?.[d.id]?.status ?? v.queue?.doorStatus ?? 'moving' }));
-  const busy = photo && ctx.console.busyUntil && performance.now() < ctx.console.busyUntil;
   const step = !photo ? 1 : !photo.touched ? 2 : 3;
   const drawn = photo ? Math.min(photo.heads, DRAW_MAX) : 0;
   const scene = lineScene({ seed: photo?.seed ?? `${v.id}:empty`, heads: photo?.heads ?? 0, count: photo?.count ?? 0, newest: photo?.newest ?? -1, doors });
-  // "Count for me": the visible count follows the marks (main.js steps .pc-vis); the math and "Publish N" change once, at
-  // the end. The output keeps the real count for assistive tech.
-  const fill = photo && ctx.console.filling;
-  const before = fill ? fill.before : photo?.count;
-  const shown = fill ? fill.shown : photo?.count;
-  const mctx = fill ? { ...ctx, console: { ...ctx.console, photo: { ...photo, count: before } } } : ctx;
   return `<section class="panel line-photo" id="line-photo" aria-labelledby="lp-h">
     <h2 id="lp-h">Line photo</h2>
     <ol class="story" aria-label="Steps">${['Snap', 'Count', 'Publish'].map((w, i) => `<li class="${i + 1 < step ? 'is-done' : i + 1 === step ? 'is-now' : ''}">${i + 1 < step ? icon('check', { size: 14 }) : `<span class="num">${i + 1}</span>`}${w}${i + 1 < step ? '<span class="sr-only">, done</span>' : ''}</li>`).join('')}</ol>
-    <div class="viewfinder lp-view${photo ? ' is-snapped' : ''}${photo && ctx.console.filling ? ' is-filling' : ''}"${photo && ctx.console.filling ? ` style="--from:${ctx.console.filling.from};--step:${Math.round(ctx.console.filling.step)}ms"` : ''}>
+    <div class="viewfinder lp-view${photo ? ' is-snapped' : ''}">
       ${photo ? `<button type="button" class="scene-btn" data-action="photo-mark" aria-label="Count one more person" aria-describedby="scene-desc count-help">${scene}</button>
         <p class="sr-only" id="scene-desc">Line photo, ${photo.heads} people, ${v.doors.length} door${v.doors.length === 1 ? '' : 's'}.</p>
         <button type="button" class="icon-btn vf-retake" data-action="photo-retake" aria-label="Retake photo">${icon('retake')}</button>` : `${scene}<span class="vf-tag vf-tip">Frame the line, not faces</span>`}
@@ -97,16 +92,16 @@ export function photoPanel(v, ctx) {
     </div>
     ${photo ? `
       <div class="count-row">
-        <div><p class="label" id="pc-label">People counted</p><output id="photo-count" class="sr-only" aria-labelledby="pc-label">${photo.count}</output><span class="pc-vis num roll" aria-hidden="true">${shown}</span></div>
+        <div><p class="label" id="pc-label">People counted</p><output id="photo-count" class="sr-only" aria-labelledby="pc-label">${photo.count}</output><span class="pc-vis num roll" aria-hidden="true">${photo.count}</span></div>
         <div class="stepper count-step" role="group" aria-labelledby="pc-label">
           ${[[-5, '5 fewer people'], [-1, '1 fewer person'], [1, '1 more person'], [5, '5 more people']].map(([d, l]) => `<button type="button" class="icon-btn" data-action="photo-step" data-delta="${d}" aria-label="${l}" ${(d < 0 && photo.count <= 0) || (d > 0 && photo.count >= 400) ? 'disabled' : ''}><span class="num">${d > 0 ? '+' : '−'}${Math.abs(d)}</span></button>`).join('')}
         </div>
       </div>
       <p class="hint" id="count-help">Tap each head, or use − / +.</p>
-      <button type="button" class="btn btn-quiet btn-block" data-action="photo-fill"${busy ? ' aria-disabled="true"' : ''}>${icon('check', { size: 16 })}Mark every head</button>` : ''}
-    ${mathStrip(v, mctx)}
+      ${ctx.state.business?.on ? '' : `<button type="button" class="btn btn-quiet btn-block" data-action="photo-fill">${icon('check', { size: 16 })}Mark every head</button>`}` : ''}
+    ${mathStrip(v, ctx)}
     <div class="photo-cta">${photo
-      ? `<button type="button" class="btn btn-primary btn-lg btn-block" data-action="photo-publish"${!photo.touched || busy ? ' aria-disabled="true"' : ''}>${icon('check', { size: 18 })}Publish ${before}</button>`
+      ? `<button type="button" class="btn btn-primary btn-lg btn-block" data-action="photo-publish"${!photo.touched ? ' aria-disabled="true"' : ''}>${icon('check', { size: 18 })}Publish ${photo.count}</button>`
       : `<button type="button" class="btn btn-primary btn-lg btn-block" data-action="photo-snap">${icon('camera', { size: 18 })}Snap the line</button>`}</div>
   </section>`;
 }
@@ -186,8 +181,11 @@ function auditPanel(v, ctx) {
 function renderBusiness(v, ctx) {
   const section = BIZ_SECTIONS.some(([k]) => k === ctx.console.section) ? ctx.console.section : 'tonight';
   const panels = {
-    tonight: () => `${guestsPanel(v, ctx)}${photoPanel(v, ctx)}${doorsPanel(v, ctx)}${feedPanel(v, ctx)}${auditPanel(v, ctx)}`,
-    offers: () => `${dealPanel(v, ctx)}${passPanel(v, ctx)}${ideaPanel(v, ctx)}`,
+    tonight: () => `${photoPanel(v, ctx)}${guestsPanel(v, ctx)}${doorsPanel(v, ctx)}${feedPanel(v, ctx)}${auditPanel(v, ctx)}`,
+    // Ideas waiting for this bar's answer come first. The order is fixed when Offers opens (main.js resets ideasFirst on
+    // a section or venue change), so approving one doesn't throw the panel under the deal form mid-task.
+    offers: () => ((ctx.console.ideasFirst ??= ctx.ideas.some((x) => x.venueId === v.id && x.status === 'pending' && x.endsAt > ctx.now))
+      ? `${ideaPanel(v, ctx)}${dealPanel(v, ctx)}${passPanel(v, ctx)}` : `${dealPanel(v, ctx)}${passPanel(v, ctx)}${ideaPanel(v, ctx)}`),
     redeem: () => redeemPanel(v, ctx),
     report: () => reportPanel(v, ctx),
     photos: () => photosPanel(v, ctx),
@@ -199,6 +197,8 @@ function renderBusiness(v, ctx) {
 }
 
 export function renderConsole(ctx) {
+  // A live team build has no demo console: #/console is Business view for a venue account on the server.
+  if (LIVE) return renderVenueLive(ctx);
   const venues = ctx.venues;
   if (!venues.length) return `<div class="page">${stateBox({ iconName: 'door', title: 'No venues to manage', body: 'Restore the venue list first.', actions: '<button type="button" class="btn btn-primary" data-action="dataset" data-kind="demo">Restore venues</button>', headingLevel: 1 })}</div>`;
   const id = ctx.console.venueId && venues.some((v) => v.id === ctx.console.venueId) ? ctx.console.venueId : venues[0].id;

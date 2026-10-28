@@ -7,6 +7,7 @@ import { formatTime, hhmm, timeLabel } from '../lib/clock.js';
 import { initials } from '../data/social.js';
 import { THEMES, GENRES } from '../data/events.js';
 import { personAvatar } from '../ui/avatars.js';
+import { backTitle } from './pages.js';
 import {
   ideaCounts, expectedTurnout, turnoutLevel, staffingHint, isSlowNight, nightLabel, nightOptions, takenDays,
   coverLabel, defaultCover, agoLabel, START_TIMES, END_TIMES, TITLE_MAX, PITCH_MAX,
@@ -65,8 +66,7 @@ export function renderIdeaNew(ctx, draft, errors = {}) {
   const e = errors;
   const timeSel = (id, key, list, value) => `<div class="field"><label class="label" for="${id}">${key === 'start' ? 'Starts' : 'Ends'}</label><div class="select"><select id="${id}" data-input="idea-field" data-key="${key}"${invalid(e.time, 'err-idea-time')}>${list.map((t) => `<option value="${hhmm(t)}" ${hhmm(t) === hhmm(value) ? 'selected' : ''}>${timeLabel(t)}</option>`).join('')}</select>${icon('chevronDown', { size: 14 })}</div></div>`;
   return `<div class="page">
-    <div class="back-row"><a class="back-link" href="#/events?view=ideas" data-action="back">${icon('chevronLeft')}Events</a></div>
-    <h1 class="page-title" id="page-h" tabindex="-1">Propose a theme night</h1>
+    ${backTitle('Propose a theme night', 'events?view=ideas', { label: 'Events' })}
     <p class="page-sub">Posted as ${esc(ctx.state.profile.name)}.</p>
     <form id="idea-form" class="form-stack" novalidate>
       <div class="field"><label class="label" for="idea-venue">Bar</label>

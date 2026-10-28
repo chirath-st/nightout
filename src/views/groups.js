@@ -5,6 +5,7 @@ import { icon } from '../ui/icons.js';
 import { formatTime } from '../lib/clock.js';
 import { initials, validHandle, groupMembers, currentStop, groupEndsAt } from '../data/social.js';
 import { personAvatar } from '../ui/avatars.js';
+import { backTitle } from './pages.js';
 
 const MAX_FACES = 5;
 const membersFor = (g, ctx) => groupMembers(g, { you: ctx.state.profile, joined: ctx.state.groups.joined.includes(g.id) });
@@ -103,11 +104,7 @@ export function memberProfileSheet(g, index, ctx) {
 export function renderGroups(ctx) {
   const groups = allGroups(ctx);
   return `<div class="page">
-    <div class="back-row"><a class="back-link" href="#/events" data-action="back">${icon('chevronLeft')}Events</a></div>
-    <div class="title-row">
-      <h1 class="page-title" id="page-h" tabindex="-1">Groups</h1>
-      <a class="btn btn-primary btn-sm" href="#/groups/new">${icon('plus', { size: 16 })}Post a group</a>
-    </div>
+    ${backTitle('Groups', 'events', { label: 'Events', extra: `<a class="btn btn-primary btn-sm" href="#/groups/new">${icon('plus', { size: 16 })}Post a group</a>` })}
     
     <div class="safety-note">${icon('shield', { size: 18 })}<p>Meet in public at the bar. Everyone must be 21+ with physical ID. Night Out never shares your location.</p></div>
     ${groups.length ? `<ul class="group-list">${groups.map((g) => groupCard(g, ctx)).join('')}</ul>`
@@ -126,8 +123,7 @@ export function renderGroupNew(ctx, draft, errors = {}) {
   const d = draft;
   const venues = [...ctx.venues].sort((a, b) => a.name.localeCompare(b.name));
   return `<div class="page">
-    <div class="back-row"><a class="back-link" href="#/groups" data-action="back">${icon('chevronLeft')}Groups</a></div>
-    <h1 class="page-title" id="page-h" tabindex="-1">Post a group</h1>
+    ${backTitle('Post a group', 'groups', { label: 'Groups' })}
     <p class="page-sub">Posted as ${esc(ctx.state.profile.name)}.</p>
     <form id="group-form" class="form-stack${d.hop ? ' is-hop' : ''}" novalidate>
       <div class="field">

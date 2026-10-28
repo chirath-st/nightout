@@ -1,16 +1,84 @@
 // Points: balance and progress to the next reward, door check-ins, how to earn, rewards and history.
-// SIMULATED: demo points have no cash value, no bar honors these rewards, and check-ins are a simulated
-// QR scan (no camera). No reward can be redeemed for alcohol (NJ rule, see DRINKS_LOCK).
+// SIMULATED in the team demo: demo points have no cash value, no bar honors these rewards, and check-ins are a simulated
+// QR scan (no camera). A live team build (lib/backend.js LIVE) shows the server's points instead (livePoints): earned
+// only for backed-up reports, spent on reward codes the server issues. No reward can be redeemed for alcohol (NJ rule,
+// see DRINKS_LOCK).
 import { esc, venueLogo } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
 import { formatTime } from '../lib/clock.js';
 import { REWARDS, DRINKS_LOCK, POINTS, balanceOf, nextReward, initials, checkedInTonight, youSeed } from '../data/social.js';
 import { personAvatar } from '../ui/avatars.js';
 import { isOpenAt } from '../lib/explore.js';
+import { LIVE } from '../lib/backend.js';
 
 const fmt = (n) => new Intl.NumberFormat('en-US').format(n);
 
+const REASON = { report: 'Line report', got_in: 'Got in', voucher: 'Reward code', carry: 'Earlier points', adjust: 'Adjustment' };
+const VOUCHER_STATE = { open: 'Show it at the bar', used: 'Used', expired: 'Expired', void: 'No longer valid' };
+const day = (iso) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+/** Live team build: the server's balance, the catalog a listed bar honors, this phone's reward codes and the history.
+ *  ctx.points = { mine, mineError, catalog, catalogError, note: { id, rewardId, text }, busy, loaded } (main.js
+ *  loadPoints). A balance shows only once the server gave one: never a 0 while loading or after a failed load. */
+function livePoints(ctx) {
+  const p = ctx.points ?? {};
+  const mine = p.mine;
+  const codes = new Map((ctx.state.vouchers ?? []).filter((v) => typeof v?.code === 'string').map((v) => [v.id, v]));
+  const rewards = p.catalog?.rewards ?? [];
+  const note = (id, rewardId = null) => (p.note && p.note.id === id && (p.note.rewardId ?? null) === rewardId ? `<p class="hint" role="status" id="reward-note">${esc(p.note.text)}</p>` : '');
+  // Nothing known yet (loading, or failed with no earlier copy): a dash. Loaded with no sign-in on this phone: no points.
+  const total = mine ? `<p class="points-total num"><span data-points-total>${fmt(mine.balance)}</span><small>pts</small></p>`
+    : p.loaded && !p.mineError ? '<p class="points-note">No points yet.</p>'
+      : '<p class="points-total num"><span data-points-total>—</span><small>pts</small></p>';
+  const vouchers = mine?.vouchers ?? [];
+  return `<div class="page">
+    <div class="points-head"><div><h1 class="page-title" id="page-h" tabindex="-1">My points</h1></div></div>
+    <section class="points-card" aria-label="Your points">
+      <p class="eyebrow">Your balance</p>
+      ${total}
+      ${p.mineError ? `<p class="points-note">${esc(p.mineError)}</p>` : ''}
+      <p class="points-note">No cash value.</p>
+    </section>
+
+    <div class="section-head"><h2>Earn points</h2></div>
+    <ul class="earn-list">
+      <li>${icon('camera', { size: 20 })}<span>Line report<small>Once a bar a night, when another guest or our counter backs it up</small></span><b class="num">+${POINTS.REPORT}</b></li>
+      <li>${icon('check', { size: 20 })}<span>Tell us when you got in<small>When your report is backed up and you waited 2+ min</small></span><b class="num">+${POINTS.GOT_IN}</b></li>
+    </ul>
+    <p class="hint">Points arrive after the night ends.</p>
+    <a class="btn btn-block" href="#/scan" style="margin-top:12px">${icon('camera', { size: 18 })}Report a line</a>
+
+    <div class="section-head"><h2 id="rewards-h">Rewards</h2></div>
+    ${p.catalogError ? `<p class="hint">${esc(p.catalogError)}</p>` : !p.catalog ? (p.loaded ? '' : '<p class="hint">Loading…</p>') : `<ul class="reward-grid">
+      ${rewards.map((r) => `<li class="reward" data-key="${esc(r.id)}">
+          <span class="reward-icon">${icon(r.kind === 'na_drink' ? 'cup' : 'cap', { size: 20 })}</span>
+          <span><p class="reward-title">${esc(r.title)}</p><p class="reward-detail">${esc([r.detail, (r.bars ?? []).map((b) => b.name).join(', ')].filter(Boolean).join(' · '))}</p></span>
+          <span class="reward-side"><span class="reward-cost num">${fmt(r.cost)}<small>pts</small></span>
+            <button type="button" class="btn btn-sm" data-action="reward-issue" data-id="${esc(r.id)}"${p.busy === r.id ? ' aria-disabled="true"' : ''} aria-label="Get a code for ${esc(r.title)}, ${fmt(r.cost)} points">${p.busy === r.id ? 'Getting…' : 'Get code'}</button></span>
+          ${note('issue', r.id)}
+        </li>`).join('')}
+      <li class="reward is-locked">
+        <span class="reward-icon">${icon('lock', { size: 20 })}</span>
+        <span><p class="reward-title">No alcohol rewards</p><p class="reward-detail">${esc(DRINKS_LOCK)}</p></span>
+        <span class="reward-side"><span class="reward-cost">Not available</span></span>
+      </li>
+    </ul>${rewards.length ? '' : '<p class="hint">No bar offers a reward yet.</p>'}`}
+
+    <div class="section-head"><h2 id="codes-h">Your rewards</h2></div>
+    ${vouchers.length ? `<ul class="plain-list">${vouchers.map((v) => {
+      const local = codes.get(v.id);
+      const open = v.status === 'open';
+      return `<li data-key="${esc(v.id)}"><span><b>${esc(v.reward?.title ?? 'Reward')}</b><small class="num">${open && local ? `Code ${esc(local.code)}` : `…${esc(v.hint ?? '')}`} · ${esc(VOUCHER_STATE[v.status] ?? '')}${open && v.expires_at ? `, until ${esc(day(v.expires_at))}` : ''}</small></span>${open && !local ? `<button type="button" class="btn btn-sm" data-action="reward-reveal" data-id="${esc(v.id)}"${p.busy === v.id ? ' aria-disabled="true"' : ''}>Show code</button>` : ''}</li>`;
+    }).join('')}</ul>` : `<p class="hint">${mine ? 'No reward codes yet.' : !p.loaded ? 'Loading…' : p.mineError ? 'Couldn’t load your codes.' : 'Nothing here yet.'}</p>`}
+    ${note('reveal')}
+
+    ${mine?.history?.length ? `<div class="section-head"><h2 id="history-h">Point history</h2></div>
+    <ul class="plain-list history-list">${mine.history.map((e, i) => `<li data-key="h-${i}"><span>${esc(REASON[e.reason] ?? 'Points')}<small>${esc(day(e.at))}</small></span><span class="num ${e.delta >= 0 ? 'plus' : 'muted'}">${e.delta >= 0 ? '+' : '−'}${fmt(Math.abs(e.delta))}</span></li>`).join('')}</ul>` : ''}
+  </div>`;
+}
+
 export function renderPoints(ctx) {
+  if (LIVE) return livePoints(ctx);
   const st = ctx.state;
   const balance = balanceOf(st.points);
   const next = nextReward(balance);

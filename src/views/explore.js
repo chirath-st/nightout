@@ -5,6 +5,7 @@ import { formatTime } from '../lib/clock.js';
 import { distanceTo, originLabel, usingDeviceLocation } from '../lib/geo.js';
 import { dealState } from '../lib/deals.js';
 import { monogram } from '../ui/art.js';
+import { LIVE } from '../lib/backend.js';
 
 // Schematic positions (percent of the map box), roughly by street. Not to scale; no distances implied.
 // Laid out in columns at least 80 px apart at 320 px so no two pins overlap.
@@ -83,8 +84,9 @@ export function exploreBanners(ctx) {
     out.push(banner('warn', 'wifiOff', `<p><strong>You’re offline.</strong></p><p>${ctx.ui.lastRefreshAt ? `Showing estimates from ${formatTime(ctx.ui.lastRefreshAt)}.` : 'Estimates load when you’re back online.'}</p>`,
       `<button type="button" class="btn" data-action="go-online">Reconnect</button>`));
   }
-  if (ctx.ui.refreshError && !ctx.offline) {
-    out.push(banner('error', 'alert', globalThis.__STORE__ && !ctx.ui.lastRefreshAt
+  // With no bars to show, the empty state below says it (and offers the retry): no second box on top of it.
+  if (ctx.ui.refreshError && !ctx.offline && ctx.venues.length) {
+    out.push(banner('error', 'alert', (globalThis.__STORE__ || LIVE) && !ctx.ui.lastRefreshAt
       ? `<p><strong>Couldn’t load live estimates.</strong></p><p>${ctx.ui.refreshErrorKind === 'bad' ? 'The server sent data we couldn’t read. Try again in a minute.' : ctx.ui.refreshErrorKind === 'server' ? 'The server didn’t answer. Try again in a minute.' : 'Check your connection and try again.'}</p>`
       : `<p><strong>Couldn’t refresh estimates.</strong></p><p>Still showing the last update from ${ctx.ui.lastRefreshAt ? formatTime(ctx.ui.lastRefreshAt) : 'earlier'}.</p>`,
       `<button type="button" class="btn" data-action="refresh">Try again</button>`));
@@ -107,7 +109,7 @@ export function exploreResults(ctx) {
   const { venues, now, explore, savedSet, ui } = ctx;
   if (ui.loading && !ui.lastRefreshAt) return exploreSkeleton(ctx);
   if (venues.length === 0) {
-    if (globalThis.__STORE__) return stateBox({ iconName: 'wifiOff', title: 'Couldn’t load bars', body: 'Check your connection and try again.', actions: '<button type="button" class="btn btn-primary" data-action="refresh">Try again</button>' });
+    if (globalThis.__STORE__ || LIVE) return stateBox({ iconName: 'wifiOff', title: 'Couldn’t load bars', body: ui.refreshErrorKind === 'bad' ? 'The server sent data we couldn’t read. Try again in a minute.' : ui.refreshErrorKind === 'server' ? 'The server didn’t answer. Try again in a minute.' : 'Check your connection and try again.', actions: '<button type="button" class="btn btn-primary" data-action="refresh">Try again</button>' });
     return stateBox({ iconName: 'help', title: 'No bars to show', body: 'Restore the bar list to continue.', actions: '<button type="button" class="btn btn-primary" data-action="dataset" data-kind="demo">Restore bars</button>' });
   }
   const { results, unknown, total, excludedStale } = exploreList(venues, explore, now, savedSet);
@@ -147,7 +149,7 @@ function exploreSkeleton(ctx) {
 export function dealsRail(ctx) {
   const live = ctx.venues.filter((v) => isOpenAt(v, ctx.now) !== false).flatMap((v) => (v.deals ?? []).filter((d) => dealState(d, ctx.now) === 'live').map((d) => ({ v, d })))
     .sort((a, b) => (distanceTo(a.v) ?? 99) - (distanceTo(b.v) ?? 99) || a.d.endsAt - b.d.endsAt);
-  if (globalThis.__STORE__ ? live.length < 2 : !live.length) return '';
+  if (globalThis.__STORE__ || LIVE ? live.length < 2 : !live.length) return '';
   return `<section class="deals-rail" aria-labelledby="rail-h" data-rail-sig="${esc(live.map(({ d }) => d.id).join(','))}">
     <div class="rail-head"><h2 id="rail-h">Deals right now</h2><button type="button" class="rail-all" data-action="quick-view" data-view="deals">See all${icon('chevronRight', { size: 16 })}</button></div>
     <ul class="rail-list">${live.map(({ v, d }) => `<li data-key="${esc(d.id)}"><a class="rail-tile" href="#/venue/${encodeURIComponent(v.id)}?deal=${encodeURIComponent(d.id)}" aria-label="${esc(`${promoLabel(d)}: ${promoItem(d)} at ${v.name}, until ${formatTime(d.endsAt)}`)}">

@@ -4,6 +4,7 @@
 import { esc, banner } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
 import { reminderDays, reminderLabel, hourLabel, REMINDER_HOURS } from '../lib/reminders.js';
+import { LIVE } from '../lib/backend.js';
 
 const site = (path) => `${(globalThis.__SITE__ ?? '').replace(/\/+$/, '')}/${path}`;
 const ext = (path, iconName, label, sub) => `<a class="list-link" href="${esc(site(path))}" target="_blank" rel="noopener">${icon(iconName, { size: 20 })}<span>${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ''}</span>${icon('external', { size: 18 })}</a>`;
@@ -33,31 +34,36 @@ export function renderProfileStore(ctx, { confirmDelete = false, deleting = fals
       ${ext('privacy', 'shield', 'Privacy policy')}
       ${ext('terms', 'file', 'Terms of use')}
     </nav>
-    <section class="panel danger-zone" aria-labelledby="${confirmDelete ? 'delete-confirm-h' : 'delete-h'}">
+    ${deletePanel({ confirmDelete, deleting, linked, unreachable })}
+  </div>`;
+}
+
+/** Profile > Your data (App Store build, and the team build's live profile with points: { points: true }). */
+export function deletePanel({ confirmDelete = false, deleting = false, linked = true, unreachable = 0 } = {}, { points = false } = {}) {
+  return `<section class="panel danger-zone" aria-labelledby="${confirmDelete ? 'delete-confirm-h' : 'delete-h'}">
       ${confirmDelete
         ? `<h2 id="delete-confirm-h" tabindex="-1">Delete all your data?</h2>
           <p class="hint">${linked
             ? unreachable
-              ? `This deletes your anonymous account and the reports it sent from our servers, and clears saved bars and settings on this phone. ${unreachable === 1 ? 'One earlier report was' : `${unreachable} earlier reports were`} sent under an older sign-in this phone no longer has: only support can delete ${unreachable === 1 ? 'it' : 'them'} (Help). It can’t be undone.`
-              : 'This deletes your anonymous account and every report you sent from our servers, and clears saved bars and settings on this phone. It can’t be undone.'
+              ? `This deletes your anonymous account${points ? ', the reports it sent and its points' : ' and the reports it sent'} from our servers, and clears saved bars and settings on this phone. ${unreachable === 1 ? 'One earlier report was' : `${unreachable} earlier reports were`} sent under an older sign-in this phone no longer has${!globalThis.__STORE__ && LIVE ? ', so this can’t delete ' : ': only support can delete '}${unreachable === 1 ? 'it' : 'them'}${!globalThis.__STORE__ && LIVE ? '' : ' (Help)'}. It can’t be undone.`
+              : `This deletes your anonymous account${points ? ', every report you sent and your points and reward codes' : ' and every report you sent'} from our servers, and clears saved bars and settings on this phone. It can’t be undone.`
             : unreachable
-              ? `This phone is no longer signed in, so it can’t delete the ${unreachable === 1 ? 'report' : `${unreachable} reports`} it sent from our server (contact support from Help for that). This clears saved bars, settings and report history on this phone. It can’t be undone.`
-              : 'This phone has no sign-in on our server, so this clears saved bars, settings and report history on this phone only. Reports sent before its data was cleared can only be deleted through support. It can’t be undone.'}</p>
+              ? `This phone is no longer signed in, so it can’t delete the ${unreachable === 1 ? 'report' : `${unreachable} reports`} it sent from our server${!globalThis.__STORE__ && LIVE ? '' : ' (contact support from Help for that)'}. This clears saved bars, settings and report history on this phone. It can’t be undone.`
+              : `This phone has no sign-in on our server, so this clears saved bars, settings and report history on this phone only. ${!globalThis.__STORE__ && LIVE ? 'Reports sent before its data was cleared can’t be deleted from here.' : 'Reports sent before its data was cleared can only be deleted through support.'} It can’t be undone.`}</p>
           <div class="actions">
             <button type="button" class="btn btn-danger" data-action="delete-data-confirm" ${deleting ? 'aria-disabled="true"' : ''}>${deleting ? 'Deleting…' : 'Delete my data'}</button>
             <button type="button" class="btn" data-action="delete-data-cancel" ${deleting ? 'aria-disabled="true"' : ''}>Cancel</button>
           </div>`
         : `<h2 id="delete-h">Your data</h2>
-          <p class="hint">Reports are anonymous. You can delete them and your account at any time.</p>
+          <p class="hint">${points ? 'Reports are anonymous. You can delete them, your points and your account at any time.' : 'Reports are anonymous. You can delete them and your account at any time.'}</p>
           <button type="button" class="btn btn-danger" data-action="delete-data-ask">${icon('trash', { size: 18 })}Delete my data</button>`}
-    </section>
-  </div>`;
+    </section>`;
 }
 
 export function renderAboutStore(ctx, { version = '' } = {}) {
   return `<div class="page prose">
     <a class="back-link" href="#/profile">${icon('chevronLeft', { size: 20 })}Profile</a>
-    <h1 class="page-title" id="page-h" tabindex="-1">How estimates work</h1>
+    <h1 class="page-title" id="page-h" tabindex="-1">How estimates work</h1>${!globalThis.__STORE__ && LIVE ? '\n    <p><strong>Test version.</strong> Its data comes from a test server.</p>' : ''}
     <p>Each bar’s line estimate comes from three places, and every estimate says which one and how old it is:</p>
     <ul>
       <li><b>Our staff.</b> Our counters walk Easton Ave on busy nights and post head counts from the sidewalk.</li>
@@ -98,7 +104,7 @@ export function reminderSheet(venue, flow, existing, now) {
         <button type="button" class="btn btn-primary btn-lg btn-block" data-action="remind-set" ${flow.busy || !openHours.includes(flow.hour) ? 'disabled' : ''}>${existing ? 'Change reminder' : 'Set reminder'}</button>
         ${existing ? '<button type="button" class="btn btn-lg btn-block" data-action="remind-clear">Remove reminder</button>' : ''}
       </div>
-      <p class="hint">${globalThis.__STORE__ ? 'A notification from this phone. Nothing is shared.' : 'In the iPhone app this sends a notification at that time.'}</p>
+      <p class="hint">${(globalThis.__STORE__ || LIVE) ? 'A notification from this phone. Nothing is shared.' : 'In the iPhone app this sends a notification at that time.'}</p>
     </div>`;
 }
 
@@ -114,7 +120,7 @@ export function termsSheet() {
       </ul>
       ${globalThis.__STORE__ ? `<p class="hint"><a href="${esc(site('terms'))}" target="_blank" rel="noopener">Read the Terms of use</a></p>` : ''}
       <div class="dir-links">
-        <button type="button" class="btn btn-primary btn-lg btn-block" data-action="terms-agree">${globalThis.__STORE__ ? 'Agree and send' : 'Agree and add'}</button>
+        <button type="button" class="btn btn-primary btn-lg btn-block" data-action="terms-agree">${(globalThis.__STORE__ || LIVE) ? 'Agree and send' : 'Agree and add'}</button>
         <button type="button" class="btn btn-lg btn-block" data-action="close-picker">Not now</button>
       </div>
     </div>`;

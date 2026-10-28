@@ -23,14 +23,16 @@ import { renderIdeaNew, ideaCard } from './views/ideas.js';
 import { renderPassSheet } from './views/passSheet.js';
 import { renderSaved, renderPasses, renderPassDetail, renderAbout, newDealDraft } from './views/pages.js';
 import { renderConsole, photoPanel, photoPreview, currentDoor } from './views/console.js';
-import { checkCode, normalizeCode, samplePhoto, MAX_UPLOADS, BIZ_SECTIONS } from './views/business.js';
+import { checkCode, normalizeCode, samplePhoto, MAX_UPLOADS, BIZ_SECTIONS, venueSections, voucherCode, countWait, typedCount, countBase } from './views/business.js';
 import { DRAW_MAX } from './ui/lineart.js';
 import { makeGhost, flyPhoto, easeFrom, cornerRadii, heroCopy, cssTimeMs } from './ui/navmotion.js';
 import { checkDeal } from './lib/deals.js';
-import { createApi, friendlyError, ApiError } from './lib/api.js';
+import { createApi, createVenueApi, friendlyError, ApiError, VENUE_KEYS } from './lib/api.js';
+import { BACKEND, LIVE } from './lib/backend.js';
+import { uuid } from './lib/ids.js';
 import { liveData, validRows, validLive } from './data/live.js';
 import { renderProfileStore, renderAboutStore, reminderSheet, termsSheet } from './views/store.js';
-import { isNative, haptic, share as nativeShare, openExternal, hideSplash, styleStatusBar, onResume, restoreStorage, mirrorStorage, locate, hideKeyboardBar, canRemind, notificationPermission, scheduleReminder, cancelReminder, pendingReminderIds, onReminderTap } from './lib/native.js';
+import { isNative, haptic, share as nativeShare, openExternal, hideSplash, styleStatusBar, onResume, restoreStorage, mirrorStorage, addMirrorKeys, locate, hideKeyboardBar, canRemind, notificationPermission, scheduleReminder, cancelReminder, pendingReminderIds, onReminderTap } from './lib/native.js';
 import { reminderAt, reminderDays, reminderId, reminderText, reminderPhrase, defaultChoice, activeReminders } from './lib/reminders.js';
 import { setOrigin, milesBetween, DEMO_SPOT } from './lib/geo.js';
 
@@ -38,6 +40,10 @@ import { setOrigin, milesBetween, DEMO_SPOT } from './lib/geo.js';
 // esbuild then drops every team-only branch and module (sample nights, demo controls, points, groups, passes, Plus).
 // Unbuilt (the repo, tests, the private team build) it is undefined, so everything below runs as the team build.
 // Always write the check inline as `globalThis.__STORE__`: a copy in a variable defeats the dead-code removal.
+// LIVE (lib/backend.js) is true only in a live team build (scripts/build-www.mjs --live): the team app on a server, for
+// the lab. Data and honesty checks read `(globalThis.__STORE__ || LIVE)`, inline too (the store bundle folds
+// `true || LIVE`), so a live team build behaves like the store build except for the team look it keeps, which stays
+// plain `globalThis.__STORE__`: the 5-tab bar with Points, camera-first Scan, Points, Business view and the team Profile.
 const LIVE_KEY = 'app:live:v1';
 const POLL_MS = 45_000;
 
@@ -53,7 +59,13 @@ const storage = webStorage && {
 };
 // Created after `storage`: the bundler turns these top-level consts into vars, so an earlier line would hand the API an
 // undefined storage and the anonymous session would never be saved (a new account on every launch).
-const api = globalThis.__STORE__ ? createApi({ backend: globalThis.__BACKEND__, storage, platform: isNative() ? 'ios' : 'web' }) : null;
+// A live team build tags what both clients store with its env (mock, local, staging): one origin can serve several.
+const api = (globalThis.__STORE__ || LIVE) ? createApi({ backend: globalThis.__STORE__ ? globalThis.__BACKEND__ : BACKEND, storage, platform: isNative() ? 'ios' : 'web', env: globalThis.__STORE__ ? null : BACKEND.env }) : null;
+// Business view's own client in a live team build: a venue session never touches the guest's (the guest's account is
+// the one Delete my data removes, and the guest client signs up anonymously). Its keys join the iPhone app's Preferences
+// mirror.
+const venueApi = !globalThis.__STORE__ && LIVE ? createVenueApi({ backend: BACKEND, storage, env: BACKEND.env }) : null;
+if (!globalThis.__STORE__ && LIVE) addMirrorKeys(VENUE_KEYS);
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const app = {
@@ -85,21 +97,38 @@ const app = {
 };
 // Business view (Profile > Business view, team build): section, the code being checked, and photos added to preview
 // (object URLs in memory only: never saved or sent, and let go when Business view is left).
-function freshConsole() { return { venueId: null, dealDraft: null, dealErrors: {}, ideaCover: {}, role: 'ambassador', photo: null, snaps: 0, busyUntil: 0, filling: false, section: 'tonight', codeDraft: '', codeResult: null, uploads: [] }; }
+function freshConsole() { return { venueId: null, dealDraft: null, dealErrors: {}, ideaCover: {}, role: 'ambassador', photo: null, heldPhotos: {}, snaps: 0, section: 'tonight', ideasFirst: null, codeDraft: '', codeResult: null, uploads: [] }; }
 // photo: an object URL for the picture just taken (memory only, never uploaded); manual: reporting without a photo;
 // camera: 'open' while the phone's camera is up, 'cancelled' once it was closed without a photo.
 const freshScan = () => ({ step: 'pick', venueId: null, photo: null, manual: false, camera: null, bucket: null, door: 'moving', inLine: true, q: '', error: null });
 app.scan = freshScan();
 app.checkin = { step: 'pick', venueId: null };
+// Live team build. Business view (venue account): phase 'signin' (no venue session), 'loading', 'totp' (the second
+// factor), 'error' (the account couldn't be read) or 'ready'; count is the number being made at the bar (photo: an
+// object URL in memory only, marks: where heads were tapped). Points: the server's balance, catalog and codes.
+// error: a number Publish can't take (shown under the field, which it describes).
+const freshCount = () => ({ people: 0, raw: null, door: 'moving', pace: null, photo: null, marks: [], error: null });
+// code.clientId belongs to code.clientCode; code.lost is a redemption whose answer was lost ({ code, reward }): it keeps
+// its id, so trying it again (or checking that code again) answers "duplicate", never "already used".
+const freshCode = () => ({ draft: '', result: null, clientId: null, clientCode: null, lost: null, busy: false });
+/** What one venue account sees: dropped at sign-out, so the next account on the same phone starts clean. */
+const accountState = () => ({ count: freshCount(), msg: {}, notices: [], code: freshCode(), deals: null, dealSending: false, dealClient: null, report: null, confirmOut: false, withdrawAsk: null, withdrawing: [] });
+function freshVenue() { return { phase: 'signin', staff: null, email: '', error: null, errorField: null, note: null, busy: false, verified: false, section: 'tonight', barId: null, queued: 0, ...accountState() }; }
+// loaded: the first read has finished (until then nothing is known: no balance is shown, not even 0).
+const freshPoints = () => ({ mine: null, mineError: null, catalog: null, catalogError: null, note: null, busy: null, pending: {}, loaded: false });
+app.venue = !globalThis.__STORE__ && LIVE ? freshVenue() : null;
+app.points = !globalThis.__STORE__ && LIVE ? freshPoints() : null;
 
 /* ---------------- state ---------------- */
 function init() {
   const realNow = Date.now();
   app.state = load(storage, realNow);
-  if (globalThis.__STORE__) {
+  if (globalThis.__STORE__ || LIVE) {
     app.state.clock = { v: 2, realStart: realNow, base: nightAnchor(realNow), offsetMin: 0 };
-    // The last good copy for offline and the next launch. A copy that isn't the shape we wrote is dropped, never drawn.
+    // The last good copy for offline and the next launch. A copy that isn't the shape we wrote is dropped, never drawn,
+    // and a live team build takes only its own server's copy (mock, local and staging never mix).
     try { app.live = validLive(JSON.parse(storage?.getItem(LIVE_KEY) ?? 'null')) ?? {}; } catch { app.live = {}; }
+    if (!globalThis.__STORE__ && LIVE && app.live.env !== BACKEND.env) app.live = {};
     // Shown until the first refresh (and named by "Couldn't refresh… still showing the last update from …" if it fails).
     app.ui.lastRefreshAt = app.live.at ?? null;
     persist();
@@ -127,7 +156,7 @@ function clearNightState() {
 }
 /** Called from tick and on return to the tab: once every bar has closed, start a new midnight. */
 function maybeStartNewNight() {
-  if (globalThis.__STORE__) {
+  if (globalThis.__STORE__ || LIVE) {
     const base = nightAnchor(Date.now());
     if (base === app.state.clock.base) return false;
     app.state.clock = { ...app.state.clock, base };
@@ -145,12 +174,12 @@ function maybeStartNewNight() {
   toast('A new night started at midnight.');
   return true;
 }
-const now = () => (globalThis.__STORE__ ? Date.now() : demoNow(app.state.clock, Date.now()));
+const now = () => (globalThis.__STORE__ || LIVE ? Date.now() : demoNow(app.state.clock, Date.now()));
 /** Store build: a night runs 6 PM to 6 AM; its anchor (state.clock.base) is that evening's 6 PM. Events "tonight" hang off it. */
 function nightAnchor(t) { const d = new Date(t); if (d.getHours() < 6) d.setDate(d.getDate() - 1); d.setHours(18, 0, 0, 0); return d.getTime(); }
 function persist() { save(storage, app.state); updatePointsChip(); }
 function rebuild() {
-  if (globalThis.__STORE__) {
+  if (globalThis.__STORE__ || LIVE) {
     const live = liveData(app.live ?? {});
     app.venues = live.venues;
     app.events = live.events;
@@ -167,7 +196,7 @@ function rebuild() {
   app.events = buildEvents(app.state.clock.base);
   app.ideas = resolveIdeas(buildIdeas(app.state.clock.base, app.events), app.state.ideas.created, app.state.ideas.decisions, new Set(app.venues.map((v) => v.id)), app.state.clock.base);
 }
-const isOffline = () => (globalThis.__STORE__ ? navigator.onLine === false : app.state.sim.offline || navigator.onLine === false);
+const isOffline = () => (globalThis.__STORE__ || LIVE ? navigator.onLine === false : app.state.sim.offline || navigator.onLine === false);
 const savedSet = () => new Set(app.state.saved);
 
 function ctx(extra = {}) {
@@ -175,9 +204,11 @@ function ctx(extra = {}) {
     venues: app.venues, now: now(), state: app.state, explore: app.explore, ui: app.ui, savedSet: savedSet(),
     offline: isOffline(), console: app.console, visit: app.visit, groups: app.groups, events: app.events, ideas: app.ideas,
     backHref: app.venueBack?.href ?? app.lastExploreHash, backLabel: app.venueBack?.label ?? 'Bars', passesFrom: app.passesFrom,
-    native: isNative(), canRemind: globalThis.__STORE__ && canRemind(), loadFailed: globalThis.__STORE__ && app.ui.refreshError && !app.live?.at,
+    native: isNative(), canRemind: (globalThis.__STORE__ || LIVE) && canRemind(), loadFailed: (globalThis.__STORE__ || LIVE) && app.ui.refreshError && !app.live?.at,
     // Live data loaded, but events and deals never arrived (the Events view and bar pages say so instead of "none listed").
-    eventsMissing: globalThis.__STORE__ && Boolean(app.live?.at) && app.live.edAt === null, ...extra,
+    eventsMissing: (globalThis.__STORE__ || LIVE) && Boolean(app.live?.at) && app.live.edAt === null,
+    // A live team build: Business view's venue account and bar, and the server's points (null otherwise).
+    venue: !globalThis.__STORE__ && LIVE ? app.venue : null, venueBar: !globalThis.__STORE__ && LIVE ? venueBar() : null, points: !globalThis.__STORE__ && LIVE ? app.points : null, ...extra,
   };
 }
 
@@ -232,7 +263,7 @@ function toast(message, { actionLabel, onAction, timeout = actionLabel ? 15000 :
   region.querySelectorAll('.toast.is-leaving').forEach((n) => n.remove());
   // The newest toast comes first in the region (read first, found first); CSS paints the one behind under it.
   let el = region.querySelector('.toast:not(.is-behind)');
-  if (el && el._action && !actionLabel && !(key != null && el._key === key)) {
+  if (el && el._action && !(key != null && el._key === key)) {
     region.querySelectorAll('.toast.is-behind').forEach((n) => dismissToast(n, { now: true })); // at most two
     el.classList.add('is-behind');
     el = null;
@@ -292,10 +323,17 @@ function liftToasts() {
   const region = document.getElementById('toasts');
   if (!region) return;
   const route = app.route?.name;
-  const card = route === 'tonight' ? document.querySelector('#main .map-preview:not([hidden])') : route === 'console' ? document.querySelector('#main .photo-cta .btn') : null;
+  // A toast that was already showing glides to the new lift; a new one (nothing showing before it) starts at it.
+  const live = [...region.querySelectorAll('.toast:not(.is-leaving)')];
+  region.classList.toggle('is-settled', live.some((t) => t._settled));
+  live.forEach((t) => { t._settled = true; });
+  const card = route === 'tonight' ? document.querySelector('#main .map-preview:not([hidden])') : route === 'console' ? document.querySelector('#main .photo-cta .btn')
+    : route === 'venue' || route === 'pass' ? document.querySelector('#main .venue-actions') : null; // the bar page's Report the line row
   region.style.removeProperty('--toast-lift');
   if (!card) return;
-  const floor = region.getBoundingClientRect().bottom; // the toasts' bottom edge without a lift
+  // The toasts' bottom edge without a lift, from layout: the lift is a translate (it may still be gliding), so the
+  // region's on-screen box can't be read for this.
+  const floor = document.documentElement.clientHeight - parseFloat(getComputedStyle(region).bottom);
   const r = card.getBoundingClientRect();
   if (Math.min(r.bottom, floor) - Math.max(r.top, floor - 52) > 4) region.style.setProperty('--toast-lift', `${Math.ceil(floor - r.top + 8)}px`);
 }
@@ -755,6 +793,8 @@ const TAB_OF = globalThis.__STORE__
   : { tonight: 'bars', venue: 'bars', pass: 'bars', events: 'events', ideaNew: 'events', groups: 'events', groupNew: 'events', scan: 'scan', points: 'points', passes: 'points', passDetail: 'points', profile: 'profile', saved: 'profile', console: 'profile', about: 'profile' };
 /** Screens that exist only in the team build (they need payments, accounts or moderation the App Store app doesn't have yet). */
 const TEAM_ONLY = new Set(['pass', 'passes', 'passDetail', 'console', 'ideaNew', 'groups', 'groupNew', 'points']);
+/** Screens a live team build hides: their sample people, prices and passes must never sit next to server data. */
+const LIVE_HIDDEN = new Set(['pass', 'passes', 'passDetail', 'ideaNew', 'groups', 'groupNew']);
 function renderShell() {
   const r = app.route;
   // Passes sits under Points but also opens from Profile: the highlighted tab follows where it was opened (as its Back does).
@@ -775,7 +815,7 @@ let chipBehind = false; // the balance changed while the chip couldn't be seen
  *  rolls in place; a contribution (a line report, "I got in", the daily login) also nods the star once. While the chip is
  *  out of sight (Scan hides the top bar; the check-in sheet covers it) it keeps the last value it showed. */
 function updatePointsChip() {
-  if (globalThis.__STORE__) return;
+  if (globalThis.__STORE__ || LIVE) return; // a live team build has no local points to show
   const slot = document.getElementById('demo-slot');
   if (!slot) return;
   const bal = balanceOf(app.state.points);
@@ -840,14 +880,14 @@ function mainHtml() {
     case 'passes': if (!globalThis.__STORE__) return renderPasses(c); break;
     case 'passDetail': if (!globalThis.__STORE__) return renderPassDetail(c, r.params.id); break;
     case 'console': if (!globalThis.__STORE__) return renderConsole(c); break;
-    case 'about': return globalThis.__STORE__ ? renderAboutStore(c, { version: APP_VERSION }) : renderAbout(c);
+    case 'about': return (globalThis.__STORE__ || LIVE) ? renderAboutStore(c, { version: APP_VERSION }) : renderAbout(c);
     case 'events': return renderEvents(c);
     case 'groups': if (!globalThis.__STORE__) return renderGroups(c); break;
     case 'groupNew': if (!globalThis.__STORE__) return renderGroupNew(c, app.groupDraft ?? newGroupDraft(), app.groupErrors); break;
     case 'ideaNew': if (!globalThis.__STORE__) return renderIdeaNew(c, app.ideaDraft ?? newIdeaDraft(), app.ideaErrors); break;
     case 'scan': return renderScan(c, app.scan);
     case 'points': if (!globalThis.__STORE__) return renderPoints(c); break;
-    case 'profile': return globalThis.__STORE__ ? renderProfileStore(c, { confirmDelete: app.ui.confirmDelete, deleting: app.ui.deleting, linked: api.hasAccount(), unreachable: unreachableReports() }) : renderProfile(c, app.profileEdit);
+    case 'profile': return globalThis.__STORE__ ? renderProfileStore(c, { confirmDelete: app.ui.confirmDelete, deleting: app.ui.deleting, linked: api.hasAccount(), unreachable: unreachableReports() }) : renderProfile(c, app.profileEdit, LIVE ? { confirmDelete: app.ui.confirmDelete, deleting: app.ui.deleting, linked: api.hasAccount(), unreachable: unreachableReports(), venueSignedIn: venueApi.signedIn() } : null);
     default:
       return `<div class="page"><div class="state"><div class="state-icon">${icon('help')}</div><h1 id="page-h" tabindex="-1">Page not found</h1><p>That link doesn’t match anything.</p><div class="actions"><a class="btn btn-primary" href="#/">Go to bars</a></div></div></div>`;
   }
@@ -856,7 +896,7 @@ function mainHtml() {
 /** A screen that failed to draw shows a way out instead of a blank page (and the error goes to the console). */
 function errorHtml(err) {
   console.error(err);
-  return `<div class="page"><div class="state"><div class="state-icon">${icon('help')}</div><h1 id="page-h" tabindex="-1">Something went wrong</h1><p>This screen couldn’t load. Your saved bars${globalThis.__STORE__ ? '' : ' and points'} are safe.</p><div class="actions"><a class="btn btn-primary" href="#/">Go to bars</a><button type="button" class="btn" data-action="reload-app">Reload</button></div></div></div>`;
+  return `<div class="page"><div class="state"><div class="state-icon">${icon('help')}</div><h1 id="page-h" tabindex="-1">Something went wrong</h1><p>This screen couldn’t load. Your saved bars${(globalThis.__STORE__ || LIVE) ? '' : ' and points'} are safe.</p><div class="actions"><a class="btn btn-primary" href="#/">Go to bars</a><button type="button" class="btn" data-action="reload-app">Reload</button></div></div></div>`;
 }
 
 /** scroll: 'restore' (Back/Forward), 'top' (new navigation) or 'keep' (in-place refresh). */
@@ -872,7 +912,8 @@ function render({ focus = 'heading', scroll = 'keep' } = {}) {
   restoreRail(main.querySelector('.deals-rail:not(.sk-rail) .rail-list'));
   revealPhotos(main);
   app.renderedHash = location.hash || '#/';
-  document.body.dataset.route = ['venue', 'pass'].includes(app.route?.name) ? 'venue' : app.route?.name ?? '';
+  // A bar id that isn't listed renders a plain not-found page: it keeps the top bar (the hero layout is for a real bar).
+  document.body.dataset.route = ['venue', 'pass'].includes(app.route?.name) ? (app.venues.some((v) => v.id === app.route.params.id) ? 'venue' : 'notfound') : app.route?.name ?? '';
   watchMasthead();
   watchSortSeg();
   liftToasts();
@@ -1021,9 +1062,12 @@ function patchResults(box, html) {
     box.replaceChildren(...fresh);
     restoreRail(box.querySelector(':scope > .deals-rail .rail-list'));
     revealPhotos(box);
-    if (wasSk && !isSk) {
-      if (reducedMotion()) box.animate({ opacity: [0, 1] }, { duration: T.rmIn, easing: 'linear' });
-      else if (motionOK()) box.animate({ opacity: [0, 1] }, { duration: T.fade, easing: T.easeOut });
+    // Skeleton -> results: the on-screen parts fade in as small layers, not the whole page-tall box (MJ9); under the
+    // splash nothing shows yet, so nothing fades.
+    if (wasSk && !isSk && !document.getElementById('splash')) {
+      const parts = onScreenParts(box);
+      if (reducedMotion()) parts.forEach((el) => el.animate({ opacity: [0, 1] }, { duration: T.rmIn, easing: 'linear' }));
+      else if (motionOK()) parts.forEach((el) => el.animate({ opacity: [0, 1] }, { duration: T.fade, easing: T.easeOut }));
     }
     return;
   }
@@ -1187,11 +1231,15 @@ function onScreenParts(root, depth = 0) {
 /** The card scrim, faded inside the flying box, only for a photo that has one (bar cards; events and map tiles don't). */
 const cardScrimOf = (holder) => (holder?.querySelector(':scope > .card-scrim') ? `${cssVar('--scrim-bottom')}, ${cssVar('--scrim-top')}` : null);
 /** The old page is about to move into the fading ghost: remember the deals row's scroll first, as render() would. */
-function ghostPage(main, extra) {
+function ghostPage(main, extra, opts) {
   const rail = main.querySelector('.deals-rail:not(.sk-rail) .rail-list');
   if (rail) railScroll = rail.scrollLeft;
-  return makeGhost(main, extra);
+  return makeGhost(main, extra, opts);
 }
+/** Pages whose fading copy costs WebKit two long frames (MJ1: Scan present 74–94 ms, Events → Groups up to 139 ms on
+ *  the lab simulator, evidence/journeys-20261028/motion). Leaving one, only the bars go into the fading layer; the old
+ *  page is replaced at once and the new page's first screen slides in. */
+const HEAVY_PAGES = new Set(['tonight', 'events', 'console']);
 /** The new page's content enters: pages slide a little in the direction of travel; the photo flight only fades. */
 function enterContent(n, els, { dx = 0, dy = 0, delay = 0, duration = T.navPage } = {}) {
   const rm = reducedMotion();
@@ -1199,7 +1247,8 @@ function enterContent(n, els, { dx = 0, dy = 0, delay = 0, duration = T.navPage 
     if (!el?.animate) return;
     n.anims.push(rm
       ? el.animate({ opacity: [0, 1] }, { duration: T.rmIn, easing: 'linear', fill: 'backwards' })
-      : el.animate({ opacity: [0, 1], transform: [`translate(${dx}px, ${dy}px)`, 'none'] }, { duration, delay, easing: T.easeOut, fill: 'backwards' }));
+      // Nothing to move (the photo flights): opacity only, so no transform layer is made for a no-op (MJ4).
+      : el.animate(dx || dy ? { opacity: [0, 1], transform: [`translate(${dx}px, ${dy}px)`, 'none'] } : { opacity: [0, 1] }, { duration, delay, easing: T.easeOut, fill: 'backwards' }));
   });
 }
 /** List -> bar page: the tapped card's photo flies into the hero while the list fades and the page comes up under it. */
@@ -1298,13 +1347,14 @@ function flyToList(heroImg, doRender, sel, midFlight = null) {
 }
 /** Drill-in, Back, and Scan's present/dismiss: the old page fades (and sinks for dismiss) while the new one slides in.
  *  Scan hides the tab bar: presenting it drops a copy of the bar away; dismissing it brings the real one back up. */
-function pageMotion(dir, doRender) {
+function pageMotion(dir, doRender, { from = null } = {}) {
   const main = document.getElementById('main');
   const rm = reducedMotion();
   const tabbar = document.querySelector('.tabbar');
   const barBefore = topBarShown();
+  const heavy = HEAVY_PAGES.has(from) && dir !== 'dismiss';
   // The bars go with the old page when the new one hides them: Scan hides both, the bar page the top bar.
-  const ghost = navStep('ghost', () => ghostPage(main, [dir === 'present' && tabbar, barBefore && document.querySelector('.topbar')]));
+  const ghost = navStep('ghost', () => ghostPage(main, [dir === 'present' && tabbar, barBefore && document.querySelector('.topbar')], { page: !heavy }));
   ghost.dataset.dir = dir; // which way the page went (lab and tests read it)
   try { navStep('render', doRender); } catch (e) { ghost.remove(); throw e; }
   const n = startNav();
@@ -1312,8 +1362,16 @@ function pageMotion(dir, doRender) {
   // Both pages show the top bar: it stays in place above the fading page (no copy) instead of dimming with it.
   if (barBefore && topBarShown()) { ghost.querySelector(':scope > .topbar')?.remove(); ghost.classList.add('is-under-bar'); }
   // Only viewport-sized layers move: the old page (the ghost, clipped to the screen) and, for Scan, its own short page.
-  const short = [...main.children].filter((el) => el.getBoundingClientRect().height <= innerHeight * 1.25);
-  if (rm) {
+  // Scan's fixed Send bar has its own CSS entrance (@starting-style), so it isn't moved twice (MJ10).
+  const short = [...main.children].filter((el) => !el.matches('.scan-submit') && el.getBoundingClientRect().height <= innerHeight * 1.25);
+  if (heavy) {
+    // The old page is gone already (not copied): its bars fade with the layer, and the new first screen comes in.
+    n.anims.push(ghost.animate({ opacity: [1, 0] }, { duration: rm ? T.rmOut : T.navOut, easing: rm ? 'linear' : T.easeOut, fill: 'forwards' }));
+    const bar = !rm && dir === 'present' ? ghost.querySelector('.tabbar') : null;
+    if (bar) n.anims.push(bar.animate({ transform: ['none', 'translateY(100%)'] }, { duration: T.sheetOut, easing: T.easeOut, fill: 'forwards' }));
+    const parts = dir === 'present' ? short : onScreenParts(main);
+    enterContent(n, parts, dir === 'present' ? { dy: 24 } : { dx: dir === 'back' ? -24 : 24 });
+  } else if (rm) {
     n.anims.push(ghost.animate({ opacity: [1, 0] }, { duration: T.rmOut, easing: 'linear', fill: 'forwards' }));
   } else if (dir === 'present') {
     n.anims.push(ghost.animate({ opacity: [1, 0] }, { duration: T.navOut, easing: T.easeOut, fill: 'forwards' }));
@@ -1332,7 +1390,7 @@ function pageMotion(dir, doRender) {
 }
 function route({ viaPop = false } = {}) {
   // A 'couldn't load' toast belongs to the screen it was about; it doesn't follow you to the next one.
-  if (globalThis.__STORE__) { const t = [...document.querySelectorAll('#toasts .toast:not(.is-leaving)')].find((x) => x._key === 'live-retry'); if (t) dismissToast(t); }
+  if (globalThis.__STORE__ || LIVE) { const t = [...document.querySelectorAll('#toasts .toast:not(.is-leaving)')].find((x) => x._key === 'live-retry'); if (t) dismissToast(t); }
   // A sheet belongs to the page that opened it: Back/Forward or a link must not leave it over the next page (and a
   // stale Terms sheet must not be able to send a report that was left behind).
   const openPicker = document.getElementById('picker');
@@ -1345,6 +1403,7 @@ function route({ viaPop = false } = {}) {
   app.renderedHash = location.hash || '#/';
   app.route = parseHash(location.hash);
   if (globalThis.__STORE__ && TEAM_ONLY.has(app.route.name)) app.route = { name: 'notfound', params: {}, query: {} };
+  if (!globalThis.__STORE__ && LIVE && LIVE_HIDDEN.has(app.route.name)) app.route = { name: 'notfound', params: {}, query: {} };
   // An empty search closes when you leave Bars, so the sort row is back next time.
   if (app.route.name !== 'tonight' && !app.explore.q) app.ui.searchOpen = false;
   const r = app.route;
@@ -1364,21 +1423,23 @@ function route({ viaPop = false } = {}) {
     // Back/Forward and reload: the label belongs to this history entry, not to the last visit.
     app.venueBack = entry.back ?? null;
   } else if (r.name === 'venue') {
-    if (!isListRoute(prev.name)) {
+    const from = prev.name === 'scan' && app.scanOpener ? app.scanOpener : prev;
+    if (!isListRoute(from.name)) {
       const labels = { saved: 'Saved', passes: 'Passes', passDetail: 'Pass', console: 'Console', about: 'About', events: 'Events' };
-      app.venueBack = labels[prev.name] ? { label: labels[prev.name], href: buildHash(prev.name, prev.params, prev.query) } : null;
-    } else if (prev.name === 'tonight') app.venueBack = null;
+      app.venueBack = labels[from.name] ? { label: labels[from.name], href: buildHash(from.name, from.params, from.query) } : null;
+    } else if (from.name === 'tonight') app.venueBack = null;
   }
   if (isListRoute(r.name)) history.replaceState({ ...(history.state ?? {}), idx: histIdx(), back: r.name === 'tonight' ? null : app.venueBack ?? null, explore: { ...app.explore } }, '');
   if (r.name === 'console' && r.query.venue) app.console.venueId = r.query.venue;
   if (!globalThis.__STORE__) enterBusiness(r, prev);
+  if (!globalThis.__STORE__ && LIVE && r.name === 'points') loadPoints();
   // Passes sits under Points but opens from Profile too: its Back names where it came from (kept on its history entry).
   if (r.name === 'passes') {
     app.passesFrom = !viaPop && prev ? (TAB_OF[prev.name] === 'profile' ? 'profile' : 'points') : entry.from ?? app.passesFrom ?? 'points';
     history.replaceState({ ...(history.state ?? {}), from: app.passesFrom }, '');
   }
   if (r.name === 'groupNew' && !app.groupDraft) { app.groupDraft = newGroupDraft(); app.groupErrors = {}; }
-  if (r.name === 'events' && (globalThis.__STORE__ ? ['tonight', 'week', 'saved'] : ['tonight', 'week', 'ideas', 'saved']).includes(r.query.view)) app.ui.eventsView = r.query.view;
+  if (r.name === 'events' && (globalThis.__STORE__ || LIVE ? ['tonight', 'week', 'saved'] : ['tonight', 'week', 'ideas', 'saved']).includes(r.query.view)) app.ui.eventsView = r.query.view;
   if (r.name === 'ideaNew') {
     const valid = r.query.venue && app.venues.some((v) => v.id === r.query.venue);
     if (!app.ideaDraft) { app.ideaDraft = newIdeaDraft(valid ? r.query.venue : null); app.ideaErrors = {}; }
@@ -1388,14 +1449,19 @@ function route({ viaPop = false } = {}) {
     }
   }
   if (r.name !== 'profile') app.profileEdit = { editing: false, errors: {} };
-  if (r.name === 'scan' && prev?.name !== 'scan') app.scanReturn = !!prev; // close returns to where Scan was opened
-  if (r.name === 'scan' && r.query.venue && app.venues.some((v) => v.id === r.query.venue) && !app.state.activeWait) {
+  if (r.name === 'scan' && prev?.name !== 'scan') {
+    app.scanReturn = !!prev; // close returns to where Scan was opened
+    app.scanOpener = prev ? { name: prev.name, params: prev.params, query: prev.query } : null;
+  }
+  // A finished report doesn't wait for you: leaving its result (a link, a tab, Back) starts the next Scan at the camera.
+  if (prev?.name === 'scan' && r.name !== 'scan' && app.scan.step === 'done') resetScan();
+  if (r.name === 'scan' && r.query.venue && app.venues.some((v) => v.id === r.query.venue)) {
     resetScan({ venueId: r.query.venue, camera: app.scan.camera === 'open' ? 'open' : null }); // a camera just opened by this tap
     history.replaceState({ ...(history.state ?? {}), idx: histIdx() }, '', '#/scan');
     app.renderedHash = '#/scan';
   }
   if (r.name === 'pass') {
-    if (!globalThis.__STORE__ && (!app.passFlow || app.passFlow.venueId !== r.params.id || app.passFlow.step === 'done')) startPassFlow(r.params.id);
+    if (!(globalThis.__STORE__ || LIVE) && (!app.passFlow || app.passFlow.venueId !== r.params.id || app.passFlow.step === 'done')) startPassFlow(r.params.id);
   } else if (app.passFlow && app.passFlow.step !== 'pending') {
     app.passFlow = null;
   }
@@ -1411,7 +1477,7 @@ function route({ viaPop = false } = {}) {
     render({ focus: focusRow ? 'venue' : 'heading', scroll: viaPop ? 'restore' : 'top' });
   };
   // Store build: any first screen loads live data (a reminder or a relaunch can open Events or Saved first).
-  const needsFirstFetch = (globalThis.__STORE__ || ['tonight', 'venue', 'pass'].includes(r.name)) && !app.firstFetchStarted;
+  const needsFirstFetch = (globalThis.__STORE__ || LIVE || ['tonight', 'venue', 'pass'].includes(r.name)) && !app.firstFetchStarted;
   if (needsFirstFetch) app.firstFetchStarted = true;
   if (firstRoute) {
     firstRoute = false;
@@ -1454,7 +1520,7 @@ function route({ viaPop = false } = {}) {
     if (ready(heroImg) && inView(midFlight?.box ?? heroImg.getBoundingClientRect())) { flyToList(heroImg, doRender, sel, midFlight); return; }
   }
   midFlight?.held.remove(); // not handed over: the page pushes instead
-  pageMotion(dir === 'venue' ? (toDetail ? 'forward' : 'back') : dir, doRender);
+  pageMotion(dir === 'venue' ? (toDetail ? 'forward' : 'back') : dir, doRender, { from: prev?.name });
 }
 
 /* ---------------- simulated fetch (loading / error / offline) ---------------- */
@@ -1484,6 +1550,7 @@ async function liveRefresh({ initial = false, quiet = false } = {}) {
 async function refreshParts({ initial, quiet }) {
   const hadData = Boolean(app.live?.at);
   const failedBefore = Boolean(app.ui.refreshError && !hadData);
+  if (initial && !globalThis.__STORE__ && LIVE) api.getConfig().then(applyConfig, () => {});
   if (!quiet) { app.ui.loading = !hadData; app.ui.staleNotice = null; app.ui.refreshError = false; renderResultsOnly({ announceCount: false }); }
   const shape = (ok) => (v) => { if (!ok(v)) throw new ApiError('Unreadable response', { status: 200, code: 'bad_response' }); return v; };
   const [bars, status, ed] = await Promise.allSettled([
@@ -1504,6 +1571,7 @@ async function refreshParts({ initial, quiet }) {
       events: ed.status === 'fulfilled' ? ed.value.events ?? [] : prev?.events ?? [],
       at: coreOk ? Date.now() : prev.at,
       edAt: ed.status === 'fulfilled' ? Date.now() : Number.isFinite(edBefore) ? edBefore : null,
+      ...(!globalThis.__STORE__ && LIVE ? { env: BACKEND.env } : {}),
     };
     try { storage?.setItem(LIVE_KEY, JSON.stringify(app.live)); } catch { /* full or blocked storage: keep it in memory */ }
   }
@@ -1551,7 +1619,7 @@ const APP_VERSION = '1.0.0';
 const APP_NAME = globalThis.__APP_NAME__ ?? 'Night Out';
 
 function simulateFetch({ initial = false } = {}) {
-  if (globalThis.__STORE__) { liveRefresh({ initial }); return; }
+  if (globalThis.__STORE__ || LIVE) { liveRefresh({ initial }); return; }
   if (isOffline()) {
     app.ui.loading = false;
     // Never null: a later Reconnect must not swap the cards on screen for the first-load skeleton (QA plan 6.8).
@@ -1964,7 +2032,7 @@ function toggleSave(id) {
     app.state.saved.push(id);
     persist();
     refreshCurrent();
-    if (!globalThis.__STORE__) toast(`Saved ${v?.name ?? 'venue'}`, { key: `save:${id}` });
+    if (!(globalThis.__STORE__ || LIVE)) toast(`Saved ${v?.name ?? 'venue'}`, { key: `save:${id}` });
   } else {
     app.state.saved.splice(idx, 1);
     const rem = app.state.reminders?.[id] ?? null;
@@ -2018,6 +2086,7 @@ function refreshCurrent({ removedId } = {}) {
 
 /* ---------------- console ---------------- */
 function consoleVenue() {
+  if (!globalThis.__STORE__ && LIVE) return venueBar();
   const id = app.console.venueId && app.venues.some((v) => v.id === app.console.venueId) ? app.console.venueId : app.venues[0]?.id;
   return app.venues.find((v) => v.id === id);
 }
@@ -2041,14 +2110,6 @@ const CONSOLE_ITEMS = '#main .console-grid > section, #main .idea-reviews > arti
 function consoleList(leaving = [], after) {
   updateList({ sel: CONSOLE_ITEMS, leaving: leaving.filter(Boolean), render: rerenderConsole, after, rise: (n) => (n.closest('.feed') ? '0 -8px' : '0 8px') });
 }
-/** Re-render only the line photo panel (counting taps), keeping focus on the control that was used. */
-function rerenderPhoto(fallback) {
-  const el = document.getElementById('line-photo');
-  const v = consoleVenue();
-  if (!el || !v) { rerenderConsole(); return; }
-  preserveFocus(() => { el.outerHTML = photoPanel(v, ctx()); }, fallback ?? (() => document.querySelector('#line-photo .scene-btn')));
-  reliftToasts(); // the photo button may have moved under a toast that is still up
-}
 const ROLE_NAME = { ambassador: 'Ambassador', bouncer: 'Bouncer' };
 const DOOR_WORD = { moving: 'Letting in', capacity: 'One in, one out', paused: 'Paused', closed: 'Closed' };
 function countAnnounce(v, p) {
@@ -2060,11 +2121,8 @@ function snapPhoto() {
   const est = estimateFor(v, now());
   const around = ['fresh', 'aging'].includes(est.tone) && Number.isFinite(v.queue?.peopleLow) ? Math.round((v.queue.peopleLow + v.queue.peopleHigh) / 2) : 20;
   app.console.snaps += 1;
-  stopFill();
   const seed = `${v.id}:${app.console.snaps}`;
   app.console.photo = { venueId: v.id, seed, heads: headsFor(seed, around), count: 0, newest: -1, touched: false, filled: false, readyAt: performance.now() + 400 };
-  app.console.busyUntil = 0;
-  app.console.filling = false;
   const el = document.getElementById('line-photo');
   if (el) el.outerHTML = photoPanel(v, ctx()); else rerenderConsole();
   flashView(document.querySelector('#line-photo .lp-view'));
@@ -2072,9 +2130,6 @@ function snapPhoto() {
   document.querySelector('#line-photo .scene-btn')?.focus({ preventScroll: true });
   announce('Photo taken. Tap each head, or use the buttons.');
 }
-let fillTimer = null;
-let fillSteps = [];
-const stopFill = () => { clearTimeout(fillTimer); fillSteps.forEach(clearTimeout); fillSteps = []; };
 /** Patch the line photo panel in place (a running count roll keeps going; the math and "Publish N" swap). */
 function patchPhoto() {
   const el = document.getElementById('line-photo');
@@ -2083,44 +2138,16 @@ function patchPhoto() {
   preserveFocus(() => patchTree(el, fragment(photoPanel(v, ctx()))), () => document.querySelector('#line-photo .scene-btn'));
   reliftToasts(); // the photo button may have moved under a toast that is still up
 }
+/** Door console "Mark every head": instant (no one-by-one reveal, which read as a machine finding people). The marks
+ *  that are new fade in together (patchTree's enter), the count rolls once, and Publish takes focus. */
 function fillPhoto() {
   const v = consoleVenue();
   const p = app.console.photo;
-  if (!v || !p || p.venueId !== v.id || performance.now() < app.console.busyUntil) return;
-  stopFill();
-  const before = p.count;
-  const from = Math.min(p.count, DRAW_MAX);
+  if (!v || !p || p.venueId !== v.id) return;
   Object.assign(p, { count: p.heads, newest: -1, touched: true, filled: true });
-  const drawn = Math.min(p.heads, DRAW_MAX);
-  const step = Math.min(40, 1200 / Math.max(1, drawn - from));
-  const ms = reducedMotion() ? 0 : Math.round(step * Math.max(0, drawn - from)) + 200;
-  // The visible count steps with each mark as it appears and rolls into the final number (QA plan 4.7). A keyboard
-  // fill shows the final number at once.
-  const stepping = ms > 0 && motionOK();
-  app.console.busyUntil = performance.now() + ms;
-  app.console.filling = ms > 0 ? { from, step, before, shown: stepping ? before : p.count } : false;
-  rerenderPhoto();
-  if (stepping) {
-    const n = drawn - from;
-    for (let k = 1; k <= n; k += 1) {
-      fillSteps.push(setTimeout(() => {
-        const vis = document.querySelector('#line-photo .pc-vis');
-        if (!vis || app.console.photo !== p) return;
-        if (k === n) { rollText(vis, String(p.count), dirOf(vis.textContent, p.count)); return; }
-        delete vis.dataset.rollTo;
-        vis.textContent = String(from + k);
-      }, Math.round((k - 1) * step)));
-    }
-  }
-  const done = () => {
-    if (app.console.photo !== p) return;
-    app.console.filling = false;
-    app.console.busyUntil = 0;
-    patchPhoto();
-    document.querySelector('#line-photo [data-action="photo-publish"]')?.focus({ preventScroll: true });
-    announce(`${p.count} people counted. Ready to publish.`);
-  };
-  if (ms) fillTimer = setTimeout(done, ms); else done();
+  patchPhoto();
+  document.querySelector('#line-photo [data-action="photo-publish"]')?.focus({ preventScroll: true });
+  announce(`${p.count} people counted. Ready to publish.`);
 }
 function publishPhoto(btn) {
   const v = consoleVenue();
@@ -2131,13 +2158,15 @@ function publishPhoto(btn) {
     document.querySelector('#line-photo .scene-btn')?.focus();
     return;
   }
-  if (btn?.getAttribute('aria-disabled') === 'true' || performance.now() < p.readyAt || performance.now() < app.console.busyUntil) return;
+  if (btn?.getAttribute('aria-disabled') === 'true' || performance.now() < p.readyAt) return;
   const role = app.console.role;
   const id = `count-${refCode(`${v.id}${p.seed}${Date.now()}`).toLowerCase()}`;
   app.state.counts.unshift({ id, venueId: v.id, at: now(), night: app.state.clock.realStart, by: role, heads: p.count, seed: p.seed, method: p.filled && p.count === p.heads ? 'demo-fill' : 'tap' });
   app.state.counts = app.state.counts.slice(0, 100);
-  audit(v, `${ROLE_NAME[role]} photo count: ${p.count}`);
+  const filled = p.filled && p.count === p.heads;
+  audit(v, `${ROLE_NAME[role]} photo count: ${p.count}${filled ? ' (marked all)' : ''}`);
   app.console.photo = null;
+  const clearedBefore = app.ui.clearedQueue;
   app.ui.clearedQueue = null;
   persist(); rebuild();
   // QA plan 8.6: the count flies from the photo to where it lands (the new input row, else the guests' wait), the new
@@ -2157,7 +2186,15 @@ function publishPhoto(btn) {
     }
     if (moving && from?.width) flyCount(String(p.count), from);
   });
-  toast(`Published ${p.count}`);
+  // Undo takes the count back out (and brings back "Restore previous estimate" if the publish replaced a cleared one).
+  toast(`Published ${p.count} in line`, { key: 'publish', actionLabel: 'Undo', onAction: () => {
+    app.state.counts = app.state.counts.filter((c) => c.id !== id);
+    audit(v, `Undid: photo count ${p.count}`);
+    app.ui.clearedQueue = clearedBefore;
+    persist(); rebuild();
+    if (app.route.name === 'console') consoleList();
+    announce('Count taken back.');
+  } });
 }
 /** The published count's flight (QA plan 8.6): a chip leaves the photo's counter and lands on the new input row when it
  *  is on screen, else on the guests' wait in "What guests see now" (--d-fly, out); the place it lands nods once. */
@@ -2220,8 +2257,13 @@ function setDoor(t, key) {
   } });
 }
 /* ---------------- deals posted from the console ---------------- */
-const dealDraft = () => (app.console.dealDraft ??= newDealDraft(app.state.clock.base, now()));
+// A live draft remembers its night: sent after that night is over, it is refused, never moved to the next one.
+const dealDraft = () => (app.console.dealDraft ??= LIVE ? { ...newDealDraft(dealNight(), now()), night: dealNight() } : newDealDraft(dealNight(), now()));
+/** The night a deal is for. A live team build runs on the real clock: once tonight's last slot (2 AM) has passed, the
+ *  form is for the coming night. The demo's clock never leaves its night. */
+const dealNight = () => (LIVE && now() >= atNight(app.state.clock.base, 2, 0) ? atNightOn(app.state.clock.base, 1, 18, 0) : app.state.clock.base);
 function postDeal() {
+  if (LIVE) { postDealLive(); return; }
   const v = consoleVenue();
   const d = dealDraft();
   const { errors, title } = checkDeal(d);
@@ -2243,8 +2285,14 @@ function postDeal() {
   persist();
   rebuild();
   app.console.dealDraft = { ...newDealDraft(app.state.clock.base, now()), kind: d.kind };
-  consoleList(); // the new row rises into "Posted from this console"; the panels below glide down
-  toast('Deal posted');
+  consoleList(); // the new row rises into the posted list; the panels below glide down
+  toast('Deal posted', { actionLabel: 'Undo', onAction: () => {
+    app.state.deals = app.state.deals.filter((x) => x.id !== deal.id);
+    audit(v, `Removed deal: ${title}`);
+    persist(); rebuild();
+    if (app.route.name === 'console') consoleList();
+    announce('Deal removed.');
+  } });
 }
 function removeDeal(id) {
   const i = app.state.deals.findIndex((x) => x.id === id);
@@ -2265,10 +2313,15 @@ function audit(venue, summary) {
 }
 
 /* ---------------- Business view (team build): a demo login as one venue, no account or server ---------------- */
-const bizOn = () => !globalThis.__STORE__ && app.state.business?.on === true;
+const bizOn = () => !globalThis.__STORE__ && (LIVE ? app.venue.phase === 'ready' : app.state.business?.on === true);
 /** Opening the console while Business view is on signs in as the chosen venue (as its door staff); leaving it lets go
  *  of any photos added to preview. */
 function enterBusiness(r, prev) {
+  if (LIVE) {
+    if (r.name === 'console') enterVenue(r);
+    if (prev?.name === 'console' && r.name !== 'console') { dropUploads(); dropCountPhoto(); }
+    return;
+  }
   if (r.name === 'console' && bizOn()) {
     const valid = (id) => Boolean(id) && app.venues.some((v) => v.id === id);
     const want = valid(r.query.venue) ? r.query.venue : app.state.business.venueId;
@@ -2287,7 +2340,7 @@ function setBusiness(on, input) {
   const valid = (id) => Boolean(id) && app.venues.some((v) => v.id === id);
   const venueId = [app.state.business?.venueId, app.console.venueId, app.venues[0]?.id].find(valid) ?? null;
   app.state.business = { on, venueId };
-  Object.assign(app.console, { role: on ? 'bouncer' : 'ambassador', section: 'tonight', codeDraft: '', codeResult: null, photo: null });
+  Object.assign(app.console, { role: on ? 'bouncer' : 'ambassador', section: 'tonight', codeDraft: '', codeResult: null, photo: null, heldPhotos: {}, ideasFirst: null });
   persist();
   const sr = input?.closest('.switch-row')?.querySelector('.sr-only');
   if (sr) sr.textContent = `(${on ? 'on' : 'off'})`;
@@ -2297,11 +2350,23 @@ function setBusiness(on, input) {
 }
 function bizSection(s) {
   if (!BIZ_SECTIONS.some(([k]) => k === s)) return;
+  if (LIVE && !venueSections(app.venue.staff?.role).some(([k]) => k === s)) return;
   app.console.section = s;
+  if (LIVE) { app.venue.section = s; loadSection(); }
+  app.console.ideasFirst = null;
   history.replaceState({ ...(history.state ?? {}), idx: histIdx() }, '', buildHash('console', {}, { venue: consoleVenue()?.id, s }));
   app.renderedHash = location.hash;
+  // Tabs stuck under the top bar stay put: the new section starts just under them. Tabs still in place: top of page.
+  const tabs = document.querySelector('#main .biz-tabs');
+  const stickTop = tabs ? parseFloat(getComputedStyle(tabs).top) : NaN;
+  const stuck = Number.isFinite(stickTop) && window.scrollY > 0 && tabs.getBoundingClientRect().top <= stickTop + 1;
   rerenderConsole();
-  window.scrollTo({ top: 0, behavior: 'auto' });
+  if (!stuck) { window.scrollTo({ top: 0, behavior: 'auto' }); }
+  else {
+    const grid = document.querySelector('#main .biz-grid');
+    const t = document.querySelector('#main .biz-tabs');
+    if (grid && t) window.scrollTo({ top: Math.max(0, window.scrollY + grid.getBoundingClientRect().top - t.getBoundingClientRect().bottom - 12), behavior: 'auto' });
+  }
   announce(`${BIZ_SECTIONS.find(([k]) => k === s)[1]}`);
 }
 const rewardTitle = (id) => REWARDS.find((x) => x.id === id)?.title ?? 'Reward';
@@ -2328,14 +2393,14 @@ function confirmRedemption(code) {
   app.state.redemptions = app.state.redemptions.slice(0, 200);
   audit(v, `Redeemed ${r.code}: ${rewardTitle(red.rewardId)}`);
   persist();
-  Object.assign(app.console, { codeDraft: '', codeResult: null });
+  Object.assign(app.console, { codeDraft: '', codeResult: { kind: 'done', code: r.code, rewardId: red.rewardId, at: red.at } });
   consoleList();
-  document.getElementById('redeemed-h')?.focus?.({ preventScroll: true });
+  document.getElementById('redeem-result')?.focus?.({ preventScroll: true });
   toast(`Redeemed ${rewardTitle(red.rewardId)} · ${r.code}`, { actionLabel: 'Undo', onAction: () => {
     app.state.redemptions = app.state.redemptions.filter((x) => x.id !== red.id);
     audit(v, `Undid: redeemed ${r.code}`);
     persist();
-    if (app.console.codeResult?.code === r.code) app.console.codeResult = codeCheck(r.code); // a shown "Already redeemed" is valid again
+    if (app.console.codeResult?.code === r.code) app.console.codeResult = codeCheck(r.code); // a shown result ("Redeemed", "Already redeemed") is valid again
     if (app.route.name === 'console') consoleList();
     else if (app.route.name === 'points') patchPoints();
     announce(`${r.code} is valid again.`);
@@ -2390,6 +2455,630 @@ function dropUploads(match = () => true) {
 function setPassOverride(venue, patch) {
   const o = app.state.overrides[venue.id] ?? (app.state.overrides[venue.id] = {});
   o.pass = { ...(o.pass ?? {}), ...patch, capacity: { ...(o.pass?.capacity ?? {}), ...(patch.capacity ?? {}) } };
+}
+
+/* ---------------- Business view, live team build: a venue account on the server ---------------- */
+// Everything here runs only when LIVE (lib/backend.js) and goes through venueApi, never the guest's client. Human counts
+// only: a number, −/+, and taps on a photo that never leaves the phone. Nothing counts heads automatically.
+/** The bar Business view is on: one of the account's bars (an unlisted training bar too), with the public estimate
+ *  when it is a listed bar. */
+function venueBar() {
+  const s = app.venue;
+  const bars = s?.staff?.bars ?? [];
+  const b = bars.find((x) => x.id === s.barId) ?? bars[0];
+  if (!b) return null;
+  const listed = app.venues.find((x) => x.id === b.id);
+  return { ...(listed ?? { doors: [{ id: 'main', label: 'Door' }], queue: null, hours: null }), id: b.id, name: b.name, area: b.area ?? listed?.area ?? null, listed: Boolean(listed) && b.is_listed !== false };
+}
+/** No venue session (never signed in, signed out, or the server ended it): the sign-in panel names who it was and
+ *  what waits for them. */
+/** An open "sign out and delete N counts?" row follows the queue, and closes when nothing is left to lose. */
+function syncConfirm(s = app.venue) {
+  if (!s?.confirmOut) return;
+  const n = venueApi.queued().length;
+  Object.assign(s, n ? { queued: n } : { confirmOut: false });
+}
+function signedOutVenue(note = null) {
+  const s = app.venue;
+  const n = venueApi.queued().length;
+  // What the account saw (its count and line photo, preview photos, the last code checked, deals, report, notices) goes:
+  // the next person to sign in on this phone may be another account. The email, the note and the stored queue stay.
+  dropCountPhoto();
+  dropUploads();
+  app.console.dealDraft = null;
+  Object.assign(s, { phase: 'signin', staff: null, busy: false, error: null, errorField: null, email: s.email || venueApi.lastEmail(), note: n ? `Sign in again to send ${n} queued count${n === 1 ? '' : 's'}.` : note, ...accountState() });
+}
+function enterVenue(r) {
+  const s = app.venue;
+  if (BIZ_SECTIONS.some(([k]) => k === r.query.s)) s.section = r.query.s;
+  // A link names a bar: taken once the account's bars are known (readVenueStaff checks it), never one it doesn't have.
+  if (r.query.venue && (!s.staff || s.staff.bars.some((x) => x.id === r.query.venue))) s.barId = r.query.venue;
+  if (!venueApi.signedIn()) { if (s.phase !== 'signin') signedOutVenue(); return; }
+  if (s.phase === 'ready') { loadSection(); return; }
+  if (s.phase !== 'totp') { s.phase = 'loading'; loadVenueStaff(); }
+}
+const onConsole = () => app.route?.name === 'console';
+/** Redraw Business view after a phase change, landing focus on the field that needs fixing, else the panel's heading. */
+function showVenuePhase(focusSel = null) {
+  if (!onConsole()) return;
+  rerenderPage();
+  const el = (focusSel && document.querySelector(focusSel)) || document.querySelector('#main .biz-grid h2[tabindex]') || document.getElementById('page-h');
+  el?.focus({ preventScroll: true });
+}
+/** A venue call failed in a way that changes where Business view is: signed out, or the second factor is needed.
+ *  True when it moved (the caller just redraws). */
+function venueMoved(e) {
+  if (e?.code === 'signed_out') { signedOutVenue('You’ve been signed out. Sign in again.'); showVenuePhase('#venue-email'); return true; }
+  if (e?.code === 'mfa_required') { Object.assign(app.venue, { phase: 'totp', error: null, busy: false }); showVenuePhase('#venue-code'); return true; }
+  return false;
+}
+/** A server error (5xx, or an answer it couldn't read) is the server's problem, not the phone's connection. */
+const serverTrouble = (e) => (e?.status >= 500 || e?.code === 'bad_response' ? 'The server had a problem. Try again in a minute.' : null);
+/** Plain words for the other failures of a venue call. */
+function venueText(e) {
+  if (e?.pgCode === '42501') { loadVenueStaff(); return 'This bar isn’t on your account anymore.'; }
+  if (e?.code === 'unknown_bar' || e?.pgCode === '22023') { loadVenueStaff(); return 'This bar isn’t in the system anymore.'; }
+  if (e?.status === 0 && isOffline()) return 'You’re offline.';
+  return serverTrouble(e) ?? friendlyError(e);
+}
+function refuseVenue(text) {
+  const email = app.venue.email || venueApi.lastEmail();
+  venueApi.signOut();
+  dropCountPhoto();
+  dropUploads();
+  app.console.dealDraft = null; // an unsent deal is that account's
+  app.venue = freshVenue();
+  Object.assign(app.venue, { email, error: text, errorField: 'email' });
+  announce(text);
+}
+
+let venueLoading = null;
+function loadVenueStaff() { venueLoading ??= readVenueStaff().finally(() => { venueLoading = null; }); return venueLoading; }
+/** The server decides what this account may do: admins and non-staff are refused here; a bar manager needs the
+ *  second factor on this session; a counter counts. */
+async function readVenueStaff() {
+  const s = app.venue;
+  let staff;
+  try {
+    staff = await venueApi.getMyStaff();
+  } catch (e) {
+    if (app.venue !== s) return; // signed out meanwhile
+    if (venueMoved(e)) return;
+    if (e?.pgCode === '42501') { refuseVenue('This account can’t use Business view.'); showVenuePhase('#venue-email'); return; }
+    if (s.phase === 'ready') return; // keep working from what was loaded
+    Object.assign(s, { phase: 'error', confirmOut: false, error: e?.code === 'not_deployed' ? 'Not available yet.' : serverTrouble(e) ?? friendlyError(e) });
+    showVenuePhase();
+    return;
+  }
+  if (app.venue !== s) return;
+  if (!staff || !['counter', 'bar_manager'].includes(staff.role) || !Array.isArray(staff.bars)) {
+    refuseVenue(staff?.role === 'admin' ? 'Admin accounts can’t use Business view in the app.' : 'This account can’t use Business view.');
+    showVenuePhase('#venue-email');
+    return;
+  }
+  if (!staff.bars.length) { refuseVenue('This account has no bar yet. Ask Night Out.'); showVenuePhase('#venue-email'); return; }
+  if (staff.mfa?.required && !staff.mfa.ok) {
+    if (!staff.mfa.enrolled) { refuseVenue('Two-step sign-in isn’t set up for this account yet. Ask Night Out.'); showVenuePhase('#venue-email'); return; }
+    Object.assign(s, { phase: 'totp', staff: null, busy: false, confirmOut: false, error: s.verified ? 'That code didn’t unlock venue tools. Ask Night Out.' : null });
+    showVenuePhase('#venue-code');
+    return;
+  }
+  const first = s.phase !== 'ready';
+  Object.assign(s, { phase: 'ready', staff, busy: false, error: null, errorField: null, note: null, confirmOut: false });
+  if (!staff.bars.some((b) => b.id === s.barId)) s.barId = staff.bars[0].id;
+  if (!venueSections(staff.role).some(([k]) => k === s.section)) s.section = 'tonight';
+  if (s.section === 'offers') dealDraft();
+  if (first && onConsole()) { showVenuePhase(); history.replaceState({ ...(history.state ?? {}), idx: histIdx() }, '', buildHash('console', {}, { venue: s.barId, s: s.section })); app.renderedHash = location.hash; }
+  else if (onConsole()) rerenderConsole();
+  flushCounts();
+  loadSection();
+}
+
+/** Sign-in failures in words (GoTrue's codes; a shared campus network can hit the sign-in limit). */
+function signInText(e) {
+  if (!(e instanceof ApiError) || e.status === 0) return 'Can’t reach the server. Check your connection and try again.';
+  const c = e.authCode ?? e.code;
+  if (c === 'email_not_confirmed') return 'This account isn’t confirmed yet. Ask Night Out.';
+  if (c === 'invalid_credentials' || c === 'invalid_grant') return 'Wrong email or password.';
+  if (c === 'user_banned') return 'This account is turned off. Ask Night Out.';
+  if (e.status === 429 || /rate_limit/.test(String(c))) return friendlyError(e);
+  if (c === 'validation_failed') return 'Enter a valid email and your password.';
+  if (c === 'anonymous') return 'This isn’t a venue account.';
+  if (e.status >= 500) return 'The server had a problem. Try again in a minute.';
+  return 'Couldn’t sign in. Try again.';
+}
+async function venueSignIn(form) {
+  const s = app.venue;
+  if (s.busy) return;
+  const email = form.querySelector('#venue-email').value.trim().toLowerCase();
+  const pw = form.querySelector('#venue-password');
+  Object.assign(s, { email, note: null });
+  // An error names the field that gets focus (aria-invalid, described by the error) and is announced once.
+  if (!email || !pw.value) { Object.assign(s, { error: 'Enter your email and password.', errorField: email ? 'password' : 'email' }); patchPage(); form.querySelector(email ? '#venue-password' : '#venue-email')?.focus(); announce(s.error); return; }
+  if (isOffline()) { Object.assign(s, { error: 'You’re offline. Connect, then sign in.', errorField: null }); patchPage(); announce(s.error); return; }
+  Object.assign(s, { busy: true, error: null, errorField: null, verified: false });
+  patchPage();
+  try {
+    await venueApi.signIn(email, pw.value);
+  } catch (e) {
+    if (app.venue !== s) return;
+    Object.assign(s, { busy: false, error: signInText(e), errorField: 'password' });
+    patchPage();
+    document.getElementById('venue-password')?.focus();
+    announce(s.error);
+    return;
+  }
+  if (app.venue !== s) return; // signed out while it was on its way: never undone by the answer
+  pw.value = ''; // never kept once it worked
+  s.busy = false;
+  s.phase = 'loading';
+  showVenuePhase();
+  await loadVenueStaff();
+}
+async function venueTotp(form) {
+  const s = app.venue;
+  if (s.busy) return;
+  const code = form.querySelector('#venue-code').value.replace(/\s+/g, '');
+  if (!/^\d{6}$/.test(code)) { s.error = 'Enter the 6-digit code.'; patchPage(); document.getElementById('venue-code')?.focus(); announce(s.error); return; }
+  Object.assign(s, { busy: true, error: null, confirmOut: false });
+  patchPage();
+  try {
+    await venueApi.verifyTotp(code);
+  } catch (e) {
+    if (app.venue !== s) return; // signed out meanwhile ("Use another account")
+    s.busy = false;
+    if (venueMoved(e)) return;
+    s.error = e?.code === 'no_factor' ? 'Two-step sign-in isn’t set up for this account yet. Ask Night Out.'
+      : e?.status === 422 || /^mfa_/.test(String(e?.authCode)) ? 'That code didn’t work. Enter the newest one.' : signInText(e);
+    patchPage();
+    const f = document.getElementById('venue-code');
+    if (f) { f.value = ''; f.focus(); }
+    announce(s.error);
+    return;
+  }
+  if (app.venue !== s) return;
+  Object.assign(s, { busy: false, verified: true, phase: 'loading' });
+  showVenuePhase();
+  await loadVenueStaff();
+}
+/** Sign out (asks first when counts are still queued, from Business view, the code step or the error panel): session,
+ *  queued counts and the mirror go; the server ends the session too. */
+function venueSignOut({ confirmed = false } = {}) {
+  const n = venueApi.queued().length;
+  if (n && !confirmed && ['ready', 'totp', 'error'].includes(app.venue.phase)) {
+    Object.assign(app.venue, { confirmOut: true, queued: n });
+    rerenderConsole();
+    document.querySelector('#main [data-action="venue-signout-confirm"]')?.focus();
+    return;
+  }
+  venueApi.signOut();
+  dropUploads();
+  dropCountPhoto();
+  app.console.dealDraft = null;
+  app.venue = freshVenue();
+  showVenuePhase('#venue-email');
+  announce('Signed out.');
+}
+function venueSwitch(id) {
+  const s = app.venue;
+  if (!s.staff?.bars.some((b) => b.id === id)) return;
+  dropCountPhoto();
+  Object.assign(s, { barId: id, count: { ...freshCount(), door: s.count.door }, code: freshCode(), deals: null, report: null, confirmOut: false, withdrawAsk: null });
+  history.replaceState({ idx: histIdx() }, '', buildHash('console', {}, { venue: id, s: s.section }));
+  app.renderedHash = location.hash;
+  rerenderConsole();
+  loadSection();
+}
+/** The section's server data: deals for Offers, the report for Report and Redeem; Tonight sends what is queued. */
+function loadSection() {
+  const s = app.venue;
+  if (s.phase !== 'ready') return;
+  if (s.section === 'offers') { dealDraft(); loadDeals(); } // the draft first, so the form shows the night it is for
+  if (s.section === 'report' || s.section === 'redeem') loadReport();
+  if (s.section === 'tonight') flushCounts();
+}
+
+/* Tonight: count, then Publish. The count waits in the client's queue (offline, a timeout, a 5xx) and is sent with its
+   own time; the 3 newest per bar wait at most 15 minutes, and a refused one is never sent again. */
+const countInput = () => document.getElementById('count-people');
+function countSet(n) {
+  const c = app.venue.count;
+  c.people = Math.max(0, Math.min(400, n));
+  Object.assign(c, { raw: null, error: null });
+  patchPage();
+  const input = countInput();
+  if (input) input.value = String(c.people);
+  announce(`${c.people} counted.`);
+}
+let countPhotoEl = null;
+/** The phone's photo picker (library or camera, its choice; no capture attribute). Outside #main. */
+function countPhotoInput() {
+  if (countPhotoEl) return countPhotoEl;
+  const el = (countPhotoEl = document.createElement('input'));
+  Object.assign(el, { type: 'file', id: 'count-photo', accept: 'image/*', tabIndex: -1 });
+  el.setAttribute('aria-hidden', 'true');
+  el.className = 'cam-input';
+  el.addEventListener('change', () => {
+    const file = el.files?.[0];
+    el.value = '';
+    if (!file || !/^image\//.test(file.type) || !onConsole() || !bizOn()) return;
+    dropCountPhoto();
+    Object.assign(app.venue.count, { photo: URL.createObjectURL(file), marks: [] });
+    patchPage();
+    document.querySelector('#main [data-action="count-mark"]')?.focus({ preventScroll: true });
+    announce('Photo added. Tap each head to count it.');
+  });
+  document.body.append(el);
+  return el;
+}
+/** Let go of the count photo (memory only: it was never saved or sent). */
+function dropCountPhoto() {
+  const c = app.venue?.count;
+  if (c?.photo) URL.revokeObjectURL(c.photo);
+  if (c) Object.assign(c, { photo: null, marks: [] });
+}
+function markHead(btn, e) {
+  const c = app.venue.count;
+  if (!c.photo || c.people >= 400) return;
+  const r = btn.getBoundingClientRect();
+  const x = e?.clientX && r.width ? ((e.clientX - r.left) / r.width) * 100 : 50;
+  const y = e?.clientY && r.height ? ((e.clientY - r.top) / r.height) * 100 : 50;
+  c.marks.push({ x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 });
+  countSet(c.people + 1);
+}
+function setCountMsg(barId, m) {
+  app.venue.msg[barId] = { ...m, at: Date.now() };
+  if (m.until) startCountdown();
+}
+function notice(barId, text) {
+  const s = app.venue;
+  s.notices = [...s.notices.filter((n) => Date.now() - n.at < 10 * MIN_MS), { barId, text, at: Date.now() }].slice(-5);
+  announce(text);
+}
+/** A refused live count: the status (a live region) says it once, in minutes; the seconds tick beside it, hidden from
+ *  screen readers, so the wait isn't read out every second. */
+const waitMsg = (until) => ({ kind: 'error', text: 'Too soon after the last count here.', sr: `Try again in about ${Math.max(1, Math.round((until - Date.now()) / 60_000))} min.`, until });
+let countdownTimer = 0;
+/** A refused live count says when the next one is taken, second by second (the ticking text node only). */
+function startCountdown() {
+  if (countdownTimer) return;
+  countdownTimer = setInterval(() => {
+    const el = document.querySelector('#count-status[data-until]');
+    const left = Object.entries(app.venue?.msg ?? {}).filter(([, m]) => m.until);
+    for (const [id, m] of left) if (m.until <= Date.now()) delete app.venue.msg[id];
+    if (el) { const u = Number(el.dataset.until); const tick = el.querySelector('[data-tick]'); if (u > Date.now()) { if (tick) tick.textContent = ` ${countWait(u, Date.now())}`; } else if (onConsole()) patchPage(); }
+    if (!left.some(([, m]) => m.until > Date.now())) { clearInterval(countdownTimer); countdownTimer = 0; }
+  }, 1000);
+}
+function publishCount() {
+  const s = app.venue;
+  const v = venueBar();
+  const c = s.count;
+  if (!v) return;
+  const typed = (countInput()?.value ?? String(c.people)).trim();
+  const n = Number(typed);
+  if (!/^\d+$/.test(typed) || n > 400) {
+    c.error = n > 400 ? 'Over 400: check the count. One count can post up to 400.' : 'Enter the number of people, 0 to 400.';
+    patchPage();
+    countInput()?.focus();
+    announce(c.error);
+    return;
+  }
+  const { dropped } = venueApi.queueCount({ barId: v.id, barName: v.name, people: n, door: c.door, pace: ['paused', 'closed'].includes(c.door) ? null : c.pace });
+  syncConfirm(s);
+  for (const d of dropped) notice(d.bar_id, `Not sent: ${d.people} at ${d.bar_name} from ${formatTime(d.at)}. Only the 3 newest counts wait to send.`);
+  dropCountPhoto();
+  Object.assign(c, { people: 0, raw: null, error: null });
+  setCountMsg(v.id, { kind: 'queued', text: isOffline() ? 'Offline. Queued, will send.' : 'Sending…' });
+  patchPage();
+  if (countInput()) countInput().value = '0';
+  haptic('medium');
+  flushCounts();
+}
+let flushing = null;
+let flushTimer = 0;
+let flushTries = 0;
+function flushCounts() { if (!venueApi) return null; flushing ??= sendCounts().finally(() => { flushing = null; }); return flushing; }
+const queuedText = (n) => `${n} count${n === 1 ? '' : 's'} queued, will send.`;
+async function sendCounts() {
+  const s = app.venue;
+  clearTimeout(flushTimer);
+  for (const q of venueApi.expireQueue()) {
+    // tries > 0: a request went out, and the server may have taken it before the answer was lost.
+    notice(q.bar_id, q.tries > 0 ? `Couldn’t confirm ${q.people} at ${q.bar_name} from ${formatTime(q.at)} was sent. It’s over 15 minutes old now. Count again.`
+      : `Not sent: ${q.people} at ${q.bar_name} from ${formatTime(q.at)}. Over 15 minutes old, so it was dropped. Count again.`);
+  }
+  const waiting = venueApi.queued();
+  if (!waiting.length) { flushTries = 0; return; }
+  if (!venueApi.signedIn()) { if (s.phase !== 'signin') { signedOutVenue(); showVenuePhase('#venue-email'); } return; }
+  if (s.phase !== 'ready') return;
+  if (isOffline()) {
+    for (const id of new Set(waiting.map((q) => q.bar_id))) setCountMsg(id, { kind: 'queued', text: `Offline. ${queuedText(waiting.filter((q) => q.bar_id === id).length)}` });
+    if (onConsole()) patchPage();
+    return;
+  }
+  const results = await venueApi.flush();
+  // Signed out while it was sending: nothing here is this panel's any more. A count the next account published joined
+  // this pass and was left for it: a fresh pass sends it (after this one has let go of `flushing`).
+  if (app.venue !== s) { setTimeout(flushCounts, 0); return; }
+  let again = false;
+  for (const r of results) {
+    const q = r.item;
+    if (r.kind === 'sent') { flushTries = 0; setCountMsg(q.bar_id, { kind: 'ok', text: `Posted ${q.people} at ${formatTime(q.at)}.` }); announce(`Posted ${q.people}.`); continue; }
+    if (r.kind === 'retry') { again = true; setCountMsg(q.bar_id, { kind: 'queued', text: r.error?.status >= 500 ? 'Server problem. Queued, will retry.' : 'Queued, will send.' }); continue; }
+    if (r.kind === 'signed_out' || r.kind === 'mfa') { venueMoved(r.error); return; }
+    // Refused: gone for good. A count just made gets its words (a wait gets a countdown, and the number goes back in);
+    // a queued one that comes back refused leaves a notice.
+    const e = r.error;
+    const text = e?.code === 'rate_limited' ? null
+      : e?.pgCode === '22023' && /counted_at|15 minutes/i.test(e.message) ? (q.tries > 0 ? 'Couldn’t confirm it was sent, and it’s now over 15 minutes old. Count again.' : 'Too old to send (over 15 minutes). Count again.')
+        : e?.pgCode === '22023' || e?.pgCode === '22P02' ? 'The server didn’t accept this count. Check the number and post again.'
+          : e?.code === 'not_deployed' ? 'Not available yet.' : venueText(e);
+    if (!r.queued && q.bar_id === s.barId) {
+      if (e?.code === 'rate_limited') {
+        setCountMsg(q.bar_id, waitMsg(Date.now() + (Number(e.retryAfter) || 120) * 1000));
+        if (!s.count.people) s.count.people = q.people;
+      } else setCountMsg(q.bar_id, { kind: 'error', text });
+    } else {
+      notice(q.bar_id, e?.code === 'rate_limited' ? `Not sent: ${q.people} at ${q.bar_name} from ${formatTime(q.at)}. It came too soon after another count.` : `${q.bar_name}: ${text}`);
+      delete s.msg[q.bar_id];
+    }
+  }
+  const left = venueApi.queued();
+  for (const id of new Set(left.map((q) => q.bar_id))) if (s.msg[id]?.kind !== 'error') setCountMsg(id, { kind: 'queued', text: s.msg[id]?.kind === 'queued' ? s.msg[id].text : queuedText(left.filter((q) => q.bar_id === id).length) });
+  syncConfirm(s);
+  // The field shows the count, unless it holds a number being typed (that stays as typed).
+  if (onConsole()) { patchPage(); if (countInput() && document.activeElement !== countInput() && s.count.raw == null) countInput().value = String(s.count.people); }
+  if (again && left.length) {
+    flushTimer = setTimeout(flushCounts, Math.min(30_000, 5000 * 2 ** Math.min(flushTries, 3)));
+    flushTries += 1;
+  }
+}
+
+/* Redeem: check a code, then mark it redeemed, once. No Undo: a redemption can't be taken back. */
+const focusResult = () => (document.querySelector('#main [data-action="redeem-confirm"]') ?? document.getElementById('redeem-result'))?.focus({ preventScroll: true });
+function codeTrouble(e) {
+  const m = Math.max(1, Math.ceil((Number(e?.retryAfter) || 600) / 60));
+  if (e?.code === 'locked') return `Code checks are paused at this bar for about ${m} min (too many unknown codes).`;
+  if (e?.code === 'rate_limited') return `Too many codes didn’t check out. Try again in about ${m} min.`;
+  if (e?.code === 'not_deployed') return 'Not available yet.';
+  return venueText(e);
+}
+async function checkCodeLive(raw) {
+  const s = app.venue;
+  const v = venueBar();
+  const c = s.code;
+  if (!v || c.busy || c.result?.busy) return; // never while a redemption is on its way
+  c.draft = String(raw ?? '');
+  const code = voucherCode(raw);
+  if (!code) { c.result = { kind: 'invalid' }; rerenderConsole(); document.getElementById('redeem-code')?.focus(); return; }
+  // The code of a redemption whose answer was lost: try that redemption again (its own id: "duplicate" if it went
+  // through), never a fresh check, which would read this bar's own redemption as already used.
+  if (c.lost?.code === code) { c.result = { kind: 'pending', code, reward: c.lost.reward }; redeemLive(code); return; }
+  if (isOffline()) { c.result = { kind: 'error', text: 'You’re offline. Codes can’t be checked offline.' }; rerenderConsole(); focusResult(); return; }
+  Object.assign(c, { busy: true, draft: code, result: null });
+  rerenderConsole();
+  let out;
+  try {
+    out = await venueApi.checkVoucher(v.id, code);
+  } catch (e) {
+    if (app.venue !== s) return;
+    c.busy = false;
+    if (venueMoved(e)) return;
+    if (voucherCode(c.draft) !== code) { rerenderConsole(); return; } // the field moved on meanwhile
+    c.result = e?.code === 'invalid_code' ? { kind: 'invalid' } : { kind: 'error', text: codeTrouble(e) };
+    rerenderConsole();
+    focusResult();
+    return;
+  }
+  if (app.venue !== s) return;
+  c.busy = false;
+  // The field was changed to another code while this one was checked: its answer is for a code no longer shown.
+  if (voucherCode(c.draft) !== code) { rerenderConsole(); return; }
+  c.result = { kind: out?.kind ?? 'unknown', code, reward: out?.reward ?? null, expiresAt: out?.expires_at ?? null, usedHereAt: out?.used_here_at ? Date.parse(out.used_here_at) : null };
+  // One redemption id per code; a retry after a timeout reuses it.
+  if (c.result.kind === 'valid' && c.clientCode !== code) Object.assign(c, { clientId: uuid(), clientCode: code, lost: null });
+  rerenderConsole();
+  focusResult();
+  if (c.result.kind === 'valid') announce(`Valid: ${c.result.reward?.title ?? 'reward'}.`);
+}
+async function redeemLive(code) {
+  const s = app.venue;
+  const v = venueBar();
+  const c = s.code;
+  const r = c.result;
+  if (!v || !r || r.code !== code || !['valid', 'pending'].includes(r.kind) || r.busy) return;
+  if (isOffline()) { c.result = { kind: 'error', text: 'You’re offline. Nothing was redeemed.' }; rerenderConsole(); focusResult(); return; }
+  if (!c.clientId || c.clientCode !== code) Object.assign(c, { clientId: uuid(), clientCode: code });
+  r.busy = true;
+  rerenderConsole();
+  // No answer (a timeout, a 5xx, or a 2xx that isn't the server's answer): it may have gone through. Trying again with
+  // the same id answers "duplicate".
+  const lostAnswer = () => { c.result = { ...r, kind: 'pending' }; c.lost = { code, reward: r.reward }; rerenderConsole(); focusResult(); };
+  let out;
+  try {
+    out = await venueApi.redeemVoucher(v.id, code, c.clientId);
+  } catch (e) {
+    if (app.venue !== s) return;
+    r.busy = false;
+    if (venueMoved(e)) return;
+    if (e?.retryable) { lostAnswer(); return; }
+    if (['used', 'expired', 'not_offered_here', 'offer_limit', 'unknown'].includes(e?.code)) Object.assign(c, { result: { kind: e.code, code, reward: r.reward }, clientId: null, clientCode: null, lost: null });
+    else c.result = { kind: 'error', text: codeTrouble(e) };
+    rerenderConsole();
+    focusResult();
+    return;
+  }
+  if (app.venue !== s) return;
+  r.busy = false;
+  if (!(out?.ok === true && ['accepted', 'duplicate'].includes(out.status))) { lostAnswer(); return; }
+  // accepted, or duplicate (this same redemption, answered again after a lost reply): redeemed either way.
+  Object.assign(c, { result: { kind: 'done', code, reward: out.reward ?? r.reward, at: Date.parse(out.at) || Date.now() }, clientId: null, clientCode: null, lost: null, draft: '' });
+  rerenderConsole();
+  focusResult();
+  haptic('success');
+  announce(`Redeemed ${c.result.reward?.title ?? 'the reward'}.`);
+  loadReport();
+}
+/** Typing in the code field: a result for another code goes (its Mark as redeemed would redeem that other code). A lost
+ *  redemption keeps its id and code, so checking that code again tries it again. */
+function codeEdited(input) {
+  const c = app.venue.code;
+  c.draft = input.value;
+  if (!c.result || c.result.busy || voucherCode(input.value) === c.result.code) return;
+  if (c.result.kind !== 'pending' && !c.lost) Object.assign(c, { clientId: null, clientCode: null });
+  c.result = null;
+  document.querySelector('#main #redeem-result')?.remove();
+  input.removeAttribute('aria-invalid');
+  input.setAttribute('aria-describedby', 'redeem-help');
+}
+
+/* Offers: a deal goes to Night Out for review ("Sent for review"); the list is the bar's own deals. */
+const DEAL_FIELD_TEXT = {
+  pick_kind: 'Pick a deal type.', pick_drink: 'Pick the drink.', price_range: 'Enter the price per drink, $1 to $50.',
+  cost_not_confirmed: 'Confirm the price is at or above your cost.', title_required: 'Add a short headline.', title_too_short: 'Use at least 3 characters.',
+  title_too_long: 'Keep it to 32 characters.', unsupported_characters: 'Use plain letters, numbers and punctuation. Emoji and hidden characters aren’t allowed.',
+  banned_terms: 'New Jersey doesn’t allow unlimited, free-drink, upsized or gender-based deals.', multi_drink: 'New Jersey doesn’t allow 2-for-1 or multi-drink deals on alcohol.',
+  alcohol_needs_drink_special: 'Alcohol prices go under “Drink special (21+)” so the price and size are checked.', time_required: 'Pick a start and end time.',
+  end_before_start: 'The deal has to end after it starts.', already_ended: 'That end time has already passed.', too_far: 'A deal can start at most 7 days ahead.',
+  one_night: 'A deal runs one night, 12 hours at most.',
+};
+function dealErrorsShown(errors) {
+  patchPage();
+  const first = ['kind', 'title', 'item', 'price', 'costOk', 'time'].find((k) => errors[k]);
+  const id = { title: 'deal-title', item: 'deal-item', price: 'deal-price', costOk: 'deal-cost', time: 'deal-start' }[first];
+  focusInvalid(document.getElementById(id), first === 'time' ? document.querySelector('#deal-form .field-pair') : null);
+  announce(errors[first] ?? '');
+}
+async function postDealLive() {
+  const s = app.venue;
+  const v = venueBar();
+  const d = dealDraft();
+  if (!v || s.dealSending) return;
+  const night = dealNight();
+  // The form is for the night it was opened on. Past 2 AM that night is over: the times are reset for the coming night
+  // and the deal isn't sent (never quietly moved to another night).
+  if (d.night != null && d.night !== night) {
+    app.console.dealDraft = { ...d, ...newDealDraftTimes(night), night };
+    app.console.dealErrors = { time: 'That end time has already passed tonight.' };
+    dealErrorsShown(app.console.dealErrors);
+    return;
+  }
+  const { errors, title } = checkDeal(d);
+  const startsAt = atNight(night, d.start[0], d.start[1]);
+  const endsAt = atNight(night, d.end[0], d.end[1]);
+  if (!errors.time && endsAt <= Date.now()) errors.time = 'That end time has already passed tonight.';
+  app.console.dealErrors = errors;
+  if (Object.keys(errors).length) { dealErrorsShown(errors); return; }
+  if (isOffline()) { toast('You’re offline. Not sent.'); return; } // the draft stays as it is
+  const drink = d.kind === 'drink';
+  const args = { barId: v.id, kind: d.kind, title: drink ? null : title, drinkItem: drink ? d.item : null, priceCents: drink ? Math.round(Number(d.price) * 100) : null,
+    costConfirmed: drink && Boolean(d.costOk), startsAt: new Date(startsAt).toISOString(), endsAt: new Date(endsAt).toISOString() };
+  const sig = JSON.stringify(args);
+  if (s.dealClient?.sig !== sig) s.dealClient = { sig, id: uuid() }; // the same deal sent again (a lost answer) keeps its id
+  s.dealSending = true;
+  patchPage();
+  let out;
+  try {
+    out = await venueApi.submitDeal({ ...args, clientId: s.dealClient.id });
+  } catch (e) {
+    if (app.venue !== s) return;
+    s.dealSending = false;
+    if (venueMoved(e)) return;
+    if (e?.code === 'invalid_deal') {
+      app.console.dealErrors = Object.fromEntries(Object.entries(e.data?.fields ?? {}).map(([k, code]) => [k, DEAL_FIELD_TEXT[code] ?? 'Check this field.']));
+      if (Object.keys(app.console.dealErrors).length) { dealErrorsShown(app.console.dealErrors); return; }
+    }
+    patchPage();
+    toast(e?.code === 'too_many_deals' ? 'This bar already has 5 live or waiting deals. Withdraw one first.'
+      : e?.code === 'rate_limited' ? `Too many deals sent today. Try again in about ${Math.max(1, Math.ceil((Number(e.retryAfter) || 3600) / 3600))} h.` : venueText(e));
+    return;
+  }
+  if (app.venue !== s) return;
+  s.dealSending = false;
+  // A 2xx that isn't the server's answer (a proxy page, a cut-off body): nothing says it was stored. The draft and its
+  // id stay, so sending again can't make a second deal.
+  if (!(out?.ok === true && ['pending', 'duplicate'].includes(out.status))) { patchPage(); toast('Couldn’t confirm it was sent. Try again.'); return; }
+  s.dealClient = null;
+  app.console.dealDraft = { ...newDealDraft(night, now()), kind: d.kind, night };
+  app.console.dealErrors = {};
+  patchPage();
+  toast(out.status === 'duplicate' ? 'Already sent for review' : 'Sent for review');
+  loadDeals();
+}
+/** A new draft's start and end for a night (the rest of the draft stays as typed). */
+const newDealDraftTimes = (night) => { const { start, end } = newDealDraft(night, now()); return { start, end }; };
+async function loadDeals() {
+  const s = app.venue;
+  const v = venueBar();
+  if (!v || s.staff?.role !== 'bar_manager') return;
+  const prev = s.deals?.barId === v.id ? s.deals : null;
+  // A reply for another bar (switched meanwhile) or another account (signed out meanwhile) is dropped.
+  const stale = () => app.venue !== s || venueBar()?.id !== v.id;
+  try {
+    const out = await venueApi.deals(v.id);
+    if (stale()) return;
+    if (!Array.isArray(out?.deals)) throw new ApiError('Unreadable response', { status: 200, code: 'bad_response' });
+    s.deals = { barId: v.id, list: out.deals, error: null };
+  } catch (e) {
+    if (app.venue !== s) return;
+    if (venueMoved(e)) return;
+    if (stale()) return;
+    // A server problem or an unreadable answer keeps the last good list.
+    s.deals = { barId: v.id, list: prev?.list ?? null, error: e?.code === 'not_deployed' ? 'Not available yet.' : prev?.list ? null : 'Couldn’t load your deals. Try again in a minute.' };
+  }
+  if (onConsole() && s.section === 'offers') rerenderConsole();
+}
+/** Withdraw: a deal guests can see now (live, or approved) asks first, since only a new review brings it back. One
+ *  request per deal at a time. */
+async function withdrawDeal(id, { confirmed = false } = {}) {
+  const s = app.venue;
+  const v = venueBar();
+  if (!v || s.withdrawing.includes(id)) return;
+  const d = (s.deals?.barId === v.id ? s.deals.list : null)?.find((x) => x.id === id);
+  const seen = d && (d.review_state === 'approved' || (d.is_published && Date.parse(d.ends_at) > Date.now()));
+  if (seen && !confirmed) {
+    s.withdrawAsk = id;
+    rerenderConsole();
+    document.querySelector('#main [data-action="deal-withdraw-confirm"]')?.focus();
+    return;
+  }
+  s.withdrawAsk = null;
+  if (isOffline()) { rerenderConsole(); toast('You’re offline. Nothing changed.'); return; }
+  s.withdrawing = [...s.withdrawing, id];
+  rerenderConsole();
+  try {
+    const out = await venueApi.withdrawDeal(v.id, id);
+    if (app.venue !== s) return;
+    toast(out?.status === 'withdrawn' ? 'Deal withdrawn' : 'That deal was already off.');
+  } catch (e) {
+    if (app.venue !== s) return;
+    s.withdrawing = s.withdrawing.filter((x) => x !== id);
+    if (venueMoved(e)) return;
+    toast(e?.code === 'not_found' ? 'That deal isn’t on this bar anymore.' : venueText(e));
+  }
+  s.withdrawing = s.withdrawing.filter((x) => x !== id);
+  document.getElementById('deal-h')?.focus({ preventScroll: true });
+  loadDeals();
+}
+async function loadReport() {
+  const s = app.venue;
+  const v = venueBar();
+  if (!v || s.staff?.role !== 'bar_manager') return;
+  const prev = s.report?.barId === v.id ? s.report : null;
+  const stale = () => app.venue !== s || venueBar()?.id !== v.id;
+  try {
+    const out = await venueApi.report(v.id, 7);
+    if (stale()) return;
+    if (!Array.isArray(out?.nights)) throw new ApiError('Unreadable response', { status: 200, code: 'bad_response' });
+    s.report = { barId: v.id, data: out, error: null };
+  } catch (e) {
+    if (app.venue !== s) return;
+    if (venueMoved(e)) return;
+    if (stale()) return;
+    s.report = { barId: v.id, data: prev?.data ?? null, error: e?.code === 'not_deployed' ? 'Not available yet.' : prev?.data ? null : 'Couldn’t load the report. Try again in a minute.' };
+  }
+  if (onConsole() && ['report', 'redeem'].includes(s.section)) rerenderConsole();
 }
 
 /* ---------------- demo controls ---------------- */
@@ -2728,8 +3417,13 @@ function unreachableReports() {
   return me ? sent.filter((r) => r.account && r.account !== me).length : 0;
 }
 
+/** Where to ask about reports this phone can't reach. The store build's Help links to support; a live team build's Help
+ *  has no contact yet, so it names none. */
+const supportFor = (what) => (!globalThis.__STORE__ && LIVE ? '' : `: contact support from Help to delete ${what}`);
+/** friendlyError, minus the support route a live team build doesn't have yet. */
+const liveError = (e) => (!globalThis.__STORE__ && LIVE && e?.code === 'not_allowed' ? 'Reports from this phone are paused.' : friendlyError(e));
 async function deleteMyData() {
-  if (!globalThis.__STORE__ || app.ui.deleting) return;
+  if (!(globalThis.__STORE__ || LIVE) || app.ui.deleting) return;
   // What the confirm text promised: a server deletion when this phone had a sign-in.
   const wasLinked = api.hasAccount();
   const unreachableBefore = unreachableReports();
@@ -2766,15 +3460,16 @@ async function deleteMyData() {
   app.state.ageConfirmed = true;
   app.state.splashSeen = true;
   app.state.clock = { v: 2, realStart: Date.now(), base: nightAnchor(Date.now()), offsetMin: 0 };
+  if (!globalThis.__STORE__ && LIVE) app.points = freshPoints(); // the reward codes went with the state; a venue sign-in stays
   persist();
   rebuild();
   rerenderPage();
   // Without a sign-in on this phone nothing could be sent to the server, so only claim what happened here.
   toast(!out?.nothing_on_server ? (unreachable
-      ? `Your data was deleted, here and on our server, except ${unreachable === 1 ? 'one earlier report' : `${unreachable} earlier reports`} sent under an older sign-in: contact support from Help to delete ${unreachable === 1 ? 'it' : 'them'}.`
+      ? `Your data was deleted, here and on our server, except ${unreachable === 1 ? 'one earlier report' : `${unreachable} earlier reports`} sent under an older sign-in${supportFor(unreachable === 1 ? 'it' : 'them')}.`
       : 'Your data was deleted, here and on our server.')
-    : unreachable ? `Deleted from this phone. ${unreachable === 1 ? 'The report it sent is' : `The ${unreachable} reports it sent are`} still on our server, and this phone can’t reach ${unreachable === 1 ? 'it' : 'them'}: contact support from Help to delete ${unreachable === 1 ? 'it' : 'them'}.`
-      : 'Deleted from this phone. It has no sign-in on our server, so it can’t tell whether reports it sent earlier (before its data was cleared) are still there: contact support from Help to delete those.', { timeout: 10_000 });
+    : unreachable ? `Deleted from this phone. ${unreachable === 1 ? 'The report it sent is' : `The ${unreachable} reports it sent are`} still on our server, and this phone can’t reach ${unreachable === 1 ? 'it' : 'them'}${supportFor(unreachable === 1 ? 'it' : 'them')}.`
+      : `Deleted from this phone. It has no sign-in on our server, so it can’t tell whether reports it sent earlier (before its data was cleared) are still there${supportFor('those')}.`, { timeout: 10_000 });
 }
 
 /* ---------------- scan: line reports ---------------- */
@@ -2788,17 +3483,20 @@ async function submitReportLive() {
   const v = app.venues.find((x) => x.id === f.venueId);
   if (!v) return;
   if (!app.state.termsAgreedAt) { openTermsSheet(); return; }
+  // A report is about the line now, so it isn't queued: it stays filled in, to send once the phone is back online.
+  if (isOffline()) { f.error = 'You’re offline. Not sent.'; rerenderPage(); return; }
   f.sending = true;
   f.error = null;
-  f.clientId = f.clientId ?? (globalThis.crypto?.randomUUID?.() ?? `c-${Date.now().toString(36)}`); // a retry reuses it: never counted twice
+  f.clientId = f.clientId ?? uuid(); // a retry reuses it: never counted twice
   rerenderPage();
   let res;
   try {
-    res = await api.submitReport({ barId: v.id, bucket: f.bucket, door: f.door ?? 'moving', inLine: f.inLine, clientId: f.clientId, version: APP_VERSION });
+    res = await api.submitReport({ barId: v.id, bucket: f.bucket, door: f.door ?? 'moving', inLine: f.inLine && f.bucket !== 'none', clientId: f.clientId, version: APP_VERSION });
   } catch (err) {
     f.sending = false;
-    f.error = friendlyError(err);
+    f.error = liveError(err);
     rerenderPage();
+    if (err?.code === 'unknown_bar') liveRefresh({ quiet: true }); // the bar list is out of date: reload it
     return;
   }
   f.sending = false;
@@ -2807,18 +3505,19 @@ async function submitReportLive() {
   // account: the sign-in it was sent under, so Delete can tell which reports this phone can still reach.
   app.state.reports.unshift({ id, serverId: res?.report_id ?? null, account: api.userId(), venueId: v.id, at, night: app.state.clock.base, bucket: f.bucket, door: f.door ?? 'moving', inLine: f.inLine, gotInAt: null, waitMin: null });
   app.state.reports = app.state.reports.slice(0, 200);
-  if (f.inLine) app.state.activeWait = { reportId: id, venueId: v.id, startedAt: at };
+  if (f.inLine && f.bucket !== 'none') app.state.activeWait = { reportId: id, venueId: v.id, startedAt: at };
   persist();
+  // Sent: let go of the photo (it was only ever in this page's memory; the server gets the line size, not the picture).
+  if (f.photo) { URL.revokeObjectURL(f.photo); f.photo = null; }
   f.step = 'done';
   scanStep(1);
-  document.querySelector('#main [data-autofocus]')?.focus();
+  document.querySelector('#main [data-autofocus]')?.focus(); // the "Report sent" heading, read once
   haptic('success');
-  announce('Report sent.');
   liveRefresh({ quiet: true });
 }
 
 function submitReport() {
-  if (globalThis.__STORE__) { submitReportLive(); return; }
+  if (globalThis.__STORE__ || LIVE) { submitReportLive(); return; }
   const f = app.scan;
   if (!f.bucket) { blockedScan(document.querySelector('[data-action="scan-submit"]')); return; }
   if (!app.state.termsAgreedAt) { openTermsSheet(); return; }
@@ -2830,7 +3529,7 @@ function submitReport() {
   // otherwise it backs the photo up or, with another guest, flags it as uncertain.
   app.state.reports.unshift({ id, venueId: v.id, at, night: app.state.clock.realStart, bucket: b.id, door: f.door ?? 'moving', inLine: f.inLine, gotInAt: null, waitMin: null });
   app.state.points.push({ id: `p-${id}`, at, delta: POINTS.REPORT, label: `Line report: ${v.name}` });
-  if (f.inLine) app.state.activeWait = { reportId: id, venueId: v.id, startedAt: at };
+  if (f.inLine && b.id !== 'none') app.state.activeWait = { reportId: id, venueId: v.id, startedAt: at }; // "No line": nothing to time
   persist();
   rebuild();
   f.outcome = scanOutcome(app.venues.find((x) => x.id === v.id), id);
@@ -2848,8 +3547,8 @@ function submitReport() {
     rollText(pts, String(POINTS.REPORT), 1);
     [done.querySelector('h2'), done.querySelector('h2 + p')].forEach((el, i) => el?.animate({ opacity: [0, 1], translate: ['0 6px', '0 0'] }, { duration: T.reveal, delay: 60 * (i + 1), easing: T.easeOut, fill: 'backwards' }));
   }
-  document.querySelector('#main [data-autofocus]')?.focus();
-  announce(`Report added. Plus ${POINTS.REPORT} points.`);
+  document.querySelector('#main [data-autofocus]')?.focus(); // the "Report added" heading
+  announce(`Plus ${POINTS.REPORT} points.`);
 }
 /**
  * A new scan step (QA plan 8.5). The head, the progress segments and the waiting card are patched (a segment's fill
@@ -2864,7 +3563,8 @@ function scanStep(dir) {
   tpl.innerHTML = mainHtml();
   const next = tpl.content.querySelector('.scan-flow .scan-step');
   if (!live || !next) { rerenderPage(); return; }
-  const y = window.scrollY;
+  const newStep = main.querySelector('.scan-flow')?.dataset.step !== next.closest('.scan-flow')?.dataset.step;
+  const y = newStep ? 0 : window.scrollY;
   preserveFocus(() => {
     patchChildren(main, tpl.content, { skip: (n) => n === live });
     live.replaceChildren(...next.childNodes);
@@ -2980,7 +3680,7 @@ function patchScanEstimate() {
 function gotIn() {
   const w = app.state.activeWait;
   if (!w) return;
-  if (globalThis.__STORE__) { gotInLive(w); return; }
+  if (globalThis.__STORE__ || LIVE) { gotInLive(w); return; }
   const at = now();
   const waitMin = Math.max(1, Math.round((at - w.startedAt) / MIN_MS));
   const v = app.venues.find((x) => x.id === w.venueId);
@@ -3017,7 +3717,7 @@ function leftLine() {
   app.state.activeWait = null;
   persist();
   closeWaiting(false);
-  toast(globalThis.__STORE__ ? 'Got it. Thanks for the report.' : 'Got it. You keep the points for your report.');
+  toast(globalThis.__STORE__ || LIVE ? 'Got it. Thanks for the report.' : 'Got it. You keep the points for your report.');
 }
 /** The waiting card closes (QA plan 8.5): "I'm in" draws its check first (--d-fade); then the card fades and shrinks to
  *  .96 (--d-toast-out) before the page updates, and what was below it glides up. Focus goes to the page heading at once. */
@@ -3044,6 +3744,13 @@ function redeem(id) {
   app.state.points.push(entry);
   persist();
   patchPoints(); // the balance rolls down and the bar drains in place
+  // The new code is on the page, not only in the toast: bring its row into view and mark it once.
+  const row = document.querySelector(`#main [data-key="${vid}"]`);
+  if (row) {
+    row.scrollIntoView({ block: 'center', behavior: motionOK() ? 'smooth' : 'auto' }); // centered: the toast covers the bottom edge
+    row.classList.add('is-new');
+    row.addEventListener('animationend', () => row.classList.remove('is-new'), { once: true });
+  }
   toast(`Redeemed ${r.title}. Code ${voucher.ref}.`, {
     actionLabel: 'Undo',
     onAction: () => {
@@ -3054,6 +3761,108 @@ function redeem(id) {
       announce(`${r.title} returned. Points restored.`);
     },
   });
+}
+
+/* ---------------- points, live team build: the server's points and reward codes ---------------- */
+// Read with the sign-in this phone already has (a first report creates it); never a new account. Spending needs a
+// Night Out account the app can't create yet: an anonymous one is refused by the server, and the app says so plainly.
+let pointsLoading = null;
+/** One read at a time. After a write (after: true), a read that may have started before it is followed by a new one. */
+function loadPoints({ after = false } = {}) {
+  if (pointsLoading && !after) return pointsLoading;
+  const p = (pointsLoading && after ? pointsLoading.then(readPoints) : readPoints()).finally(() => { if (pointsLoading === p) pointsLoading = null; });
+  pointsLoading = p;
+  return p;
+}
+async function readPoints() {
+  const p = app.points;
+  const [cat, mine] = await Promise.allSettled([api.getRewards(), api.getMyPoints()]);
+  if (cat.status === 'fulfilled' && Array.isArray(cat.value?.rewards)) Object.assign(p, { catalog: cat.value, catalogError: null });
+  else if (cat.reason?.code === 'not_deployed') Object.assign(p, { catalog: null, catalogError: 'Not available yet.' });
+  else if (!p.catalog) p.catalogError = 'Couldn’t load rewards. Try again in a minute.'; // a failure keeps the last good copy
+  if (mine.status === 'fulfilled') {
+    if (mine.value == null) Object.assign(p, { mine: null, mineError: null }); // no sign-in on this phone yet
+    else if (mine.value.ok === true && Number.isFinite(mine.value.balance)) Object.assign(p, { mine: mine.value, mineError: null });
+    else if (!p.mine) p.mineError = 'Couldn’t load your points. Try again in a minute.';
+  } else {
+    const e = mine.reason;
+    if (e?.code === 'signed_out') Object.assign(p, { mine: null, mineError: null });
+    else p.mineError = e?.code === 'not_deployed' ? 'Not available yet.' : e?.code === 'not_allowed' ? 'Points are paused for this account.' : p.mine ? null : 'Couldn’t load your points. Try again in a minute.';
+  }
+  p.loaded = true; // from here, no balance means no sign-in on this phone, not "still loading"
+  if (app.route?.name === 'points') patchPage();
+}
+function rewardTrouble(e) {
+  if (e?.code === 'account_required' || e?.code === 'signed_out') return 'Rewards need a Night Out account. Coming before launch.';
+  if (e?.code === 'insufficient_points') { const need = Number(e.data?.need); return Number.isFinite(need) ? `You need ${fmtPts(need)} more points.` : 'Not enough points yet.'; }
+  if (e?.code === 'too_many_open') return 'You have 3 open codes. Use one first.';
+  if (e?.code === 'rate_limited') return 'Two codes a night at most. Try again tomorrow.';
+  if (['reward_unavailable', 'unknown_reward'].includes(e?.code)) return 'That reward isn’t offered right now.';
+  if (e?.code === 'not_open') return 'That code can’t be used anymore.';
+  if (e?.code === 'rotation_limit') return 'This code can’t be shown again.';
+  if (e?.code === 'not_found') return 'That reward isn’t on this phone’s account.';
+  if (e?.code === 'not_allowed') return 'Rewards are paused for this account.'; // not "reports", and no support route the live Help lacks
+  return friendlyError(e);
+}
+/** A code the server showed this phone: kept here (Delete my data clears it) so it can be shown at the bar. */
+function rememberCode(v) {
+  app.state.vouchers = [v, ...(app.state.vouchers ?? []).filter((x) => x.id !== v.id)].slice(0, 20);
+  persist();
+}
+async function issueReward(id) {
+  const p = app.points;
+  const r = p.catalog?.rewards?.find((x) => x.id === id);
+  if (!r || p.busy) return;
+  p.pending[id] ??= uuid(); // a retry after a lost answer reuses it (the server answers duplicate, with a new code)
+  Object.assign(p, { busy: id, note: null });
+  patchPage();
+  // The answer is written in the reward's own row (where the tap was), not below the list under the tab bar.
+  const showNote = () => document.getElementById('reward-note')?.scrollIntoView({ block: 'center', behavior: motionOK() ? 'smooth' : 'auto' });
+  let out;
+  try {
+    out = await api.issueVoucher(id, p.pending[id]);
+  } catch (e) {
+    if (!e?.retryable) delete p.pending[id];
+    Object.assign(p, { busy: null, note: { id: 'issue', rewardId: id, text: rewardTrouble(e) } });
+    patchPage();
+    showNote();
+    announce(p.note.text);
+    return;
+  }
+  delete p.pending[id];
+  if (out?.code) rememberCode({ id: out.voucher_id, code: out.code, title: out.reward?.title ?? r.title, expiresAt: out.expires_at ?? null });
+  Object.assign(p, { busy: null, note: { id: 'issue', rewardId: id, text: out?.code ? `Your code: ${out.code}. Show it at the bar.` : 'That code was already issued: see Your rewards.' } });
+  await loadPoints({ after: true }); // a read already running may predate the spend: read again after it
+  // The new code's row in Your rewards comes into view, centered (the toast region covers the bottom edge), tinted once.
+  const row = out?.voucher_id && document.querySelector(`#main [data-key="${CSS.escape(out.voucher_id)}"]`);
+  if (row) {
+    row.scrollIntoView({ block: 'center', behavior: motionOK() ? 'smooth' : 'auto' });
+    row.classList.add('is-new');
+    row.addEventListener('animationend', () => row.classList.remove('is-new'), { once: true });
+  } else showNote();
+  announce(p.note.text);
+}
+async function revealReward(id) {
+  const p = app.points;
+  const v = p.mine?.vouchers?.find((x) => x.id === id);
+  if (!v || p.busy) return;
+  Object.assign(p, { busy: id, note: null });
+  patchPage();
+  try {
+    const out = await api.revealVoucher(id);
+    rememberCode({ id, code: out.code, title: v.reward?.title ?? 'Reward', expiresAt: out.expires_at ?? v.expires_at ?? null });
+    p.note = { id: 'reveal', text: `New code: ${out.code}. The old one no longer works.` };
+  } catch (e) {
+    p.note = { id: 'reveal', text: rewardTrouble(e) };
+  }
+  p.busy = null;
+  await loadPoints();
+  announce(p.note.text);
+}
+/** The server's app settings (live team build): a maintenance message from it is shown once. */
+function applyConfig(cfg) {
+  const msg = typeof cfg?.maintenance_banner === 'string' ? cfg.maintenance_banner.trim().slice(0, 200) : '';
+  if (msg && msg !== app.ui.maintenanceShown) { app.ui.maintenanceShown = msg; toast(msg, { timeout: 10_000 }); }
 }
 
 /* ---------------- profile ---------------- */
@@ -3385,7 +4194,9 @@ function agreeToTerms() {
   app.state.termsAgreedAt = Date.now();
   persist();
   haptic('light');
-  closePicker();
+  // The sheet hands focus back when it has closed: to the report's result (its heading), not to the Send button the
+  // result replaced (that would leave focus on the page body).
+  closePicker(() => document.querySelector('#main [data-autofocus]')?.focus({ preventScroll: true }));
   submitReport();
 }
 
@@ -3476,7 +4287,7 @@ function pruneReminders() {
 }
 /** Drop reminders that fired or that iOS no longer holds (e.g. notifications turned off and back on). */
 async function syncReminders() {
-  if (!globalThis.__STORE__ || !canRemind()) return;
+  if (!(globalThis.__STORE__ || LIVE) || !canRemind()) return;
   const live = activeReminders(app.state.reminders, now());
   const pending = await pendingReminderIds();
   const keep = pending ? Object.fromEntries(Object.entries(live).filter(([, r]) => pending.includes(r.nid))) : live;
@@ -3549,14 +4360,17 @@ function showPicker(dlg) {
  */
 function swapSheet(dlg, swap, dir = 0, { body = true } = {}) {
   if (!dlg.open) { swap(); return; }
+  // A glide still running: read the height it shows now, then stop it, so the next glide starts from what is on screen
+  // (and the instant paths end at the natural height with no stale keyframes) (MJ7).
+  const gliding = dlg.getAnimations().filter((a) => !(a instanceof CSSTransition) && a.effect?.getKeyframes().some((k) => 'height' in k));
+  const h0 = dlg.offsetHeight;
+  gliding.forEach((a) => a.cancel());
   if (reducedMotion()) {
     swap();
     dlg.querySelector('.sheet-body')?.animate({ opacity: [0, 1] }, { duration: T.rmIn, easing: 'linear' });
     return;
   }
   if (!motionOK()) { swap(); return; }
-  dlg.getAnimations().forEach((a) => { if (!(a instanceof CSSTransition) && a.effect?.getKeyframes().some((k) => 'height' in k)) a.cancel(); });
-  const h0 = dlg.offsetHeight;
   swap();
   const h1 = dlg.offsetHeight;
   if (Math.abs(h1 - h0) >= 8) dlg.animate({ height: [`${h0}px`, `${h1}px`] }, { duration: T.tray, easing: T.easeInOut });
@@ -3566,7 +4380,7 @@ function swapSheet(dlg, swap, dir = 0, { body = true } = {}) {
 /* ---------------- points: daily login and door check-ins (simulated QR) ---------------- */
 /** +5 once per demo night, after the age check. */
 function dailyLogin() {
-  if (globalThis.__STORE__) return;
+  if (globalThis.__STORE__ || LIVE) return;
   const night = app.state.clock.base;
   if (!app.state.ageConfirmed || app.state.lastDaily === night) return;
   app.state.lastDaily = night;
@@ -3645,7 +4459,7 @@ function handleClick(e) {
   if (actEl?.dataset.action === 'scan-submit' && actEl.getAttribute('aria-disabled') === 'true') { e.preventDefault(); blockedScan(actEl); return; }
   if (!globalThis.__STORE__ && ['biz-upload', 'biz-art-photo'].includes(actEl?.dataset.action) && actEl.getAttribute('aria-disabled') === 'true') { e.preventDefault(); toast(`Up to ${MAX_UPLOADS} photos. Remove one first.`); return; } // the toast region announces it
   // So does a blocked Publish on the line photo ("Count the line first."), which used to be a dead tap.
-  if (!globalThis.__STORE__ && actEl?.dataset.action === 'photo-publish' && actEl.getAttribute('aria-disabled') === 'true') { e.preventDefault(); publishPhoto(actEl); return; }
+  if (!(globalThis.__STORE__ || LIVE) && actEl?.dataset.action === 'photo-publish' && actEl.getAttribute('aria-disabled') === 'true') { e.preventDefault(); publishPhoto(actEl); return; }
   if (actEl && !actEl.disabled && actEl.getAttribute('aria-disabled') !== 'true') {
     const a = actEl.dataset.action;
     const handled = handleAction(a, actEl, e);
@@ -3765,7 +4579,7 @@ function handleAction(a, el, e) {
       if (navigator.onLine === false) { toast('Your device still reports no connection.'); return true; }
       simulateFetch();
       return true;
-    case 'go-online-retry': if (!globalThis.__STORE__) { // the pass flow's retry (team build)
+    case 'go-online-retry': if (!(globalThis.__STORE__ || LIVE)) { // the pass flow's retry (team build)
       app.state.sim.offline = false;
       persist();
       if (navigator.onLine === false) { toast('Your device still reports no connection.'); return true; }
@@ -3774,12 +4588,12 @@ function handleAction(a, el, e) {
     } return false;
     case 'apply-stale': app.ui.staleNotice = null; renderResultsOnly(); return true;
     case 'undo-remove': undoRemove(); return true;
-    case 'undo-reset': if (!globalThis.__STORE__) {
+    case 'undo-reset': if (!(globalThis.__STORE__ || LIVE)) {
       undoReset(); return true;
     } return false;
     case 'back': goBack(el.getAttribute('href') || '#/'); return true;
     case 'close-sheet': requestCloseSheet(); return true;
-    case 'party': if (!globalThis.__STORE__) {
+    case 'party': if (!(globalThis.__STORE__ || LIVE)) {
       {
       const f = app.passFlow;
       const v = app.venues.find((x) => x.id === f.venueId);
@@ -3791,19 +4605,19 @@ function handleAction(a, el, e) {
       return true;
     }
     } return false;
-    case 'submit-pass': if (!globalThis.__STORE__) {
+    case 'submit-pass': if (!(globalThis.__STORE__ || LIVE)) {
       submitPass(); return true;
     } return false;
-    case 'retry-pass': if (!globalThis.__STORE__) {
+    case 'retry-pass': if (!(globalThis.__STORE__ || LIVE)) {
       runPassRequest(); return true;
     } return false;
-    case 'back-to-review': if (!globalThis.__STORE__) {
+    case 'back-to-review': if (!(globalThis.__STORE__ || LIVE)) {
       app.passFlow.step = 'review'; renderSheet(); return true;
     } return false;
-    case 'view-pass': if (!globalThis.__STORE__) {
+    case 'view-pass': if (!(globalThis.__STORE__ || LIVE)) {
       return false; // handled as navigation
     } return false;
-    case 'cancel-pass': if (!globalThis.__STORE__) {
+    case 'cancel-pass': if (!(globalThis.__STORE__ || LIVE)) {
       {
       const p = app.state.passes.find((x) => x.id === el.dataset.id);
       if (!p) return true;
@@ -3814,7 +4628,7 @@ function handleAction(a, el, e) {
       return true;
     }
     } return false;
-    case 'restore-pass': if (!globalThis.__STORE__) {
+    case 'restore-pass': if (!(globalThis.__STORE__ || LIVE)) {
       restorePass(el.dataset.id); return true;
     } return false;
     case 'biz-section': if (!globalThis.__STORE__) {
@@ -3824,7 +4638,8 @@ function handleAction(a, el, e) {
       checkRedeemCode(el.dataset.code); return true;
     } return false;
     case 'redeem-confirm': if (!globalThis.__STORE__) {
-      confirmRedemption(el.dataset.code); return true;
+      if (LIVE) redeemLive(el.dataset.code); else confirmRedemption(el.dataset.code);
+      return true;
     } return false;
     case 'biz-upload': if (!globalThis.__STORE__) {
       { const input = uploadInput(); input.value = ''; input.click(); } return true; // inside the tap: phones open pickers only from a gesture
@@ -3835,39 +4650,37 @@ function handleAction(a, el, e) {
     case 'biz-photo-remove': if (!globalThis.__STORE__) {
       removeUpload(el.dataset.id); return true;
     } return false;
-    case 'console-role': if (!globalThis.__STORE__) {
+    case 'console-role': if (!(globalThis.__STORE__ || LIVE)) {
       app.console.role = el.dataset.role === 'bouncer' ? 'bouncer' : 'ambassador';
       rerenderConsole();
       announce(`${ROLE_NAME[app.console.role]} selected`);
       return true;
     } return false;
-    case 'photo-snap': case 'photo-retake': if (!globalThis.__STORE__) {
+    case 'photo-snap': case 'photo-retake': if (!(globalThis.__STORE__ || LIVE)) {
       snapPhoto(); return true;
     } return false;
-    case 'photo-mark': case 'photo-step': if (!globalThis.__STORE__) {
+    case 'photo-mark': case 'photo-step': if (!(globalThis.__STORE__ || LIVE)) {
       {
       const v = consoleVenue();
       const p = app.console.photo;
-      if (!v || !p || p.venueId !== v.id || performance.now() < app.console.busyUntil) return true;
+      if (!v || !p || p.venueId !== v.id) return true;
       const delta = el.dataset.action === 'photo-mark' ? 1 : Number(el.dataset.delta);
       const next = Math.max(0, Math.min(400, p.count + delta));
       Object.assign(p, { count: next, touched: true, filled: false, newest: delta > 0 && next <= DRAW_MAX ? next - 1 : -1 });
-      rerenderPhoto();
-      // The panel is rebuilt per tap, so the new count settles in (--d-quick); the next tap starts a fresh one.
-      const vis = document.querySelector('#line-photo .pc-vis');
-      if (vis && reducedMotion()) vis.animate({ opacity: [0.4, 1] }, { duration: T.rmIn, easing: 'linear' });
-      else if (vis && motionOK()) vis.animate({ opacity: [0.6, 1], filter: ['blur(2px)', 'blur(0)'] }, { duration: T.quick, easing: T.easeOut });
+      // Patched in place per tap (MJ8): the count rolls only its changed digits and a new mark fades in; the scene,
+      // steps and buttons keep their nodes.
+      patchPhoto();
       countAnnounce(v, p);
       return true;
     }
     } return false;
-    case 'photo-fill': if (!globalThis.__STORE__) {
+    case 'photo-fill': if (!(globalThis.__STORE__ || LIVE)) {
       fillPhoto(); return true;
     } return false;
-    case 'photo-publish': if (!globalThis.__STORE__) {
+    case 'photo-publish': if (!(globalThis.__STORE__ || LIVE)) {
       publishPhoto(el); return true;
     } return false;
-    case 'console-clear': if (!globalThis.__STORE__) {
+    case 'console-clear': if (!(globalThis.__STORE__ || LIVE)) {
       {
       const v = consoleVenue();
       const prevOverride = app.state.overrides[v.id] ? structuredClone(app.state.overrides[v.id]) : null;
@@ -3880,16 +4693,16 @@ function handleAction(a, el, e) {
       return true;
     }
     } return false;
-    case 'console-undo-clear': if (!globalThis.__STORE__) {
+    case 'console-undo-clear': if (!(globalThis.__STORE__ || LIVE)) {
       undoClear(); return true;
     } return false;
     case 'deal-post': if (!globalThis.__STORE__) {
       postDeal(); return true;
     } return false;
-    case 'deal-remove': if (!globalThis.__STORE__) {
+    case 'deal-remove': if (!(globalThis.__STORE__ || LIVE)) {
       removeDeal(el.dataset.id); return true;
     } return false;
-    case 'console-price': if (!globalThis.__STORE__) {
+    case 'console-price': if (!(globalThis.__STORE__ || LIVE)) {
       {
       const v = consoleVenue();
       const next = Math.max(100, Math.min(5000, v.pass.basePrice + Number(el.dataset.delta)));
@@ -3900,7 +4713,7 @@ function handleAction(a, el, e) {
       return true;
     }
     } return false;
-    case 'console-cap': if (!globalThis.__STORE__) {
+    case 'console-cap': if (!(globalThis.__STORE__ || LIVE)) {
       {
       const v = consoleVenue();
       const w = v.pass.windows.find((x) => x.id === el.dataset.window);
@@ -3912,10 +4725,10 @@ function handleAction(a, el, e) {
       return true;
     }
     } return false;
-    case 'dataset': if (!globalThis.__STORE__) {
+    case 'dataset': if (!(globalThis.__STORE__ || LIVE)) {
       setDataset(el.dataset.kind); return true;
     } return false;
-    case 'fast-forward': if (!globalThis.__STORE__) {
+    case 'fast-forward': if (!(globalThis.__STORE__ || LIVE)) {
       app.state.clock = advance(app.state.clock, 10);
       persist();
       rebuild();
@@ -3924,7 +4737,7 @@ function handleAction(a, el, e) {
       toast('Clock moved forward 10 minutes.');
       return true;
     } return false;
-    case 'reset-demo': if (!globalThis.__STORE__) {
+    case 'reset-demo': if (!(globalThis.__STORE__ || LIVE)) {
       resetDemo(); return true;
     } return false;
     case 'reload-app': location.reload(); return true;
@@ -3933,7 +4746,7 @@ function handleAction(a, el, e) {
     case 'remind': openReminder(el.dataset.id); return true;
     case 'remind-set': setReminder(); return true;
     case 'remind-clear': clearReminder(); return true;
-    case 'open-ios-settings': if (globalThis.__STORE__) { window.location.href = 'app-settings:'; } return true;
+    case 'open-ios-settings': if (globalThis.__STORE__ || LIVE) { window.location.href = 'app-settings:'; } return true;
     case 'delete-data-ask': app.ui.confirmDelete = true; rerenderPage(); document.getElementById('delete-confirm-h')?.focus(); return true;
     case 'delete-data-cancel': app.ui.confirmDelete = false; rerenderPage(); document.querySelector('[data-action="delete-data-ask"]')?.focus(); return true;
     case 'delete-data-confirm': deleteMyData(); return true;
@@ -3942,16 +4755,16 @@ function handleAction(a, el, e) {
       closeDialogAnimated(document.getElementById('age-gate'), () => pageHeading()?.focus());
       dailyLogin();
       return true;
-    case 'open-checkin': if (!globalThis.__STORE__) {
+    case 'open-checkin': if (!(globalThis.__STORE__ || LIVE)) {
       openCheckin(); return true;
     } return false;
-    case 'checkin-pick': if (!globalThis.__STORE__) {
+    case 'checkin-pick': if (!(globalThis.__STORE__ || LIVE)) {
       app.checkin = { step: 'scan', venueId: el.dataset.id }; renderCheckin(1); return true;
     } return false;
-    case 'checkin-back': if (!globalThis.__STORE__) {
+    case 'checkin-back': if (!(globalThis.__STORE__ || LIVE)) {
       app.checkin = { step: 'pick', venueId: null }; renderCheckin(-1); return true;
     } return false;
-    case 'checkin-scan': if (!globalThis.__STORE__) {
+    case 'checkin-scan': if (!(globalThis.__STORE__ || LIVE)) {
       checkIn(); return true;
     } return false;
     case 'age-no':
@@ -3960,7 +4773,7 @@ function handleAction(a, el, e) {
       return true;
     case 'open-area': openAreaPicker(); return true;
     case 'close-picker': closePickerToOpener(); return true;
-    case 'vote': if (!globalThis.__STORE__) {
+    case 'vote': if (!(globalThis.__STORE__ || LIVE)) {
       castVote(el.dataset.id, el.dataset.vote); return true;
     } return false;
     case 'event-view': {
@@ -3974,36 +4787,36 @@ function handleAction(a, el, e) {
       
       return true;
     }
-    case 'idea-hype': if (!globalThis.__STORE__) {
+    case 'idea-hype': if (!(globalThis.__STORE__ || LIVE)) {
       toggleIdea('hyped', el.dataset.id); return true;
     } return false;
-    case 'idea-join': if (!globalThis.__STORE__) {
+    case 'idea-join': if (!(globalThis.__STORE__ || LIVE)) {
       toggleIdea('joined', el.dataset.id); return true;
     } return false;
-    case 'idea-post': if (!globalThis.__STORE__) {
+    case 'idea-post': if (!(globalThis.__STORE__ || LIVE)) {
       return false; // the form's submit handles it
     } return false;
-    case 'idea-approve': if (!globalThis.__STORE__) {
+    case 'idea-approve': if (!(globalThis.__STORE__ || LIVE)) {
       decideIdea(el.dataset.id, 'approved'); return true;
     } return false;
-    case 'idea-decline': if (!globalThis.__STORE__) {
+    case 'idea-decline': if (!(globalThis.__STORE__ || LIVE)) {
       decideIdea(el.dataset.id, 'declined'); return true;
     } return false;
-    case 'idea-undo': if (!globalThis.__STORE__) {
+    case 'idea-undo': if (!(globalThis.__STORE__ || LIVE)) {
       undoDecision(el.dataset.id); return true;
     } return false;
     case 'event-clear': app.ui.eventsGenre = ''; app.ui.eventsTheme = ''; app.ui.eventsPrice = ''; rerenderPage(); return true;
     case 'event-save': toggleEventList('savedEvents', el.dataset.id); return true;
-    case 'event-going': if (!globalThis.__STORE__) {
+    case 'event-going': if (!(globalThis.__STORE__ || LIVE)) {
       toggleEventList('goingEvents', el.dataset.id); return true;
     } return false;
     case 'directions': openDirections(el.dataset.id); return true;
     case 'share': shareVenue(el.dataset.id); return true;
     case 'scroll-to': { const t = document.getElementById(el.dataset.target); if (t) { t.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' }); t.focus({ preventScroll: true }); } return true; }
-    case 'join-group': if (!globalThis.__STORE__) {
+    case 'join-group': if (!(globalThis.__STORE__ || LIVE)) {
       toggleJoin(el.dataset.id); return true;
     } return false;
-    case 'group-members': if (!globalThis.__STORE__) {
+    case 'group-members': if (!(globalThis.__STORE__ || LIVE)) {
       {
       const g = [...app.state.groups.created, ...app.groups].find((x) => x.id === el.dataset.id);
       const fromProfile = el.classList.contains('sheet-back') ? document.querySelector('#picker .member-profile')?.dataset.index : null;
@@ -4011,7 +4824,7 @@ function handleAction(a, el, e) {
       return true;
     }
     } return false;
-    case 'member-profile': if (!globalThis.__STORE__) {
+    case 'member-profile': if (!(globalThis.__STORE__ || LIVE)) {
       {
       const g = [...app.state.groups.created, ...app.groups].find((x) => x.id === el.dataset.group);
       if (g) {
@@ -4021,7 +4834,7 @@ function handleAction(a, el, e) {
       return true;
     }
     } return false;
-    case 'hop-add': if (!globalThis.__STORE__) {
+    case 'hop-add': if (!(globalThis.__STORE__ || LIVE)) {
       {
       const d = app.groupDraft ?? (app.groupDraft = newGroupDraft());
       if (d.stops.length >= MAX_STOPS - 1) return true;
@@ -4034,7 +4847,7 @@ function handleAction(a, el, e) {
       return true;
     }
     } return false;
-    case 'hop-remove': if (!globalThis.__STORE__) {
+    case 'hop-remove': if (!(globalThis.__STORE__ || LIVE)) {
       {
       const d = app.groupDraft ?? (app.groupDraft = newGroupDraft());
       const i = Number(el.dataset.index);
@@ -4049,7 +4862,7 @@ function handleAction(a, el, e) {
       return true;
     }
     } return false;
-    case 'group-spots': if (!globalThis.__STORE__) {
+    case 'group-spots': if (!(globalThis.__STORE__ || LIVE)) {
       {
       const d = app.groupDraft ?? (app.groupDraft = newGroupDraft());
       d.spots = Math.max(2, Math.min(12, d.spots + Number(el.dataset.delta)));
@@ -4058,7 +4871,7 @@ function handleAction(a, el, e) {
       return true;
     }
     } return false;
-    case 'post-group': if (!globalThis.__STORE__) {
+    case 'post-group': if (!(globalThis.__STORE__ || LIVE)) {
       return false; // the form's submit handles it
     } return false;
     case 'scan-pick':
@@ -4079,6 +4892,14 @@ function handleAction(a, el, e) {
       (document.getElementById('scan-q') ?? document.querySelector('#main input[name="bucket"]'))?.focus();
       return true;
     case 'scan-submit': submitReport(); return true;
+    case 'scan-see': {
+      // Back to the bar page that opened Scan, or on to the bar in place of the finished report (never a loop back to it).
+      const id = app.scan.venueId;
+      resetScan();
+      if (app.scanReturn && app.scanOpener?.name === 'venue' && app.scanOpener.params.id === id) history.back();
+      else go(el.getAttribute('href'), { replace: true });
+      return true;
+    }
     case 'scan-close':
       resetScan(); // closing discards the report and its photo
       if (app.scanReturn) history.back();
@@ -4091,7 +4912,7 @@ function handleAction(a, el, e) {
       scanStep(-1);
       (document.querySelector('#main [data-action="scan-camera"]') ?? document.getElementById('scan-q'))?.focus();
       return true;
-    case 'redeem': if (!globalThis.__STORE__) {
+    case 'redeem': if (!(globalThis.__STORE__ || LIVE)) {
       redeem(el.dataset.id); return true;
     } return false;
     case 'edit-profile': if (!globalThis.__STORE__) {
@@ -4109,15 +4930,34 @@ function handleAction(a, el, e) {
     case 'help-about': if (!globalThis.__STORE__) {
       closePicker(() => go('#/about')); return true;
     } return false;
-    case 'manage-sub': if (!globalThis.__STORE__) {
+    case 'manage-sub': if (!(globalThis.__STORE__ || LIVE)) {
       openAccountSheet(manageSubSheet(ctx()), 'input:checked'); return true;
     } return false;
-    case 'vip-add': if (!globalThis.__STORE__) {
+    case 'vip-add': if (!(globalThis.__STORE__ || LIVE)) {
       addVipCard(); return true;
     } return false;
-    case 'vip-remove': if (!globalThis.__STORE__) {
+    case 'vip-remove': if (!(globalThis.__STORE__ || LIVE)) {
       removeVipCard(el.dataset.id); return true;
     } return false;
+    // Live team build: Business view on the server, and Points.
+    case 'venue-signout': if (!globalThis.__STORE__ && LIVE) { venueSignOut(); return true; } return false;
+    case 'venue-signout-confirm': if (!globalThis.__STORE__ && LIVE) { venueSignOut({ confirmed: true }); return true; } return false;
+    case 'venue-signout-cancel': if (!globalThis.__STORE__ && LIVE) { app.venue.confirmOut = false; rerenderConsole(); document.querySelector('#main [data-action="venue-signout"]')?.focus(); return true; } return false;
+    case 'venue-retry': if (!globalThis.__STORE__ && LIVE) { Object.assign(app.venue, { phase: 'loading', confirmOut: false }); rerenderPage(); loadVenueStaff(); return true; } return false;
+    case 'count-step': if (!globalThis.__STORE__ && LIVE) {
+      // From what the field shows: a typed number (over 400 counts as 400), else the count.
+      countSet(countBase(app.venue.count) + Number(el.dataset.delta));
+      return true;
+    } return false;
+    case 'count-photo': if (!globalThis.__STORE__ && LIVE) { const input = countPhotoInput(); input.value = ''; input.click(); return true; } return false; // inside the tap
+    case 'count-photo-remove': if (!globalThis.__STORE__ && LIVE) { dropCountPhoto(); patchPage(); document.querySelector('#main [data-action="count-photo"]')?.focus(); announce('Photo removed.'); return true; } return false;
+    case 'count-mark': if (!globalThis.__STORE__ && LIVE) { markHead(el, e); return true; } return false;
+    case 'count-send': if (!globalThis.__STORE__ && LIVE) { publishCount(); return true; } return false;
+    case 'deal-withdraw': if (!globalThis.__STORE__ && LIVE) { withdrawDeal(el.dataset.id); return true; } return false;
+    case 'deal-withdraw-confirm': if (!globalThis.__STORE__ && LIVE) { withdrawDeal(el.dataset.id, { confirmed: true }); return true; } return false;
+    case 'deal-withdraw-cancel': if (!globalThis.__STORE__ && LIVE) { const id = app.venue.withdrawAsk; app.venue.withdrawAsk = null; rerenderConsole(); document.querySelector(`#main [data-action="deal-withdraw"][data-id="${CSS.escape(id ?? '')}"]`)?.focus(); return true; } return false;
+    case 'reward-issue': if (!globalThis.__STORE__ && LIVE) { issueReward(el.dataset.id); return true; } return false;
+    case 'reward-reveal': if (!globalThis.__STORE__ && LIVE) { revealReward(el.dataset.id); return true; } return false;
     case 'noop': return true;
     default: return false;
   }
@@ -4137,6 +4977,7 @@ function onInput(e) {
       if (t.tagName === 'INPUT') dealDraft()[t.dataset.key] = t.value; break;
     } break;
     case 'redeem-code': if (!globalThis.__STORE__) {
+      if (LIVE) { codeEdited(t); break; }
       app.console.codeDraft = t.value;
       if (app.console.codeResult && normalizeCode(t.value) !== app.console.codeResult.code) {
         app.console.codeResult = null;
@@ -4146,11 +4987,11 @@ function onInput(e) {
       }
       break;
     } break;
-    case 'idea-field': if (!globalThis.__STORE__) {
+    case 'idea-field': if (!(globalThis.__STORE__ || LIVE)) {
       if (t.tagName !== 'SELECT' && app.ideaDraft) app.ideaDraft[t.dataset.key] = t.value;
       break;
     } break;
-    case 'hop-field': if (!globalThis.__STORE__) {
+    case 'hop-field': if (!(globalThis.__STORE__ || LIVE)) {
       {
       const d = app.groupDraft ?? (app.groupDraft = newGroupDraft());
       const st = d.stops[Number(t.dataset.index)];
@@ -4158,12 +4999,21 @@ function onInput(e) {
       break;
     }
     } break;
-    case 'group-field': if (!globalThis.__STORE__) {
+    case 'group-field': if (!(globalThis.__STORE__ || LIVE)) {
       {
       const d = app.groupDraft ?? (app.groupDraft = newGroupDraft());
       d[t.dataset.key] = t.value;
       break;
     }
+    } break;
+    case 'count-people': if (!globalThis.__STORE__ && LIVE) {
+      const c = app.venue.count;
+      const n = typedCount(t.value);
+      c.raw = t.value;
+      if (n != null) c.people = n; // a number Publish can't take leaves the count as it was, and Publish names none
+      document.querySelector('#main [data-action="count-send"]')?.lastChild?.replaceWith(n == null ? 'Publish' : `Publish ${n}`);
+      if (c.error) { c.error = null; document.getElementById('count-error')?.remove(); t.removeAttribute('aria-invalid'); t.removeAttribute('aria-describedby'); }
+      break;
     } break;
     case 'scan-q': {
       app.scan.q = t.value;
@@ -4184,15 +5034,20 @@ function handleChange(e) {
       t.closest('.select')?.classList.toggle('is-set', !!t.value);
       renderEventResults();
       break;
-    case 'pass-window': if (!globalThis.__STORE__) {
+    case 'pass-window': if (!(globalThis.__STORE__ || LIVE)) {
       app.passFlow.windowId = t.value; app.passFlow.errors = {}; renderSheet(); break;
     } break;
-    case 'pass-ack': if (!globalThis.__STORE__) {
+    case 'pass-ack': if (!(globalThis.__STORE__ || LIVE)) {
       app.passFlow.ack = t.checked; if (t.checked && app.passFlow.errors.ack) { delete app.passFlow.errors.ack; renderSheet(); } break;
     } break;
     case 'console-venue': if (!globalThis.__STORE__) {
+      if (LIVE) { venueSwitch(t.value); break; }
       app.console.venueId = t.value;
-      app.console.photo = null;
+      // A count in progress isn't thrown away by a venue switch: it waits at its venue until you come back.
+      if (app.console.photo?.touched) app.console.heldPhotos[app.console.photo.venueId] = app.console.photo;
+      app.console.photo = app.console.heldPhotos[t.value] ?? null;
+      delete app.console.heldPhotos[t.value];
+      app.console.ideasFirst = null;
       if (bizOn()) {
         app.state.business.venueId = t.value;
         Object.assign(app.console, { codeDraft: '', codeResult: null });
@@ -4203,10 +5058,10 @@ function handleChange(e) {
       rerenderConsole();
       break;
     } break;
-    case 'door-status': if (!globalThis.__STORE__) {
+    case 'door-status': if (!(globalThis.__STORE__ || LIVE)) {
       setDoor(t, 'status'); break;
     } break;
-    case 'door-pace': if (!globalThis.__STORE__) {
+    case 'door-pace': if (!(globalThis.__STORE__ || LIVE)) {
       setDoor(t, 'pace'); break;
     } break;
     case 'deal-kind': if (!globalThis.__STORE__) {
@@ -4223,7 +5078,7 @@ function handleChange(e) {
       }
       break;
     } break;
-    case 'console-pause': if (!globalThis.__STORE__) {
+    case 'console-pause': if (!(globalThis.__STORE__ || LIVE)) {
       {
       const v = consoleVenue();
       setPassOverride(v, { paused: t.checked });
@@ -4233,14 +5088,14 @@ function handleChange(e) {
       break;
     }
     } break;
-    case 'group-field': if (!globalThis.__STORE__) {
+    case 'group-field': if (!(globalThis.__STORE__ || LIVE)) {
       {
       const d = app.groupDraft ?? (app.groupDraft = newGroupDraft());
       d[t.dataset.key] = t.value;
       break;
     }
     } break;
-    case 'idea-field': if (!globalThis.__STORE__) {
+    case 'idea-field': if (!(globalThis.__STORE__ || LIVE)) {
       {
       if (t.tagName !== 'SELECT') break;
       const d = app.ideaDraft ?? (app.ideaDraft = newIdeaDraft());
@@ -4254,22 +5109,22 @@ function handleChange(e) {
       break;
     }
     } break;
-    case 'idea-night': if (!globalThis.__STORE__) {
+    case 'idea-night': if (!(globalThis.__STORE__ || LIVE)) {
       { const d = app.ideaDraft ?? (app.ideaDraft = newIdeaDraft()); d.day = Number(t.value); d.dayPicked = true; break; }
     } break;
-    case 'idea-theme': if (!globalThis.__STORE__) {
+    case 'idea-theme': if (!(globalThis.__STORE__ || LIVE)) {
       { const d = app.ideaDraft ?? (app.ideaDraft = newIdeaDraft()); d.theme = t.value; break; }
     } break;
-    case 'idea-ack': if (!globalThis.__STORE__) {
+    case 'idea-ack': if (!(globalThis.__STORE__ || LIVE)) {
       { const d = app.ideaDraft ?? (app.ideaDraft = newIdeaDraft()); d.ack = t.checked; break; }
     } break;
-    case 'idea-cover': if (!globalThis.__STORE__) {
+    case 'idea-cover': if (!(globalThis.__STORE__ || LIVE)) {
       app.console.ideaCover[t.dataset.id] = Number(t.value); break;
     } break;
     case 'area': chooseArea(t.value, t.closest('.option-row')); break;
     case 'remind-day': pickReminder({ day: t.value }, t.name); break;
     case 'remind-hour': pickReminder({ hour: Number(t.value) }, t.name); break;
-    case 'group-hop': if (!globalThis.__STORE__) {
+    case 'group-hop': if (!(globalThis.__STORE__ || LIVE)) {
       {
       const d = app.groupDraft ?? (app.groupDraft = newGroupDraft());
       d.hop = t.checked;
@@ -4281,7 +5136,7 @@ function handleChange(e) {
       break;
     }
     } break;
-    case 'hop-field': if (!globalThis.__STORE__) {
+    case 'hop-field': if (!(globalThis.__STORE__ || LIVE)) {
       {
       const d = app.groupDraft ?? (app.groupDraft = newGroupDraft());
       const st = d.stops[Number(t.dataset.index)];
@@ -4289,16 +5144,18 @@ function handleChange(e) {
       break;
     }
     } break;
+    case 'count-door': if (!globalThis.__STORE__ && LIVE) { app.venue.count.door = t.value; if (['paused', 'closed'].includes(t.value)) app.venue.count.pace = null; patchPage(); break; } break;
+    case 'count-pace': if (!globalThis.__STORE__ && LIVE) { app.venue.count.pace = Number(t.value); break; } break;
     case 'scan-bucket': app.scan.bucket = t.value; app.scan.error = null; patchScanEstimate(); break;
     case 'scan-door': app.scan.door = t.value; patchScanEstimate(); break;
     case 'scan-inline': app.scan.inLine = t.checked; break;
-    case 'business': if (!globalThis.__STORE__) {
+    case 'business': if (!(globalThis.__STORE__ || LIVE)) {
       setBusiness(t.checked, t); break;
     } break;
-    case 'sub-plan': if (!globalThis.__STORE__) {
+    case 'sub-plan': if (!(globalThis.__STORE__ || LIVE)) {
       chooseSubscription(t.value); break;
     } break;
-    case 'sim': if (!globalThis.__STORE__) {
+    case 'sim': if (!(globalThis.__STORE__ || LIVE)) {
       // the switch itself says it (no toast restating it, QA plan 9.6)
       app.state.sim[t.dataset.key] = t.checked;
       persist();
@@ -4317,7 +5174,9 @@ function handleSubmit(e) {
     if (e.target.id === 'group-form') postGroup();
     if (e.target.id === 'idea-form') postIdea();
     if (e.target.id === 'profile-form') saveProfile(e.target);
-    if (e.target.id === 'redeem-form') checkRedeemCode(e.target.querySelector('#redeem-code')?.value);
+    if (e.target.id === 'redeem-form') { if (LIVE) checkCodeLive(e.target.querySelector('#redeem-code')?.value); else checkRedeemCode(e.target.querySelector('#redeem-code')?.value); }
+    if (LIVE && e.target.id === 'venue-signin') venueSignIn(e.target);
+    if (LIVE && e.target.id === 'venue-totp') venueTotp(e.target);
   }
 }
 
@@ -4424,7 +5283,7 @@ function boot() {
   document.addEventListener('change', onChange);
   document.addEventListener('submit', onSubmit);
   if (!globalThis.__STORE__) {
-    window.addEventListener('pagehide', () => dropUploads()); // preview photos never outlive the page
+    window.addEventListener('pagehide', () => { dropUploads(); if (LIVE) dropCountPhoto(); }); // preview and count photos never outlive the page
     window.addEventListener('pageshow', (e) => { if (e.persisted && app.route?.name === 'console') rerenderConsole(); }); // restored from the back/forward cache: redraw without them
   }
   // A toast shown before the page was scrolled can end up over the map card or the line-photo button: re-place it once
@@ -4468,7 +5327,7 @@ function boot() {
     if (h && h !== '#' && !h.startsWith('#/')) return; // e.g. #main from the skip link
     if ((h || '#/') !== app.renderedHash) { rememberScroll(); route({ viaPop: true }); }
   });
-  window.addEventListener('online', () => { if (app.route.name === 'tonight' || app.route.name === 'venue') simulateFetch(); });
+  window.addEventListener('online', () => { if (app.route.name === 'tonight' || app.route.name === 'venue') simulateFetch(); if (!globalThis.__STORE__ && LIVE) flushCounts(); });
   window.addEventListener('offline', () => renderResultsOnly());
   wireSheet();
   const picker = document.getElementById('picker');
@@ -4490,13 +5349,13 @@ function boot() {
     styleStatusBar();
     hideKeyboardBar();
     requestAnimationFrame(() => hideSplash()); // the native launch screen hands off to our first painted frame
-    onResume(() => { tick(); if (globalThis.__STORE__) { liveRefresh({ quiet: true }); syncReminders(); if (app.state.prefs.useLocation) useMyLocation({ quiet: true }); } });
-    if (globalThis.__STORE__) {
+    onResume(() => { tick(); if (globalThis.__STORE__ || LIVE) { liveRefresh({ quiet: true }); syncReminders(); if (app.state.prefs.useLocation) useMyLocation({ quiet: true }); } if (!globalThis.__STORE__ && LIVE) flushCounts(); });
+    if (globalThis.__STORE__ || LIVE) {
       syncReminders();
       // Tapping a reminder opens that bar's page.
       onReminderTap(({ venueId }) => { if (typeof venueId === 'string' && app.venues.some((v) => v.id === venueId)) go(buildHash('venue', { id: venueId })); });
     }
-    if (globalThis.__STORE__ && app.state.prefs.useLocation) useMyLocation({ quiet: true });
+    if ((globalThis.__STORE__ || LIVE) && app.state.prefs.useLocation) useMyLocation({ quiet: true });
     // Web pages (privacy, terms, support) open in an in-app Safari view instead of leaving the app.
     document.addEventListener('click', (e) => {
       const a = e.target.closest?.('a[target="_blank"][href^="http"]');
@@ -4510,8 +5369,8 @@ function boot() {
   }
   dailyLogin();
   setInterval(() => { if (!document.hidden) tick(); }, 15_000); // a hidden page catches up on visibilitychange below
-  // Store build: refresh live data every 45 s while the app is in front, and at once when it comes back.
-  if (globalThis.__STORE__) {
+  // Live data: refresh every 45 s while the app is in front, and at once when it comes back.
+  if (globalThis.__STORE__ || LIVE) {
     setInterval(() => { if (!document.hidden) liveRefresh({ quiet: true }); }, POLL_MS);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) liveRefresh({ quiet: true }); });
     // JavaScript errors would never reach Xcode's crash reports: send them (no user ID) so we can fix them.
@@ -4530,7 +5389,7 @@ function boot() {
   document.addEventListener('pointerdown', (e) => { document.documentElement.dataset.modality = e.pointerType === 'touch' || e.pointerType === 'pen' ? 'touch' : 'pointer'; }, { capture: true, passive: true });
   document.addEventListener('keydown', (e) => { const k = typeof e.key === 'string' ? e.key : ''; if (!k) return; if (k === 'Tab' || k.startsWith('Arrow') || (!e.metaKey && !e.ctrlKey && !e.altKey)) document.documentElement.dataset.modality = 'keyboard'; }, { capture: true });
   document.documentElement.dataset.ready = 'true';
-  if (!globalThis.__STORE__ && new URLSearchParams(location.search).has('qa')) {
+  if (!(globalThis.__STORE__ || LIVE) && new URLSearchParams(location.search).has('qa')) {
     // QA-only hook (used by app/QA.md checks): age estimates while a page stays open.
     window.__doorlineQA = {
       advance: (min) => { app.state.clock = advance(app.state.clock, min); persist(); rebuild(); tick(); },

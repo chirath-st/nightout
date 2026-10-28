@@ -10,9 +10,11 @@ import { icon, TONE_ICON, TONE_LABEL } from './icons.js';
 import { monogram } from './art.js';
 import { nightArt, NIGHT_PALETTES } from './nightart.js';
 import { distanceTo, formatMiles, walkMinutes, currentOrigin, usingDeviceLocation } from '../lib/geo.js';
-// Store build without the person's location: distances are from the campus corner, so cards show miles, not "2 min".
-const milesOnly = () => Boolean(globalThis.__STORE__) && !usingDeviceLocation();
+// Live data (store build, live team build) without the person's location: distances are from the campus corner, so
+// cards show miles, not "2 min".
+const milesOnly = () => Boolean(globalThis.__STORE__ || LIVE) && !usingDeviceLocation();
 import { activeDeal, dealState, DEAL_KINDS, DRINK_ITEMS } from '../lib/deals.js';
+import { LIVE } from '../lib/backend.js';
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -79,7 +81,7 @@ export function estimateCompact(venue, now) {
 // (we don't know), never "No reports yet" (a claim). Set by main.js after each refresh.
 let liveLoadFailed = false;
 export const setLiveLoadFailed = (v) => { liveLoadFailed = Boolean(v); };
-const notLoaded = (est) => Boolean(globalThis.__STORE__) && liveLoadFailed && est.tone === 'unknown';
+const notLoaded = (est) => Boolean(globalThis.__STORE__ || LIVE) && liveLoadFailed && est.tone === 'unknown';
 
 export function estimateBlock(venue, now, { headingId = 'qb-h', showHow = true, headingLevel = 2 } = {}) {
   const est = estimateFor(venue, now);
@@ -141,11 +143,11 @@ export function factStrip(venue, now) {
   const cell = (dt, dd, sub) => `<div><dt>${dt}</dt><dd>${dd}<span class="fact-sub">${esc(sub)}</span></dd></div>`;
   return `<dl class="fact-strip" data-est="${esc(venue.id)}" data-variant="facts">
     ${cell('In line', esc(people), 'people')}
-    ${cell('Door pace', pace, globalThis.__STORE__ && !live ? (notLoaded(est) ? 'Not loaded' : 'No recent report') : est.tone === 'paused' ? 'Paused' : est.tone === 'capacity' ? 'One in, one out' : q?.paceSource === 'assumed' ? 'Assumed' : q?.doorsTotal > 1 ? `${q.doorsOpen} of ${q.doorsTotal} doors` : q?.paceSource === 'measured' ? 'Measured' : 'Letting in')}
+    ${cell('Door pace', pace, (globalThis.__STORE__ || LIVE) && !live ? (notLoaded(est) ? 'Not loaded' : 'No recent report') : est.tone === 'paused' ? 'Paused' : est.tone === 'capacity' ? 'One in, one out' : q?.paceSource === 'assumed' ? 'Assumed' : q?.doorsTotal > 1 ? `${q.doorsOpen} of ${q.doorsTotal} doors` : q?.paceSource === 'measured' ? 'Measured' : 'Letting in')}
     ${cell('Confidence', esc(est.confidence ?? '—'), est.tone === 'uncertain' ? 'Reports differ' : est.shortSource ?? (notLoaded(est) ? 'Not loaded' : 'No source'))}
     ${cell('Distance', dist == null ? '—' : `${esc(formatMiles(dist).replace(' mi', ''))}<small>mi</small>`, 'Straight line')}
     ${cell('Cover', venue.cover == null ? '—' : venue.cover === 0 ? 'Free' : `$${venue.cover}`, 'At the door')}
-    ${cell('Closes', closes, venue.closedTonight ? 'Closed tonight' : globalThis.__STORE__ ? (open === true ? 'Open now' : open === false ? 'Closed now' : notLoaded(est) ? 'Not loaded' : 'Hours not listed') : open === false ? 'Closed now' : 'Open now')}
+    ${cell('Closes', closes, venue.closedTonight ? 'Closed tonight' : (globalThis.__STORE__ || LIVE) ? (open === true ? 'Open now' : open === false ? 'Closed now' : notLoaded(est) ? 'Not loaded' : 'Hours not listed') : open === false ? 'Closed now' : 'Open now')}
   </dl>`;
 }
 
@@ -154,7 +156,7 @@ export function howItWorks() {
   return `<details class="how"><summary>How this estimate works</summary>
     <p>Estimates are ranges, never exact times.</p>
     <ul>
-      ${globalThis.__STORE__
+      ${(globalThis.__STORE__ || LIVE)
     ? `<li><strong>Head count</strong>: our counters, or a bar’s door staff, count the people in line. No photos are taken. Wait ≈ people in line ÷ door pace, widened for uncertainty.</li>
       <li><strong>Door pace</strong> comes from the door, from guests’ measured waits, or is assumed at 2 a minute.</li>
       <li><strong>Guest reports</strong> confirm a head count; two that disagree mark the wait uncertain.</li>`

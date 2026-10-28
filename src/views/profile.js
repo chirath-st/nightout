@@ -5,6 +5,8 @@ import { icon } from '../ui/icons.js';
 import { initials, balanceOf, youSeed, PLANS, PLUS_PERKS, SAMPLE_BAR_CARDS } from '../data/social.js';
 import { personAvatar } from '../ui/avatars.js';
 import { usingDeviceLocation } from '../lib/geo.js';
+import { deletePanel } from './store.js';
+import { LIVE } from '../lib/backend.js';
 
 const row = (href, iconName, label, sub) => `<a class="list-link" href="${href}">${icon(iconName, { size: 20 })}<span>${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ''}</span>${icon('chevronRight', { size: 18 })}</a>`;
 const btnRow = (action, iconName, label, sub) => `<button type="button" class="list-link" data-action="${action}">${icon(iconName, { size: 20 })}<span>${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ''}</span>${icon('chevronRight', { size: 18 })}</button>`;
@@ -31,7 +33,10 @@ export function vipCard(card, ctx, { main = false } = {}) {
   </article>`;
 }
 
-export function renderProfile(ctx, { editing = false, errors = {}, values = null } = {}) {
+/** live (a live team build): { confirmDelete, deleting, linked, unreachable, venueSignedIn }. The same Profile without
+ *  the demo's points, Plus, VIP cards, passes and demo login; Venue sign-in opens Business view; Delete my data as in
+ *  the App Store build. */
+export function renderProfile(ctx, { editing = false, errors = {}, values = null } = {}, live = null) {
   const st = ctx.state;
   const p = st.profile;
   const sub = st.subscription;
@@ -45,7 +50,7 @@ export function renderProfile(ctx, { editing = false, errors = {}, values = null
     <section class="profile-head" aria-label="Profile">
       ${personAvatar({ seed: youSeed(p.name), initials: initials(p.name) }, 72)}
       <div class="profile-id">
-        <p class="profile-name">${esc(p.name)}</p>
+        <p class="profile-name">${esc(p.name || (live ? 'You' : ''))}</p>
         ${p.handle ? `<span class="handle is-text">${icon('at', { size: 14 })}<span class="sr-only">Instagram </span>${esc(p.handle)}</span>` : '<p class="hint" style="margin:0">No Instagram added</p>'}
         <button type="button" class="btn btn-sm" data-action="edit-profile" aria-expanded="${editing}">${editing ? 'Cancel' : 'Edit profile'}</button>
       </div>
@@ -58,7 +63,11 @@ export function renderProfile(ctx, { editing = false, errors = {}, values = null
         ${errors.handle ? `<p class="field-error" id="err-p-ig">${icon('alert')}${esc(errors.handle)}</p>` : ''}</div>
       <button type="submit" class="btn btn-primary btn-block">Save profile</button>
     </form>` : ''}
-    <dl class="fact-strip">
+    ${live ? `<dl class="fact-strip">
+      <div><dt>Reports</dt><dd>${st.reports.length}<span class="fact-sub">Sent from this phone</span></dd></div>
+      <div><dt>Saved</dt><dd>${st.saved.length}<span class="fact-sub">Bars</span></dd></div>
+    </dl>
+${liveRest(ctx, live)}` : `<dl class="fact-strip">
       <div><dt>Points</dt><dd><span class="roll" data-points-fact>${new Intl.NumberFormat('en-US').format(balanceOf(st.points))}</span><span class="fact-sub">Balance</span></dd></div>
       <div><dt>Check-ins</dt><dd>${st.checkins.length}<span class="fact-sub">Bars visited</span></dd></div>
       <div><dt>Groups</dt><dd>${st.groups.joined.length + st.groups.created.length}<span class="fact-sub">Joined or posted</span></dd></div>
@@ -89,7 +98,7 @@ export function renderProfile(ctx, { editing = false, errors = {}, values = null
     </nav>
     <div class="section-head"><h2>For venues</h2></div>
     <div class="list-group biz-switch">
-      <div class="switch-row list-switch"><label for="business-on"><span class="label" style="margin:0">Business view <span class="sr-only">(${biz.on ? 'on' : 'off'})</span></span><span class="hint">Demo login as a venue · sample data</span></label>
+      <div class="switch-row list-switch">${icon('grid', { size: 20 })}<label for="business-on"><span class="label" style="margin:0">Business view <span class="sr-only">(${biz.on ? 'on' : 'off'})</span></span><span class="hint">Demo login as a venue · sample data</span></label>
         <span class="switch"><input id="business-on" type="checkbox" role="switch" data-input="business" ${biz.on ? 'checked' : ''}><span></span></span></div>
       ${biz.on ? row('#/console', 'door', 'Open Business view', `Signed in as ${bizVenue?.name ?? 'a venue'} (demo)`) : row('#/console', 'door', 'Door console', 'Count the line from a photo')}
     </div>
@@ -97,8 +106,28 @@ export function renderProfile(ctx, { editing = false, errors = {}, values = null
     <nav class="list-group" aria-label="More">
       ${btnRow('open-help', 'help', 'Help & support')}
       ${row('#/about', 'info', 'About Night Out', 'How estimates work, sources')}
-    </nav>
+    </nav>`}
   </div>`;
+}
+
+function liveRest(ctx, live) {
+  const st = ctx.state;
+  return `
+    <div class="section-head"><h2>Your stuff</h2></div>
+    <nav class="list-group" aria-label="Your stuff">
+      ${row('#/saved', 'heart', 'Saved bars', `${st.saved.length} saved`)}
+      ${row('#/points', 'star', 'Points & rewards')}
+    </nav>
+    <div class="section-head"><h2>For venues</h2></div>
+    <nav class="list-group" aria-label="For venues">
+      ${live.venueSignedIn ? row('#/console', 'door', 'Business view', 'Signed in') : row('#/console', 'door', 'Venue sign-in')}
+    </nav>
+    <div class="section-head"><h2>More</h2></div>
+    <nav class="list-group" aria-label="More">
+      ${btnRow('open-help', 'help', 'Help & support')}
+      ${row('#/about', 'info', 'About Night Out', 'How estimates work')}
+    </nav>
+    ${deletePanel(live, { points: true })}`;
 }
 
 const sheetHead = (title) => `<div class="sheet-head"><span class="sheet-grabber" aria-hidden="true"></span><h2 class="sheet-title" id="picker-title">${title}</h2>
@@ -132,7 +161,7 @@ export function helpSheet() {
   const qa = [
     ['How are waits estimated?', 'From door-staff updates and crowd reports: about how many people are in line, divided by how fast the door lets people in.'],
     ['Do I still need ID?', 'Yes. Every bar checks a physical ID at the door. Night Out never asks for your ID.'],
-    ['How do points work?', 'Earn them for check-ins and crowd updates, then redeem for non-alcohol rewards. Points have no cash value.'],
+    ['How do points work?', LIVE ? 'Earn them for line reports another guest or our counter backs up, then spend them on non-alcohol rewards. Points have no cash value.' : 'Earn them for check-ins and crowd updates, then redeem for non-alcohol rewards. Points have no cash value.'],
   ];
   return `${sheetHead('Help & support')}<div class="sheet-body">
     ${qa.map(([q, a]) => `<details class="how"><summary>${esc(q)}</summary><div class="how-a"><p>${esc(a)}</p></div></details>`).join('')}

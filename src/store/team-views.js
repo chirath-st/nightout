@@ -23,6 +23,12 @@ export const MAX_UPLOADS = 0;
 export const checkCode = () => ({ kind: 'invalid', code: null });
 export const normalizeCode = () => null;
 export const samplePhoto = none;
+export const venueSections = () => [];
+export const voucherCode = () => null;
+export const countWait = none;
+export const typedCount = () => null;
+export const countBase = () => 0;
+export const renderVenueLive = none;
 // ideas.js
 export const ideaCard = none;
 export const renderIdeaNew = none;

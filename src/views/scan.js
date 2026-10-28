@@ -4,14 +4,16 @@
 // got in, which turns into a measured wait. The photo is real but stays on this phone: it is shown here and the app lets
 // go of it when the report is sent or closed. The app never uploads or saves it (iOS may keep its own temporary copy in
 // the app's private storage until it clears it), and nothing counts people in it (no image analysis). The team build
-// keeps reports and points on this device; the store build sends the line size, not the photo.
+// keeps reports and points on this device; the store build and the team build's live profile send the line size, not
+// the photo (a live team build keeps the camera step; the photo is let go once the report is sent).
 import { esc, venueLogo, crowdStatus, meter, distanceText } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
 import { formatTime } from '../lib/clock.js';
-import { describeEstimate, waitRange, relativeAge, PACE_COPY } from '../lib/queue.js';
+import { describeEstimate, relativeAge, PACE_COPY } from '../lib/queue.js';
 import { distanceTo, usingDeviceLocation } from '../lib/geo.js';
 import { isOpenAt } from '../lib/explore.js';
 import { LINE_BUCKETS, POINTS } from '../data/social.js';
+import { LIVE } from '../lib/backend.js';
 
 const MIN = 60000;
 /** Door pace assumed when the bar hasn't shared one (demo): about 2 people let in a minute. */
@@ -32,11 +34,6 @@ export function draftQueue(venue, flow, now) {
   if (!b) return null;
   return { sourceType: 'crowd', observedAt: now, reportCount: 1, peopleLow: b.low, peopleHigh: b.high, admitPerMin: paceFor(venue), doorStatus: flow.door ?? 'moving' };
 }
-const minutesFor = (b, pace) => {
-  if (b.id === 'none') return 'Walk right in';
-  const r = waitRange({ peopleLow: b.low, peopleHigh: b.high, admitPerMin: pace });
-  return r ? `≈ ${r.low}–${r.high} min` : '';
-};
 
 export function waitingCard(ctx) {
   const w = ctx.state.activeWait;
@@ -48,7 +45,7 @@ export function waitingCard(ctx) {
     <p class="waiting-time"><span class="num" data-elapsed="${w.startedAt}">${mins}</span><small>min so far</small></p>
     <p class="hint">Since ${esc(formatTime(w.startedAt))}. Tap when you’re through the door.</p>
     <div class="waiting-actions">
-      <button type="button" class="btn btn-primary btn-lg" data-action="scan-in">${icon('check', { size: 18 })}${globalThis.__STORE__ ? 'I’m in' : `I’m in · +${POINTS.GOT_IN}`}</button>
+      <button type="button" class="btn btn-primary btn-lg" data-action="scan-in">${icon('check', { size: 18 })}${(globalThis.__STORE__ || LIVE) ? 'I got in' : `I got in · +${POINTS.GOT_IN}`}</button>
       <button type="button" class="btn" data-action="scan-left">I left the line</button>
     </div>
   </section>`;
@@ -76,7 +73,7 @@ function photoStep(ctx, flow) {
   // Opened from a bar's page (Report the line): that bar is already known, so say which one this report is for.
   const venue = flow.venueId ? ctx.venues.find((v) => v.id === flow.venueId) : null;
   return `${venue ? `<div class="scan-venue"><span class="bar-logo" aria-hidden="true">${venueLogo(venue)}</span><span><span class="scan-venue-name">${esc(venue.name)}</span><small>${esc([distanceText(venue), venue.area].filter(Boolean).join(' · '))}</small></span></div>`
-      : `<p class="scan-lede">Snap the line for <b class="num">+${POINTS.REPORT}</b>, then <b class="num">+${POINTS.GOT_IN}</b> when you get in.</p>`}
+      : LIVE ? '' : `<p class="scan-lede">Snap the line for <b class="num">+${POINTS.REPORT}</b>, then <b class="num">+${POINTS.GOT_IN}</b> when you get in.</p>`}
     <button type="button" class="cam-take" data-action="scan-camera">${icon('camera', { size: 30 })}<span class="cam-take-label">Take a photo of the line</span><small>Frame the line, not faces</small></button>
     ${closed ? `<p class="hint cam-note" role="status">No photo taken.${ctx.native ? ' If the camera didn’t open, allow it in Settings › Night Out › Camera.' : ''}</p>` : ''}
     <button type="button" class="btn btn-block cam-manual" data-action="scan-manual">Report without a photo</button>
@@ -106,7 +103,7 @@ export function scanEstimate(ctx, flow) {
   const latestLine = latest.waitHigh != null || latest.tone === 'paused' || latest.tone === 'capacity'
     ? `Latest: ${latest.waitHigh != null ? `${latest.waitLow}–${latest.waitHigh} min` : latest.headline}${latest.ageLabel ? ` · ${latest.ageLabel}` : ''}`
     : latest.tone === 'unknown' && latest.hasReport ? `Latest: Wait unknown${latest.ageLabel ? ` · ${latest.ageLabel}` : ''}`
-      : globalThis.__STORE__ && ctx.loadFailed ? 'Latest estimate not loaded' : 'No recent reports here';
+      : (globalThis.__STORE__ || LIVE) && ctx.loadFailed ? 'Latest estimate not loaded' : 'No recent reports here';
   const q = draftQueue(venue, flow, ctx.now);
   if (!q) {
     return `<div><p class="eyebrow">Your estimate</p><p class="v is-empty">Pick a size</p></div><div class="lv"><span>${esc(latestLine)}</span></div>`;
@@ -120,19 +117,18 @@ export function scanEstimate(ctx, flow) {
 
 function captureStep(ctx, flow) {
   const venue = ctx.venues.find((v) => v.id === flow.venueId);
-  const pace = paceFor(venue);
   return `<div class="scan-venue"><span class="bar-logo" aria-hidden="true">${venueLogo(venue)}</span><span><span class="scan-venue-name">${esc(venue?.name ?? '')}</span><small>${esc([distanceText(venue), venue?.area].filter(Boolean).join(' · '))}</small></span><button type="button" class="btn btn-sm" data-action="scan-change">Change</button></div>
     ${scanPhoto(flow)}
     <fieldset class="field-group">
       <legend class="eyebrow">How many people are in line?</legend>
-      <div class="bucket-row">${LINE_BUCKETS.map((b) => `<label class="bucket${b.id === 'none' ? ' is-wide' : ''}"><input type="radio" name="bucket" value="${b.id}" data-input="scan-bucket" ${flow.bucket === b.id ? 'checked' : ''}><span><b>${b.id === 'none' ? '0' : esc(b.label)}</b><em>${WORDS[b.id]}</em><i>${minutesFor(b, pace)}</i></span></label>`).join('')}</div>
+      <div class="bucket-row">${LINE_BUCKETS.map((b) => `<label class="bucket${b.id === 'none' ? ' is-wide' : ''}"><input type="radio" name="bucket" value="${b.id}" data-input="scan-bucket" ${flow.bucket === b.id ? 'checked' : ''}><span><b>${b.id === 'none' ? '0' : esc(b.label)}</b><em>${WORDS[b.id]}</em></span></label>`).join('')}</div>
     </fieldset>
     <fieldset class="field-group">
       <legend class="eyebrow">At the door</legend>
       <div class="segmented door-seg" style="--n:${DOOR_STATES.length}">${DOOR_STATES.map(([id, label]) => `<label><input type="radio" name="door" value="${id}" data-input="scan-door" ${(flow.door ?? 'moving') === id ? 'checked' : ''}><span>${label}</span></label>`).join('')}</div>
     </fieldset>
     <div class="scan-estimate" id="scan-estimate" role="status">${scanEstimate(ctx, flow)}</div>
-    <div class="switch-row scan-inline"><label for="scan-inline"><span class="label" style="margin:0">I’m in this line</span><span class="hint">${globalThis.__STORE__ ? 'We’ll time your wait until you tap “I’m in”' : `+${POINTS.GOT_IN} when you tell us you’re in`}</span></label>
+    <div class="switch-row scan-inline"><label for="scan-inline"><span class="label" style="margin:0">I’m in this line</span><span class="hint">${(globalThis.__STORE__ || LIVE) ? 'We’ll time your wait until you tap “I got in”' : `+${POINTS.GOT_IN} when you tell us you got in`}</span></label>
       <span class="switch"><input id="scan-inline" type="checkbox" role="switch" data-input="scan-inline" ${flow.inLine ? 'checked' : ''}><span></span></span></div>`;
 }
 
@@ -140,15 +136,15 @@ function storeDoneStep(ctx, flow) {
   const venue = ctx.venues.find((v) => v.id === flow.venueId);
   const bar = esc(venue?.name ?? 'this bar');
   return `<div class="result result-ok scan-done">
-      <p class="scan-pts" tabindex="-1" data-autofocus>${icon('check', { size: 28 })}</p>
-      <h2>Report sent</h2>
+      <p class="scan-pts" aria-hidden="true">${icon('check', { size: 28 })}</p>
+      <h2 tabindex="-1" data-autofocus>Report sent</h2>
       <p>Thanks. ${bar}’s estimate updates when another guest or our staff count backs your report up.</p>
-      <div class="actions"><a class="btn btn-primary" href="#/venue/${encodeURIComponent(flow.venueId)}">See ${bar}</a><button type="button" class="btn" data-action="scan-restart">Report another bar</button></div>
+      <div class="actions"><a class="btn btn-primary" href="#/venue/${encodeURIComponent(flow.venueId)}" data-action="scan-see">See ${bar}</a><button type="button" class="btn" data-action="scan-restart">Report another bar</button></div>
     </div>`;
 }
 
 function doneStep(ctx, flow) {
-  if (globalThis.__STORE__) return storeDoneStep(ctx, flow);
+  if (globalThis.__STORE__ || LIVE) return storeDoneStep(ctx, flow);
   const venue = ctx.venues.find((v) => v.id === flow.venueId);
   const bar = esc(venue?.name ?? 'this bar');
   const o = flow.outcome ?? { kind: 'lead' };
@@ -161,10 +157,10 @@ function doneStep(ctx, flow) {
         : `Your report doesn’t match the ${o.leadNoun} from ${age}. If another guest agrees in the next ${left} min, the wait shows as uncertain.`)
     : `Your report now sets the crowd estimate for ${bar}.`;
   return `<div class="result result-ok scan-done">
-      <p class="scan-pts num" tabindex="-1" data-autofocus>+<span class="roll">${POINTS.REPORT}</span><small>pts</small></p>
-      <h2>Report added</h2>
+      <p class="scan-pts num" aria-hidden="true">+<span class="roll">${POINTS.REPORT}</span><small>pts</small></p>
+      <h2 tabindex="-1" data-autofocus>Report added</h2>
       <p>${what}</p>
-      <div class="actions"><a class="btn btn-primary" href="#/venue/${encodeURIComponent(flow.venueId)}">See ${bar}</a><button type="button" class="btn" data-action="scan-restart">Report another bar</button></div>
+      <div class="actions"><a class="btn btn-primary" href="#/venue/${encodeURIComponent(flow.venueId)}" data-action="scan-see">See ${bar}</a><button type="button" class="btn" data-action="scan-restart">Report another bar</button></div>
     </div>`;
 }
 
@@ -189,5 +185,5 @@ export function renderScan(ctx, flow) {
     <div class="scan-step">${step}</div>
     ${n === 4 ? waitingCard(ctx) : ''}
   </div>
-  ${n === 3 ? `<div class="scan-submit">${flow.error ? `<p class="field-error" role="alert">${icon('alert')}${esc(flow.error)}</p>` : ''}<button type="button" class="btn btn-primary btn-lg btn-block" data-action="scan-submit" ${scanSubmitReady(flow) ? '' : 'aria-disabled="true"'}>${globalThis.__STORE__ ? (flow.sending ? 'Sending…' : 'Send report') : `Add report<span class="trail">+${POINTS.REPORT}</span>`}</button></div>` : ''}`;
+  ${n === 3 ? `<div class="scan-submit">${flow.error ? `<p class="field-error" role="alert">${icon('alert')}${esc(flow.error)}</p>` : ''}<button type="button" class="btn btn-primary btn-lg btn-block" data-action="scan-submit" ${scanSubmitReady(flow) ? '' : 'aria-disabled="true"'}>${(globalThis.__STORE__ || LIVE) ? (flow.sending ? 'Sending…' : 'Send report') : `Add report<span class="trail">+${POINTS.REPORT}</span>`}</button></div>` : ''}`;
 }

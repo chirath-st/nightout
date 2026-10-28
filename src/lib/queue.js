@@ -1,6 +1,7 @@
 // Shared queue-estimate contract. Every screen formats estimates through this module so a
 // venue's wait means the same thing on cards, detail, Saved and the operator preview.
 // Thresholds are design hypotheses (see research/comparison.md D1), not industry standards.
+import { LIVE } from './backend.js';
 
 export const FRESHNESS_MINUTES = Object.freeze({
   venue: { fresh: 10, stale: 20 },
@@ -90,11 +91,11 @@ const plus = (n) => (n ? ` +${n}` : '');
 const guests = (n) => (n ? ` + ${n} guest report${n === 1 ? '' : 's'}` : '');
 // Store build: the server's head counts come from our counters (by: 'staff') or a bar's door staff (by: 'door'); no photo is
 // ever taken or kept, so the words say "head count". The team build keeps its photo-console wording.
-export const ROLE_WORD = globalThis.__STORE__ ? { staff: 'our counter', door: 'door staff' } : { ambassador: 'an ambassador', bouncer: 'a bouncer' };
+export const ROLE_WORD = (globalThis.__STORE__ || LIVE) ? { staff: 'our counter', door: 'door staff' } : { ambassador: 'an ambassador', bouncer: 'a bouncer' };
 
 export function shortSourceLabel(q) {
   if (!q || !q.sourceType) return null;
-  if (q.sourceType === 'photo') return `${globalThis.__STORE__ ? 'Count' : 'Photo'}${plus(q.reportCount ?? 0)}`;
+  if (q.sourceType === 'photo') return `${(globalThis.__STORE__ || LIVE) ? 'Count' : 'Photo'}${plus(q.reportCount ?? 0)}`;
   if (q.sourceType === 'venue') return `Venue${plus(q.reportCount ?? 0)}`;
   const n = q.reportCount ?? 0;
   return `${n} report${n === 1 ? '' : 's'}`;
@@ -102,7 +103,7 @@ export function shortSourceLabel(q) {
 
 export function sourceLabel(q) {
   if (!q || !q.sourceType) return 'No source';
-  if (q.sourceType === 'photo') return globalThis.__STORE__ ? `Head count by ${ROLE_WORD[q.by] ?? 'our staff'}${guests(q.reportCount ?? 0)}` : `Line photo by ${ROLE_WORD[q.by] ?? 'door staff'}${guests(q.reportCount ?? 0)}`;
+  if (q.sourceType === 'photo') return (globalThis.__STORE__ || LIVE) ? `Head count by ${ROLE_WORD[q.by] ?? 'our staff'}${guests(q.reportCount ?? 0)}` : `Line photo by ${ROLE_WORD[q.by] ?? 'door staff'}${guests(q.reportCount ?? 0)}`;
   if (q.sourceType === 'venue') return `Venue update${guests(q.reportCount ?? 0)}`;
   if (q.sourceType === 'crowd') {
     const n = q.reportCount ?? 0;
@@ -122,7 +123,7 @@ export function relativeAge(observedAt, now) {
 }
 
 const fmtRange = (r) => `${r.low}–${r.high} min`;
-export const CONFLICT_COPY = globalThis.__STORE__
+export const CONFLICT_COPY = (globalThis.__STORE__ || LIVE)
   ? { 'photo-guests': 'Head count and guest reports disagree', photos: 'Two head counts disagree' }
   : { 'photo-guests': 'Line photo and guest reports disagree', photos: 'Two line photos disagree' };
 /** Where the door pace came from, in words (shown after the pace). */

@@ -7,8 +7,8 @@ main{padding-bottom:calc(var(--tabbar-h) + var(--safe-b) + 47px + var(--demo-ban
 html{scroll-padding-bottom:calc(var(--tabbar-h) + var(--safe-b) + 27px + var(--demo-banner-h))}
 .map-preview{bottom:calc(var(--tabbar-h) + var(--safe-b) + 23px + var(--demo-banner-h))}
 .photo-cta{bottom:calc(var(--tabbar-h) + var(--safe-b) + 19px + var(--demo-banner-h))}
-.toast-region{bottom:calc(var(--tabbar-h) + var(--safe-b) + 24px + var(--demo-banner-h) + var(--toast-lift, 0px))}
-[data-route="console"] .toast-region{bottom:calc(var(--tabbar-h) + var(--safe-b) + 84px + var(--demo-banner-h) + var(--toast-lift, 0px))}
+.toast-region{bottom:calc(var(--tabbar-h) + var(--safe-b) + 24px + var(--demo-banner-h))}
+[data-route="console"]:has(.photo-cta) .toast-region{bottom:calc(var(--tabbar-h) + var(--safe-b) + 84px + var(--demo-banner-h))}
 [data-route="scan"]:not(:has(.scan-submit)) .toast-region{bottom:calc(var(--safe-b) + 16px + var(--demo-banner-h))}
 [data-route="scan"] main{padding-bottom:calc(var(--safe-b) + 140px + var(--demo-banner-h))}
 [data-route="scan"] .public-demo-banner{bottom:var(--safe-b)}

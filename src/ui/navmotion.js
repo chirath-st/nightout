@@ -115,20 +115,23 @@ export function cornerRadii(el, depth = 4) {
 
 /** The old page's nodes, moved into a fixed layer where they were, so they can fade out over the new page. Horizontal
  *  scrollers keep their scroll position. Inert and hidden from assistive tech while it fades. */
-export function makeGhost(main, extra = []) {
+export function makeGhost(main, extra = [], { page: withPage = true } = {}) {
   const r = main.getBoundingClientRect();
-  const scrollers = [...main.querySelectorAll('.rail-list, .chips, .sort-seg')].map((el) => [el, el.scrollLeft]);
+  const scrollers = withPage ? [...main.querySelectorAll('.rail-list, .chips, .sort-seg')].map((el) => [el, el.scrollLeft]) : [];
   // The fading layer is the viewport, not the page: a page-tall layer would have to be painted whole (at 3x on an
   // iPhone) before anything could move.
   const g = document.createElement('div');
   g.className = 'nav-ghost';
   g.setAttribute('aria-hidden', 'true');
   g.inert = true;
-  const page = document.createElement('div');
-  page.className = 'nav-ghost-page';
-  Object.assign(page.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px` });
-  page.append(...main.childNodes);
-  g.append(page);
+  // withPage false: only the bars go into the layer (a heavy page is not re-layered; see main.js pageMotion).
+  if (withPage) {
+    const page = document.createElement('div');
+    page.className = 'nav-ghost-page';
+    Object.assign(page.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px` });
+    page.append(...main.childNodes);
+    g.append(page);
+  }
   extra.forEach((el) => { if (!el) return; const c = el.cloneNode(true); const er = el.getBoundingClientRect(); c.classList.add('nav-ghost-part'); Object.assign(c.style, { position: 'fixed', left: `${er.left}px`, top: `${er.top}px`, width: `${er.width}px`, margin: '0' }); g.append(c); });
   stripIds(g);
   document.body.append(g);

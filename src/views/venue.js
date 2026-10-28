@@ -13,6 +13,7 @@ import { TYPICAL_LABELS } from '../lib/queue.js';
 import { TYPICAL_HOURS } from '../data/venues.js';
 import { ideasSection } from './ideas.js';
 import { coverLabel } from '../lib/ideas.js';
+import { LIVE } from '../lib/backend.js';
 
 function to12(hhmm) {
   const [h, m] = hhmm.split(':').map(Number);
@@ -74,7 +75,7 @@ export function renderVenue(ctx, id) {
   }
   const now = ctx.now;
   const open = isOpenAt(venue, now);
-  const hours = venue.closedTonight ? 'Closed tonight' : venue.hours ? `${to12(venue.hours.open)}–${to12(venue.hours.close)}` : globalThis.__STORE__ ? 'Not confirmed yet' : 'Not listed';
+  const hours = venue.closedTonight ? 'Closed tonight' : venue.hours ? `${to12(venue.hours.open)}–${to12(venue.hours.close)}` : (globalThis.__STORE__ || LIVE) ? 'Not confirmed yet' : 'Not listed';
   const openText = open === true ? 'Open now' : open === false ? 'Closed now' : 'Hours not listed';
   const cover = venue.cover === 0 ? 'No cover' : venue.cover == null ? 'Not listed' : `${dollars(venue.cover)} at the door`;
   const saved = ctx.savedSet.has(venue.id);
@@ -91,7 +92,7 @@ export function renderVenue(ctx, id) {
       <div class="hero-title">
         <span class="hero-meta"><span class="bar-logo hero-logo" aria-hidden="true">${venueLogo(venue)}</span><span class="eyebrow">${esc(eyebrow)}</span></span>
         <h1 class="hero-name" id="page-h" tabindex="-1">${esc(venue.name)}</h1>
-        ${distanceText(venue) ? (globalThis.__STORE__ && !usingDeviceLocation()
+        ${distanceText(venue) ? ((globalThis.__STORE__ || LIVE) && !usingDeviceLocation()
           ? `<p class="hero-sub"><span>${esc(distanceText(venue))} from ${esc(originLabel())}</span></p>`
           : `<p class="hero-sub">${icon('nav', { size: 12 })}<span>New Brunswick · ${esc(distanceText(venue))} away</span></p>`) : ''}
       </div>
@@ -100,33 +101,33 @@ export function renderVenue(ctx, id) {
     ${estimateBlock(venue, now, { showHow: false })}
     ${howItWorks()}
     <div class="venue-actions">
-      <a class="act act-primary" href="#/scan?venue=${encodeURIComponent(venue.id)}">${icon('report', { size: 22 })}<span>Report the line</span>${globalThis.__STORE__ ? '' : `<span class="act-pts" aria-hidden="true">+${POINTS.REPORT}</span><span class="sr-only">, earn ${POINTS.REPORT} points</span>`}</a>
+      <a class="act act-primary" href="#/scan?venue=${encodeURIComponent(venue.id)}">${icon('report', { size: 22 })}<span>Report the line</span>${(globalThis.__STORE__ || LIVE) ? '' : `<span class="act-pts" aria-hidden="true">+${POINTS.REPORT}</span><span class="sr-only">, earn ${POINTS.REPORT} points</span>`}</a>
       <button type="button" class="act" data-action="directions" data-id="${esc(venue.id)}" ${venue.address ? '' : 'aria-disabled="true"'}>${icon('directions', { size: 22 })}<span>Directions</span></button>
       <button type="button" class="act" data-action="share" data-id="${esc(venue.id)}">${icon('share', { size: 22 })}<span>Share</span></button>
-      ${globalThis.__STORE__ ? '' : `<a class="act" href="#/groups/new?venue=${encodeURIComponent(venue.id)}">${icon('users', { size: 22 })}<span>Group</span></a>`}
+      ${(globalThis.__STORE__ || LIVE) ? '' : `<a class="act" href="#/groups/new?venue=${encodeURIComponent(venue.id)}">${icon('users', { size: 22 })}<span>Group</span></a>`}
     </div>
     ${factStrip(venue, now)}
     ${tonightSection(ev, now, ctx.loadFailed || ctx.eventsMissing)}
-    ${globalThis.__STORE__ ? '' : ideasSection(venue, ctx)}
-    ${globalThis.__STORE__ ? '' : vibeSection(venue)}
+    ${(globalThis.__STORE__ || LIVE) ? '' : ideasSection(venue, ctx)}
+    ${(globalThis.__STORE__ || LIVE) ? '' : vibeSection(venue)}
     ${dealsSection(venue, now)}
-    ${globalThis.__STORE__ ? '' : foodSection(venue)}
-    ${globalThis.__STORE__ ? '' : pollSection(venue, ctx.state.votes?.[venue.id] ?? null)}
-    ${globalThis.__STORE__ ? lastNightSection(venue) : typicalStrip(venue, now)}
-    ${globalThis.__STORE__ ? '' : passCta(venue, now)}
+    ${(globalThis.__STORE__ || LIVE) ? '' : foodSection(venue)}
+    ${(globalThis.__STORE__ || LIVE) ? '' : pollSection(venue, ctx.state.votes?.[venue.id] ?? null)}
+    ${(globalThis.__STORE__ || LIVE) ? lastNightSection(venue) : typicalStrip(venue, now)}
+    ${(globalThis.__STORE__ || LIVE) ? '' : passCta(venue, now)}
     <div class="section-head"><h2>Entry details</h2></div>
     <dl class="facts">
       <div><dt>Cover</dt><dd>${esc(cover)}</dd></div>
       <div><dt>Age policy</dt><dd>21+ with valid physical ID</dd></div>
       <div><dt>Hours tonight</dt><dd>${esc(hours)}</dd></div>
       <div><dt>Status</dt><dd>${esc(openText)}</dd></div>
-      ${globalThis.__STORE__ ? '' : `<div><dt>Priority windows</dt><dd>${esc(windows)}</dd></div>`}
+      ${(globalThis.__STORE__ || LIVE) ? '' : `<div><dt>Priority windows</dt><dd>${esc(windows)}</dd></div>`}
       <div><dt>Address</dt><dd>${esc([venue.address, venue.area].filter(Boolean).join(' · ') || 'Not listed')}</dd></div>
       ${distanceText(venue) ? `<div><dt>Distance</dt><dd>${esc(distanceText(venue))} from ${esc(originLabel())}</dd></div>` : ''}
       ${venue.source ? `<div><dt>Name &amp; address from</dt><dd>${esc(venue.source)}</dd></div>` : ''}
     </dl>
-    ${globalThis.__STORE__ ? '' : `<div class="section-head"><h2 id="menu" tabindex="-1">Menu</h2></div>`}
-    ${globalThis.__STORE__ ? '' : venue.menu?.length ? venue.menu.map((s) => `<div class="menu-section"><h3>${esc(s.title)}</h3>${s.items.map((it) => `<div class="menu-item"><span>${esc(it.name)}</span><span class="num">${it.price === 0 ? 'Free' : dollars(it.price)}</span></div>`).join('')}</div>`).join('') : '<p class="hint">No menu listed.</p>'}
+    ${(globalThis.__STORE__ || LIVE) ? '' : `<div class="section-head"><h2 id="menu" tabindex="-1">Menu</h2></div>`}
+    ${(globalThis.__STORE__ || LIVE) ? '' : venue.menu?.length ? venue.menu.map((s) => `<div class="menu-section"><h3>${esc(s.title)}</h3>${s.items.map((it) => `<div class="menu-item"><span>${esc(it.name)}</span><span class="num">${it.price === 0 ? 'Free' : dollars(it.price)}</span></div>`).join('')}</div>`).join('') : '<p class="hint">No menu listed.</p>'}
     
     
   </div>`;
@@ -173,7 +174,7 @@ const dayName = (ms) => new Intl.DateTimeFormat('en-US', { weekday: 'short' }).f
 
 function tonightSection(found, now, loadFailed = false) {
   const head = (title, community = false) => `<div class="section-head"><h2 id="tonight-h">${title}</h2>${community ? '<span class="eyebrow">Community idea</span>' : ''}</div>`;
-  if (!found) return `<section class="tonight" aria-labelledby="tonight-h">${head('Tonight')}<p class="hint">${globalThis.__STORE__ ? (loadFailed ? 'Events not loaded.' : 'No event listed tonight.') : 'No event listed this week.'}</p></section>`;
+  if (!found) return `<section class="tonight" aria-labelledby="tonight-h">${head('Tonight')}<p class="hint">${(globalThis.__STORE__ || LIVE) ? (loadFailed ? 'Events not loaded.' : 'No event listed tonight.') : 'No event listed this week.'}</p></section>`;
   const { ev, when } = found;
   const time = `${when === 'week' ? `${dayName(ev.startsAt)} ` : ''}${formatTime(ev.startsAt)}${ev.endsAt ? `–${formatTime(ev.endsAt)}` : ' till late'}`;
   const community = ev.kind === 'community';
@@ -185,9 +186,9 @@ function tonightSection(found, now, loadFailed = false) {
         <p class="event-time num">${esc(time)}</p>
       </div>
       <dl class="event-facts">
-        ${globalThis.__STORE__ ? (ev.music ? `<div><dt>Details</dt><dd>${esc(ev.music)}</dd></div>` : '') : `<div><dt>Music</dt><dd>${esc(ev.music)}</dd></div>`}
+        ${(globalThis.__STORE__ || LIVE) ? (ev.music ? `<div><dt>Details</dt><dd>${esc(ev.music)}</dd></div>` : '') : `<div><dt>Music</dt><dd>${esc(ev.music)}</dd></div>`}
         ${community ? `<div><dt>Idea by</dt><dd>${esc(ev.by.name)}</dd></div>` : ev.host ? `<div><dt>Host</dt><dd>${esc(ev.host)}</dd></div>` : ''}
-        <div><dt>Cover</dt><dd>${community ? esc(coverLabel(ev.cover)) : globalThis.__STORE__ ? (ev.cover == null ? 'Not listed' : ev.cover === 0 ? 'Free' : `$${ev.cover}`) : ev.cover ? `$${ev.cover}` : 'Free'}</dd></div>
+        <div><dt>Cover</dt><dd>${community ? esc(coverLabel(ev.cover)) : (globalThis.__STORE__ || LIVE) ? (ev.cover == null ? 'Not listed' : ev.cover === 0 ? 'Free' : `$${ev.cover}`) : ev.cover ? `$${ev.cover}` : 'Free'}</dd></div>
         <div><dt>Age</dt><dd>21+</dd></div>
       </dl>
     </article>

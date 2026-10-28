@@ -2,14 +2,19 @@
 // Every storage access is wrapped: private windows or blocked storage must not break the app.
 
 import { activeReminders } from './reminders.js';
+import { BACKEND, LIVE } from './backend.js';
 
-export const STORAGE_KEY = globalThis.__STORE__ ? 'app:state:v1' : 'doorline:v1';
+// A live team build keeps its own key, so the demo's sample points, reports and redemptions never mix with server data.
+// Its state also carries its env (mock, local, staging): a state another env wrote reads as none (one origin can serve
+// several live builds, and their report ids and reward codes must not mix).
+export const STORAGE_KEY = globalThis.__STORE__ ? 'app:state:v1' : LIVE ? 'nightout-live:v1' : 'doorline:v1';
 export const SCHEMA_VERSION = 1;
 
 export function defaultState(realNow) {
-  if (globalThis.__STORE__) {
-    // App Store build: nothing pre-filled. No profile, points, plan or sample anything; the rest of the app reads these
-    // keys, so they exist but stay empty.
+  if (globalThis.__STORE__ || LIVE) {
+    // App Store build and the team build's live profile: nothing pre-filled. No profile, points, plan or sample
+    // anything; the rest of the app reads these keys, so they exist but stay empty. vouchers holds reward codes this
+    // phone was shown ({ id, code, title, expiresAt }); Delete my data clears them with everything else.
     return {
       version: SCHEMA_VERSION, ageConfirmed: false, saved: [], passes: [], overrides: {}, audit: [],
       clock: { realStart: realNow, base: null, offsetMin: 0 }, dataset: 'live', syncAt: null,
@@ -22,6 +27,7 @@ export function defaultState(realNow) {
       reminders: {}, // venueId -> { at, nid }: local reminders for saved bars (this phone only)
       splashSeen: false, // the animated wordmark plays on the first launch only
       termsAgreedAt: null, // when this phone agreed to the Terms (asked before the first report)
+      ...(!globalThis.__STORE__ && LIVE ? { env: BACKEND.env } : {}),
     };
   }
   return {
@@ -126,6 +132,7 @@ function dropOldQueues(o) {
 export function migrate(raw, realNow) {
   const base = defaultState(realNow);
   if (!raw || typeof raw !== 'object' || raw.version !== SCHEMA_VERSION) return base;
+  if (!globalThis.__STORE__ && LIVE && raw.env !== BACKEND.env) return base;
   return {
     ...base,
     ...raw,
@@ -135,7 +142,7 @@ export function migrate(raw, realNow) {
     audit: Array.isArray(raw.audit) ? raw.audit.slice(0, 50) : [],
     clock: { ...base.clock, ...(raw.clock || {}) },
     sim: { ...base.sim, ...(raw.sim || {}) },
-    dataset: globalThis.__STORE__ ? 'live' : ['demo', 'worst', 'empty'].includes(raw.dataset) ? raw.dataset : 'demo',
+    dataset: globalThis.__STORE__ || LIVE ? 'live' : ['demo', 'worst', 'empty'].includes(raw.dataset) ? raw.dataset : 'demo',
     profile: { ...base.profile, ...(raw.profile && typeof raw.profile === 'object' ? raw.profile : {}) },
     points: Array.isArray(raw.points) ? raw.points.filter((e) => Number.isFinite(e?.delta)) : base.points,
     vouchers: arr(raw.vouchers),
@@ -163,7 +170,7 @@ export function migrate(raw, realNow) {
     doors: normDoors(raw.doors),
     reminders: activeReminders(raw.reminders, realNow),
     deals: arr(raw.deals).filter((d) => d && typeof d.venueId === 'string' && typeof d.title === 'string' && Number.isFinite(d.startsAt) && Number.isFinite(d.endsAt)).slice(0, 50),
-    ...(globalThis.__STORE__ ? {} : {
+    ...(globalThis.__STORE__ || LIVE ? {} : {
       business: { on: raw.business?.on === true, venueId: typeof raw.business?.venueId === 'string' ? raw.business.venueId : null },
       redemptions: arr(raw.redemptions).filter((r) => r && typeof r.ref === 'string' && typeof r.venueId === 'string' && Number.isFinite(r.at))
         .map(({ id, ref, rewardId, venueId, at, sample, night }) => ({ id: String(id ?? ref), ref, rewardId: String(rewardId ?? ''), venueId, at, sample: sample === true, night: Number.isFinite(night) ? night : null })).slice(0, 200),

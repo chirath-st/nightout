@@ -74,10 +74,10 @@ export function currentStop(stops, now) {
 
 /** Rewards catalog. Simulated: no bar honors these. Nothing here is alcohol (see DRINKS_LOCK). */
 export const REWARDS = Object.freeze([
-  { id: 'na-drink', title: 'Free non-alcoholic drink', detail: 'Soda, mocktail or water', cost: 100, icon: 'sparkle' },
+  { id: 'na-drink', title: 'Free non-alcoholic drink', detail: 'Soda, mocktail or water', cost: 100, icon: 'cup' },
   { id: 'cover', title: 'Cover on us', detail: 'One cover charge', cost: 200, icon: 'ticket' },
   { id: 'line-cut', title: 'Line cut', detail: 'Priority entry during a set window', cost: 400, icon: 'arrowRight' },
-  { id: 'merch', title: 'Night Out hat', detail: 'Pick up at a pop-up', cost: 600, icon: 'shield' },
+  { id: 'merch', title: 'Night Out hat', detail: 'Pick up at a pop-up', cost: 600, icon: 'cap' },
   { id: 'vip', title: 'VIP entry', detail: 'Skip the line for you and one friend', cost: 1000, icon: 'star' },
 ]);
 

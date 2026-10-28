@@ -73,7 +73,10 @@ export function onResume(fn) {
 
 // Saved state backup. iOS may clear a web view's localStorage under storage pressure, so in the app every save is
 // mirrored to native Preferences (UserDefaults), and a launch with empty web storage restores from it first.
-const MIRROR = ['app:state:v1', 'app:session:v1'];
+// doorline:v1 is the team demo's state and nightout-live:v1 the team build's live profile (store.js). A live build's
+// venue client adds its own keys (addMirrorKeys), so the demo carries no venue key names.
+const MIRROR = ['app:state:v1', 'app:session:v1', 'doorline:v1', 'nightout-live:v1'];
+export function addMirrorKeys(keys) { for (const k of keys ?? []) if (!MIRROR.includes(k)) MIRROR.push(k); }
 export async function restoreStorage(storage) {
   const p = plugin('Preferences');
   if (!p || !storage) return;
