@@ -906,22 +906,26 @@ function render({ focus = 'heading', scroll = 'keep' } = {}) {
   const main = document.getElementById('main');
   const railList = main.querySelector('.deals-rail:not(.sk-rail) .rail-list');
   if (railList) railScroll = railList.scrollLeft;
+  // Lab step marks (navStep is a plain call unless the nav probe is on): the page's markup, the DOM it becomes, and the
+  // work after it, so a slow navigation can be placed (MJ3).
   let html;
-  try { html = mainHtml(); } catch (err) { html = errorHtml(err); }
-  main.innerHTML = html;
-  restoreRail(main.querySelector('.deals-rail:not(.sk-rail) .rail-list'));
-  revealPhotos(main);
-  app.renderedHash = location.hash || '#/';
-  // A bar id that isn't listed renders a plain not-found page: it keeps the top bar (the hero layout is for a real bar).
-  document.body.dataset.route = ['venue', 'pass'].includes(app.route?.name) ? (app.venues.some((v) => v.id === app.route.params.id) ? 'venue' : 'notfound') : app.route?.name ?? '';
-  watchMasthead();
-  watchSortSeg();
-  liftToasts();
-  const banners = document.getElementById('explore-banners');
-  if (banners) banners.dataset.sig = exploreBanners(ctx());
-  const h1 = main.querySelector('h1');
-  document.title = `${h1 ? `${h1.textContent.trim()} · ` : ''}${APP_NAME}`;
-  syncSheet();
+  navStep('html', () => { try { html = mainHtml(); } catch (err) { html = errorHtml(err); } });
+  navStep('dom', () => { main.innerHTML = html; });
+  navStep('hooks', () => {
+    restoreRail(main.querySelector('.deals-rail:not(.sk-rail) .rail-list'));
+    revealPhotos(main);
+    app.renderedHash = location.hash || '#/';
+    // A bar id that isn't listed renders a plain not-found page: it keeps the top bar (the hero layout is for a real bar).
+    document.body.dataset.route = ['venue', 'pass'].includes(app.route?.name) ? (app.venues.some((v) => v.id === app.route.params.id) ? 'venue' : 'notfound') : app.route?.name ?? '';
+    watchMasthead();
+    watchSortSeg();
+    liftToasts();
+    const banners = document.getElementById('explore-banners');
+    if (banners) banners.dataset.sig = exploreBanners(ctx());
+    const h1 = main.querySelector('h1');
+    document.title = `${h1 ? `${h1.textContent.trim()} · ` : ''}${APP_NAME}`;
+    syncSheet();
+  });
   if (scroll === 'restore') window.scrollTo(0, app.scroll.get(app.renderedHash) ?? 0);
   else if (scroll === 'top') window.scrollTo(0, 0);
   const dealTarget = app.route?.name === 'venue' && app.route.query.deal ? document.getElementById(`deal-${app.route.query.deal}`) : null;

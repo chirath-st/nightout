@@ -325,6 +325,60 @@ export function srSummary(venue, now) {
 // Neon palette per bar for the drawn storefront (placeholder art, not a likeness of the real bar).
 const ART_PAL = { 'olde-queens': 'amber', 'scarlet-pub': 'red', 'hueys-knight-club': 'violet', 'pitch-social': 'cyan', 'the-vine': 'green', 'olive-branch': 'gold', 'stuff-yer-face': 'rose', 'thirty-burgers': 'amber', evelyns: 'gold', 'ale-n-wich': 'green' };
 const artCache = new Map();
+// The drawn storefronts are SVG with soft glows (Gaussian blurs). WebKit draws an SVG image again for every new <img>
+// that paints it, so a page rebuilt with them (a tab, Scan closing) spent tens of ms in one frame on it (MJ3, measured
+// on the lab simulator: evidence/journeys-20261028/motion). Each one is drawn once into a bitmap, at a quiet moment and
+// decoded before use; later pages show that bitmap (the same picture), and the SVG until it is ready. It is a JPEG: the
+// art is opaque (a full-frame sky), and in WebKit a PNG encode added 60–85 ms to the job, a JPEG 17–34 ms (lab).
+const artRaster = new Map(); // key -> blob URL of the decoded bitmap (null while it is being made)
+const artQueue = [];
+let artTimer = 0;
+// Making one still holds the main thread for one long frame (WebKit renders the blurred SVG once, 100–150 ms in the lab,
+// whatever the size), so it waits for a quiet moment: no tap, key, scroll or navigation for QUIET ms, and the app in
+// front, so it seldom lands in a navigation's frames. Each storefront pays that once a session instead of on every page.
+const QUIET = 800;
+// Nor in the first seconds of startup (the splash, the gate and the first pictures): a job there made the worst startup
+// frame 410 ms instead of 280 (lab).
+const START_HOLD = 2500;
+let lastActivity = (typeof performance === 'undefined' ? 0 : performance.now()) + START_HOLD;
+if (typeof addEventListener === 'function') {
+  for (const type of ['pointerdown', 'keydown', 'wheel', 'scroll', 'touchstart', 'hashchange', 'popstate']) addEventListener(type, () => { lastActivity = Math.max(lastActivity, performance.now()); }, { capture: true, passive: true });
+}
+function queueRaster(key) {
+  if (artRaster.has(key) || typeof document === 'undefined' || typeof URL?.createObjectURL !== 'function') return;
+  artRaster.set(key, null);
+  artQueue.push(key);
+  if (!artTimer) artTimer = setTimeout(rasterNext, 400);
+}
+function rasterNext() {
+  artTimer = 0;
+  if (!artQueue.length) return;
+  const idle = performance.now() - lastActivity;
+  if (idle < QUIET || document.hidden) { artTimer = setTimeout(rasterNext, Math.max(200, QUIET - idle)); return; }
+  const key = artQueue.shift();
+  const done = () => { if (artQueue.length) artTimer = setTimeout(rasterNext, 120); };
+  const svg = new Image();
+  svg.onload = () => {
+    try {
+      // As wide as the widest slot it fills (a hero: the screen width), at the screen's pixel density.
+      const w = Math.round(Math.min(globalThis.innerWidth || 400, 480) * Math.min(globalThis.devicePixelRatio || 2, 3));
+      const c = document.createElement('canvas');
+      Object.assign(c, { width: w, height: Math.round((w * 750) / 600) });
+      if (globalThis.__NAV_DEBUG__) performance.mark('art:draw:a');
+      c.getContext('2d').drawImage(svg, 0, 0, c.width, c.height);
+      if (globalThis.__NAV_DEBUG__) performance.mark('art:draw:b');
+      c.toBlob((blob) => {
+        if (!blob) { artRaster.delete(key); done(); return; }
+        const url = URL.createObjectURL(blob);
+        const bmp = new Image();
+        bmp.src = url;
+        (bmp.decode ? bmp.decode() : Promise.resolve()).then(() => { artRaster.set(key, url); }, () => { URL.revokeObjectURL(url); artRaster.delete(key); }).finally(done);
+      }, 'image/jpeg', 0.9);
+    } catch { done(); } // a canvas the engine won't export (tainted): the SVG stays
+  };
+  svg.onerror = done;
+  svg.src = artCache.get(key);
+}
 function artSrc(venue) {
   const pals = Object.keys(NIGHT_PALETTES);
   let h = 0;
@@ -332,6 +386,9 @@ function artSrc(venue) {
   const pal = ART_PAL[venue.id] ?? pals[h % pals.length];
   const key = `${venue.id}|${pal}`;
   if (!artCache.has(key)) artCache.set(key, `data:image/svg+xml;charset=utf-8,${encodeURIComponent(nightArt(venue.id, pal, {}))}`);
+  const bitmap = artRaster.get(key);
+  if (bitmap) return bitmap;
+  queueRaster(key);
   return artCache.get(key);
 }
 /** Photo slot: the venue's own photo when licensed or permitted (venue.photo), else the drawn night storefront. */
