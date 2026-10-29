@@ -2,7 +2,7 @@
 // demo user's and stays on this device. SIMULATED: no billing, no wallet pass, no photo is read.
 import { esc, wordmark } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
-import { initials, balanceOf, youSeed, PLANS, PLUS_PERKS, SAMPLE_BAR_CARDS } from '../data/social.js';
+import { initials, balanceOf, youSeed, PLANS, PLUS_PERKS, SAMPLE_BAR_CARDS, instagramUrl, linkedinUrl } from '../data/social.js';
 import { personAvatar } from '../ui/avatars.js';
 import { usingDeviceLocation } from '../lib/geo.js';
 import { deletePanel } from './store.js';
@@ -51,7 +51,7 @@ export function renderProfile(ctx, { editing = false, errors = {}, values = null
       ${personAvatar({ seed: youSeed(p.name), initials: initials(p.name) }, 72)}
       <div class="profile-id">
         <p class="profile-name">${esc(p.name || (live ? 'You' : ''))}</p>
-        ${p.handle ? `<span class="handle is-text">${icon('at', { size: 14 })}<span class="sr-only">Instagram </span>${esc(p.handle)}</span>` : '<p class="hint" style="margin:0">No Instagram added</p>'}
+        ${p.handle || p.linkedin ? `<span class="social-links">${p.handle ? `<a class="handle" href="${esc(instagramUrl(p.handle))}" target="_blank" rel="noopener">${icon('at', { size: 14 })}<span class="sr-only">Instagram </span>${esc(p.handle)}</a>` : ''}${p.linkedin ? `<a class="handle" href="${esc(linkedinUrl(p.linkedin))}" target="_blank" rel="noopener"><span class="li-mark" aria-hidden="true">in</span><span class="sr-only">LinkedIn </span>${esc(p.linkedin)}</a>` : ''}</span>` : '<p class="hint" style="margin:0">No Instagram or LinkedIn added</p>'}
         <button type="button" class="btn btn-sm" data-action="edit-profile" aria-expanded="${editing}">${editing ? 'Cancel' : 'Edit profile'}</button>
       </div>
     </section>
@@ -61,6 +61,8 @@ export function renderProfile(ctx, { editing = false, errors = {}, values = null
         ${errors.name ? `<p class="field-error" id="err-p-name">${icon('alert')}${esc(errors.name)}</p>` : ''}</div>
       <div class="field"><label class="label" for="p-ig">Instagram handle (optional)</label><div class="input-prefix"><span aria-hidden="true">@</span><input id="p-ig" name="instagram" class="text-input" maxlength="30" autocomplete="off" autocapitalize="none" spellcheck="false" value="${esc(values?.instagram ?? p.handle)}" ${errors.handle ? 'aria-invalid="true" aria-describedby="err-p-ig"' : ''}></div>
         ${errors.handle ? `<p class="field-error" id="err-p-ig">${icon('alert')}${esc(errors.handle)}</p>` : ''}</div>
+      <div class="field"><label class="label" for="p-li">LinkedIn (optional)</label><div class="input-prefix"><span aria-hidden="true">in/</span><input id="p-li" name="linkedin" class="text-input" maxlength="120" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="your-name" value="${esc(values?.linkedin ?? p.linkedin ?? '')}" ${errors.linkedin ? 'aria-invalid="true" aria-describedby="err-p-li"' : ''}></div>
+        ${errors.linkedin ? `<p class="field-error" id="err-p-li">${icon('alert')}${esc(errors.linkedin)}</p>` : ''}</div>
       <button type="submit" class="btn btn-primary btn-block">Save profile</button>
     </form>` : ''}
     ${live ? `<dl class="fact-strip">

@@ -1,5 +1,5 @@
 import { exploreList, FILTERS, AREAS, areaLabel, isOpenAt } from '../lib/explore.js';
-import { esc, mapCard, venueCard, stateBox, banner, estimateFor, venuePhoto, promoLabel, promoItem } from '../ui/components.js';
+import { esc, mapCard, venueCard, stateBox, banner, estimateFor, venuePhoto, promoLabel, promoItem, meter, crowdStatus } from '../ui/components.js';
 import { icon, TONE_LABEL } from '../ui/icons.js';
 import { formatTime } from '../lib/clock.js';
 import { distanceTo, originLabel, usingDeviceLocation } from '../lib/geo.js';
@@ -165,11 +165,13 @@ export function pinParts(venue, est, action) {
   const short = { closed: '—', capacity: 'Full', paused: 'Paused', stale: '?', unknown: '?' }[est.tone] ?? (est.waitLow != null ? `${est.waitLow}–${est.waitHigh}` : '?');
   const unit = est.waitLow != null && !['stale', 'unknown', 'closed', 'capacity', 'paused'].includes(est.tone) ? ' min' : '';
   const toneWords = est.headline === TONE_LABEL[est.tone] ? '' : `, ${TONE_LABEL[est.tone]}`;
+  const level = crowdStatus(est).level;
   return {
     cls: `map-pin-btn tone-pin-${est.tone}`,
     label: `${venue.name}: ${est.headline}${toneWords}${action === 'map-open' ? '. Open details' : ''}`,
     // The bar's monogram (the same letters as its logo fallback) says which bar a pin is without a tap (finding CR8).
-    html: `<b class="pin-mono">${esc(monogram(venue))}</b>${esc(short)}<span aria-hidden="true">${unit}</span>`,
+    // A three-bar level meter (shape and count, in the level's colour) for a pin that has a level: the wait is beside it.
+    html: `${['quiet', 'lively', 'packed', 'capacity'].includes(level) ? meter(level) : ''}<b class="pin-mono">${esc(monogram(venue))}</b>${esc(short)}<span aria-hidden="true">${unit}</span>`,
   };
 }
 

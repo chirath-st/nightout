@@ -27,14 +27,16 @@ export function ideaCard(x, ctx) {
     : x.status === 'declined' ? `${icon('x', { size: 14 })}Bar passed` : `${icon('clock', { size: 14 })}Needs bar approval`;
   const counts = x.status === 'approved'
     ? `<span class="num" data-idea-counts="${esc(x.id)}"><span class="roll">${joins}</span> going</span><span class="sep" aria-hidden="true">•</span><span>${esc(coverLabel(x.cover))}</span>`
-    : `<span class="num" data-idea-counts="${esc(x.id)}"><span class="roll">${joins}</span> in · <span class="roll">${hype}</span> hype</span>${x.status === 'pending' ? `<span class="sep" aria-hidden="true">•</span><span class="num">~${exp.low}–${exp.high} expected</span>` : ''}`;
+    : `<span class="num" data-idea-counts="${esc(x.id)}"><span class="roll">${joins}</span> going · <span class="roll">${hype}</span> interested</span>${x.status === 'pending' ? `<span class="sep" aria-hidden="true">•</span><span class="num">~${exp.low}–${exp.high} expected</span>` : ''}`;
   let actions = '';
   if (x.mine) actions = `<a class="btn btn-sm" href="#/console?venue=${encodeURIComponent(x.venueId)}&amp;s=offers">${icon('door', { size: 16 })}Review as the bar</a>`;
   else if (x.status === 'pending') {
-    actions = `<button type="button" class="btn btn-sm" data-action="idea-hype" data-id="${esc(x.id)}" aria-pressed="${hyped}">${icon('bolt', { size: 16 })}${lblStack('Hype', 'Hyped', hyped)}<span class="sr-only"> ${esc(x.title)}</span></button>
-      <button type="button" class="btn btn-sm ${joined ? '' : 'btn-primary'}" data-action="idea-join" data-id="${esc(x.id)}" aria-pressed="${joined}">${lblStack('I’m in', `${icon('check', { size: 16 })}You’re in`, joined)}<span class="sr-only"> for ${esc(x.title)}</span></button>`;
+    // One choice, None → Interested → Going (venue brief 2026-10-28): free, undoable, never a ticket; the two counts are
+    // different people (choosing one clears the other).
+    actions = `<button type="button" class="btn btn-sm" data-action="idea-hype" data-id="${esc(x.id)}" aria-pressed="${hyped}">${icon('star', { size: 16 })}${lblStack('Interested', 'Interested', hyped)}<span class="sr-only"> in ${esc(x.title)}</span></button>
+      <button type="button" class="btn btn-sm ${joined ? '' : 'btn-primary'}" data-action="idea-join" data-id="${esc(x.id)}" aria-pressed="${joined}">${lblStack('Going', `${icon('check', { size: 16 })}Going`, joined)}<span class="sr-only"> to ${esc(x.title)}</span></button>`;
   } else if (x.status === 'approved') {
-    actions = `<button type="button" class="btn btn-sm ${joined ? '' : 'btn-primary'}" data-action="idea-join" data-id="${esc(x.id)}" aria-pressed="${joined}">${lblStack('I’m in', `${icon('check', { size: 16 })}You’re in`, joined)}<span class="sr-only"> for ${esc(x.title)}</span></button>`;
+    actions = `<button type="button" class="btn btn-sm ${joined ? '' : 'btn-primary'}" data-action="idea-join" data-id="${esc(x.id)}" aria-pressed="${joined}">${lblStack('Going', `${icon('check', { size: 16 })}Going`, joined)}<span class="sr-only"> to ${esc(x.title)}</span></button>`;
   }
   return `<li class="idea-card" data-idea="${esc(x.id)}" data-status="${x.status}" data-starts="${x.startsAt}">
     <a class="idea-link" href="#/venue/${encodeURIComponent(x.venueId)}" data-nav-venue="${esc(x.venueId)}">
@@ -119,7 +121,7 @@ export function ideaPanel(v, ctx) {
       <p class="idea-by">${byAvatar(x)}<span>Proposed by ${esc(x.mine ? `${x.by.name} (you)` : x.by.name)} · ${esc(agoLabel(x.postedAt, ctx.now))}</span></p>
       <div class="turnout"><div><p class="eyebrow">Expected turnout</p><p class="turnout-num num" data-turnout="${esc(x.id)}">${exp.low}–${exp.high} people</p></div>
         <p class="turnout-level">${meter(level, { lg: true })}<b>${LEVEL_WORD[level]}</b></p></div>
-      <p class="hint" style="margin:0">${joins} said I’m in and ${hype} hyped it.</p>
+      <p class="hint" style="margin:0">${joins} going and ${hype} interested.</p>
       <p class="staff-hint">${icon('users', { size: 16 })}<span>Suggestion: ${esc(staffingHint(level))}</span></p>
       <fieldset class="field-group" style="margin-top:4px"><legend class="label">Cover if approved</legend>
         <div class="radio-row cover-picks">${[0, 5, 10].map((c) => `<label class="radio-card"><input type="radio" name="idea-cover-${esc(x.id)}" value="${c}" data-input="idea-cover" data-id="${esc(x.id)}" ${c === cover ? 'checked' : ''}><span>${c === 0 ? 'Free entry' : `$${c}`}</span></label>`).join('')}</div></fieldset>

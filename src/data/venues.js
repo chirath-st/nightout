@@ -37,6 +37,15 @@ const MENUS = {
   hotel: () => menu([['Flatbread', 14], ['Olives', 7]], [['Sparkling water', 4]]),
   dogs: () => menu([['Hot dog', 6], ['Fries', 5]], [['Soda', 3]]),
 };
+// Published menus (venue prefill research, 2026-10-28: evidence/b2b-colour-20261028, research record
+// nightout-venue-prefill-research-20261028.json): a small factual sample from the bar's own site, food only, prices as
+// published on that date (they may change; tax and tip unknown). Shown with the source and date. A bar with no verified
+// prices shows none rather than an invented menu.
+const PUBLISHED = {
+  'stuff-yer-face': { source: 'stuffyerface.com menu', checked: 'Oct 28, 2026', food: [['Fries', 8], ['Mozzarella sticks', 13], ['Buffalo wings (1 lb)', 16], ['Burger (8 oz)', 15], ['Burger with cheese (8 oz)', 17]] },
+  evelyns: { source: 'evelynsrestaurant.com online menu', checked: 'Oct 28, 2026', food: [['Homus', 9], ['Falafel (4)', 9], ['Fries', 6], ['Baklava', 4]] },
+  'ale-n-wich': { source: null, food: [] },
+};
 const SRC = {
   directory: 'New Brunswick City Market directory, "Nightlife, Bars & Taverns" (2026)',
 };
@@ -64,7 +73,7 @@ const MEDIA = {
   'ale-n-wich': { photo: 'Ale ’N ’Wich Pub website', alt: 'The brick corner building of Ale ’N ’Wich Pub', pos: '40% 55%' },
   'pitch-social': {},
   evelyns: { photo: 'Evelyn’s Restaurant website', alt: 'A plate of tabbouleh at Evelyn’s', pos: '50% 55%' },
-  'stuff-yer-face': { photo: 'Ben+Sam on Flickr, CC BY-SA 2.0', alt: 'The Stuff Yer Face storefront with its green awning', pos: '55% 50%' },
+  'stuff-yer-face': { photo: '“Stuff Yer Face” by Ben+Sam (Flickr), CC BY-SA 2.0, cropped', alt: 'The Stuff Yer Face storefront with its green awning', pos: '55% 50%' },
   'thirty-burgers': { photo: '30 Burgers website (chain photo)', alt: 'A bacon cheeseburger from 30 Burgers', pos: '50% 45%' },
   'the-vine': { photo: '@dtjphotography via The Vine’s website', alt: 'The Vine’s sign on a wall of greenery', pos: '50% 40%' },
   'olive-branch': { photo: 'The Olive Branch website', alt: 'The beer taps at The Olive Branch', pos: '50% 50%' },
@@ -231,6 +240,8 @@ function materialize(raw, demoStart, syncAt = demoStart) {
     // fresh / aging / out-of-date states survives however long the demo runs.
     v.queue = { ...rest, observedAt: syncAt - ago * MIN };
   }
+  const pub = PUBLISHED[v.id];
+  if (pub) { v.menu = pub.food.length ? [{ title: 'Food', items: pub.food }] : []; v.menuSource = pub.source ? `From ${pub.source}, ${pub.checked}. Prices may change.` : null; }
   v.menu = v.menu.map((s) => ({ title: s.title, items: s.items.map(([name, price]) => ({ name, price })) }));
   if (v.pass) {
     v.pass = {

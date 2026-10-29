@@ -2,7 +2,7 @@
 import { load, save, clear, defaultState } from './lib/store.js';
 import { normalizeClock, demoNow, advance, formatTime, START_OFFSET_MIN, nightIsOver } from './lib/clock.js';
 import { buildDataset, atNight, atNightOn } from './data/venues.js';
-import { buildGroups, POINTS, LINE_BUCKETS, REWARDS, balanceOf, nextReward, validHandle, checkedInTonight, PLANS, SAMPLE_BAR_CARDS } from './data/social.js';
+import { buildGroups, POINTS, LINE_BUCKETS, REWARDS, balanceOf, nextReward, validHandle, validLinkedIn, bareHandle, checkedInTonight, PLANS, SAMPLE_BAR_CARDS } from './data/social.js';
 import { resolveVenues } from './lib/model.js';
 import { withObservations, headsFor, scanOutcome } from './lib/merge.js';
 import { parseHash, buildHash, exploreStateFromQuery, exploreQuery } from './lib/router.js';
@@ -3313,14 +3313,17 @@ function toggleIdea(key, id) {
   const list = app.state.ideas[key];
   const on = !list.includes(id);
   app.state.ideas[key] = on ? [...list, id] : list.filter((i) => i !== id);
+  // Interested and Going are one choice: picking one clears the other, so nobody is counted twice.
+  const other = key === 'joined' ? 'hyped' : 'joined';
+  if (on && app.state.ideas[other].includes(id)) app.state.ideas[other] = app.state.ideas[other].filter((i) => i !== id);
   persist();
   if (app.route.name !== 'events') rerenderPage();
   else if (!patchCard(`#event-results .idea-card[data-idea="${CSS.escape(id)}"]`, ideaCard(x, ctx()))) renderEventResults({ quiet: true });
   const bar = app.venues.find((v) => v.id === x.venueId)?.name ?? 'the bar';
   if (key === 'joined') {
-    toast(on ? (x.status === 'approved' ? `You’re in for ${x.title} on ${nightLabel(x.startsAt).split(',')[0]}.` : `You’re in for ${x.title} if ${bar} approves it.`) : `You’re out of ${x.title}.`);
+    toast(on ? (x.status === 'approved' ? `You’re going to ${x.title} on ${nightLabel(x.startsAt).split(',')[0]}.` : `You’re going to ${x.title} if ${bar} approves it.`) : `You’re not going to ${x.title}.`);
   } else {
-    announce(on ? `Hyped ${x.title}. ${ideaCounts(x, app.state).hype} hype.` : `Hype removed from ${x.title}.`);
+    announce(on ? `Interested in ${x.title}. ${ideaCounts(x, app.state).hype} interested.` : `No longer interested in ${x.title}.`);
   }
 }
 function postIdea() {
@@ -3872,18 +3875,21 @@ function applyConfig(cfg) {
 /* ---------------- profile ---------------- */
 function saveProfile(form) {
   const name = form.querySelector('#p-name').value.trim();
-  const handle = form.querySelector('#p-ig').value.trim().replace(/^@/, '');
+  // A pasted profile URL works too: it becomes the bare handle, and the profile links it.
+  const handle = bareHandle(form.querySelector('#p-ig').value, 'instagram');
+  const linkedin = bareHandle(form.querySelector('#p-li')?.value ?? '', 'linkedin');
   const errors = {};
   if (!name) errors.name = 'Add a name so groups know who you are.';
   if (handle && !validHandle(handle)) errors.handle = 'Use letters, numbers, periods or underscores (up to 30).';
+  if (linkedin && !validLinkedIn(linkedin)) errors.linkedin = 'Use the name after linkedin.com/in/ (letters, numbers, hyphens).';
   if (Object.keys(errors).length) {
     // Keep what was typed (an emptied Name stays empty next to its error).
     app.profileEdit = { editing: true, errors, values: Object.fromEntries(new FormData(form)) };
     patchPage(); // the error lines drop in; what was typed stays in its field (QA plan 8.3)
-    focusInvalid(document.querySelector(errors.name ? '#p-name' : '#p-ig'));
+    focusInvalid(document.querySelector(errors.name ? '#p-name' : errors.handle ? '#p-ig' : '#p-li'));
     return;
   }
-  app.state.profile = { name, handle };
+  app.state.profile = { name, handle, linkedin };
   persist();
   app.profileEdit = { editing: false, errors: {} };
   rerenderPage();
@@ -4637,6 +4643,13 @@ function handleAction(a, el, e) {
     } return false;
     case 'biz-section': if (!globalThis.__STORE__) {
       bizSection(el.dataset.s); return true;
+    } return false;
+    case 'imp-metric': if (!globalThis.__STORE__) {
+      // Impact: the chosen measure drives the chart (the tiles stay where they are; focus stays on the tile).
+      app.console.impMetric = el.dataset.m;
+      rerenderConsole();
+      document.querySelector(`#main [data-action="imp-metric"][data-m="${el.dataset.m}"]`)?.focus({ preventScroll: true });
+      return true;
     } return false;
     case 'redeem-pick': if (!globalThis.__STORE__) {
       checkRedeemCode(el.dataset.code); return true;

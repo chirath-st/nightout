@@ -19,7 +19,7 @@ export function defaultState(realNow) {
       version: SCHEMA_VERSION, ageConfirmed: false, saved: [], passes: [], overrides: {}, audit: [],
       clock: { realStart: realNow, base: null, offsetMin: 0 }, dataset: 'live', syncAt: null,
       sim: { offline: false, failNextRefresh: false, failNextPass: false },
-      profile: { name: '', handle: '' }, points: [], checkins: [], lastDaily: null, vouchers: [],
+      profile: { name: '', handle: '', linkedin: '' }, points: [], checkins: [], lastDaily: null, vouchers: [],
       groups: { joined: [], created: [] }, reports: [], activeWait: null,
       prefs: { notifyDrops: false, notifyDeals: false, notifyGroups: false }, vipCards: [],
       subscription: { plan: 'none', billing: 'monthly', since: null }, savedEvents: [], goingEvents: [], votes: {},
@@ -42,7 +42,7 @@ export function defaultState(realNow) {
     syncAt: null, // demo time of the last successful simulated refresh
     sim: { offline: false, failNextRefresh: false, failNextPass: false },
     // Social + rewards (all simulated, this device only)
-    profile: { name: 'Alex', handle: '' },
+    profile: { name: 'Alex', handle: '', linkedin: '' },
     points: [{ id: 'start', at: null, delta: 240, label: 'Starting balance' }],
     checkins: [], // { id, venueId, at } (simulated door-QR check-ins)
     lastDaily: null, // demo night (ms) of the last daily-login bonus

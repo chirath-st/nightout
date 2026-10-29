@@ -116,7 +116,7 @@ export function estimateBlock(venue, now, { headingId = 'qb-h', showHow = true, 
   const sentence = est.observedAt != null && est.tone !== 'closed'
     ? `<b>Updated ${esc(est.ageLabel)}</b> · ${esc(est.sourceLabel)}${est.confidence ? `, ${esc(est.confidence.toLowerCase())} confidence` : ''}.`
     : esc(est.detail || '');
-  return `<section class="queue-block" data-est="${esc(venue.id)}" data-variant="block" data-tone="${est.tone}" data-level="${headingLevel}" aria-labelledby="${headingId}">
+  return `<section class="queue-block" data-est="${esc(venue.id)}" data-variant="block" data-tone="${est.tone}" data-level="${headingLevel}" data-crowd="${st.level}" aria-labelledby="${headingId}">
     <div class="qb-top"><${h} class="qb-label" id="${headingId}">Wait at the door</${h}></div>
     <p class="qb-wait"><span class="sr-only">Estimated wait </span>${big}</p>
     ${rangeTone ? `<div class="qb-scale" aria-hidden="true" style="--lo:${Math.min(est.waitLow, 30)};--hi:${Math.min(est.waitHigh, 30)};--max:30"><span class="qb-scale-track"><b style="left:33.33%"></b><b style="left:66.66%"></b><span class="qb-scale-range"><i class="r-lo"></i><i class="r-hi"></i><i class="r-mid"></i></span></span><span class="qb-scale-axis"><span style="left:0">0</span><span style="left:33.33%">10</span><span style="left:66.66%">20</span><span style="left:100%">30+ min</span></span></div>` : ''}

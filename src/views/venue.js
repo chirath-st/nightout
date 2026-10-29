@@ -21,6 +21,10 @@ function to12(hhmm) {
   return new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: m ? '2-digit' : undefined }).format(d);
 }
 
+/** The typical-night chart's five levels (TYPICAL_LABELS) in the crowd colours: quiet and light green, steady and busy
+ *  orange, very busy red. The bar heights and the sentence under the chart say the same. */
+const TYPICAL_BAND = ['quiet', 'quiet', 'lively', 'lively', 'packed'];
+
 function typicalStrip(venue, now) {
   if (!venue.typical?.some((n) => n > 0)) return '';
   const hour = new Date(now).getHours();
@@ -29,8 +33,8 @@ function typicalStrip(venue, now) {
   return `<section class="typical" aria-labelledby="typ-h">
     <div class="section-head"><h2 id="typ-h">Typical weekend night</h2></div>
     
-    <div class="typical-bars" aria-hidden="true">${venue.typical.map((n, i) => `<span class="${i === idx ? 'is-now' : ''}" style="height:${10 + n * 22}%"></span>`).join('')}</div>
-    <div class="typical-axis" aria-hidden="true">${TYPICAL_HOURS.map((h) => `<span>${h}</span>`).join('')}</div>
+    <div class="typical-bars" aria-hidden="true">${venue.typical.map((n, i) => `<span class="${i === idx ? 'is-now' : ''}" data-band="${TYPICAL_BAND[n] ?? 'quiet'}" style="height:${10 + n * 22}%"></span>`).join('')}</div>
+    <div class="typical-axis" aria-hidden="true">${TYPICAL_HOURS.map((h, i) => `<span${i === idx ? ' class="is-now"' : ''}>${h}</span>`).join('')}</div>
     <p class="hint">Usually ${esc(TYPICAL_LABELS[venue.typical[peak]].toLowerCase())} around ${TYPICAL_HOURS[peak]}.</p>
   </section>`;
 }
@@ -127,7 +131,7 @@ export function renderVenue(ctx, id) {
       ${venue.source ? `<div><dt>Name &amp; address from</dt><dd>${esc(venue.source)}</dd></div>` : ''}
     </dl>
     ${(globalThis.__STORE__ || LIVE) ? '' : `<div class="section-head"><h2 id="menu" tabindex="-1">Menu</h2></div>`}
-    ${(globalThis.__STORE__ || LIVE) ? '' : venue.menu?.length ? venue.menu.map((s) => `<div class="menu-section"><h3>${esc(s.title)}</h3>${s.items.map((it) => `<div class="menu-item"><span>${esc(it.name)}</span><span class="num">${it.price === 0 ? 'Free' : dollars(it.price)}</span></div>`).join('')}</div>`).join('') : '<p class="hint">No menu listed.</p>'}
+    ${(globalThis.__STORE__ || LIVE) ? '' : venue.menu?.length ? `${venue.menu.map((s) => `<div class="menu-section"><h3>${esc(s.title)}</h3>${s.items.map((it) => `<div class="menu-item"><span>${esc(it.name)}</span><span class="num">${it.price === 0 ? 'Free' : dollars(it.price)}</span></div>`).join('')}</div>`).join('')}${venue.menuSource ? `<p class="hint menu-source">${esc(venue.menuSource)}</p>` : ''}` : '<p class="hint">No menu listed yet.</p>'}
     
     
   </div>`;
@@ -218,7 +222,7 @@ function foodSection(venue) {
   </section>`;
 }
 
-const VOTES = [['going', 'Going'], ['maybe', 'Maybe'], ['no', 'Not tonight']];
+const VOTES = [['going', 'Going'], ['maybe', 'Interested'], ['no', 'Not tonight']]; // the same words as Events' ideas: Interested, Going
 export function pollSection(venue, vote) {
   const base = POLL[venue.id];
   if (!base) return '';

@@ -93,7 +93,8 @@ export function renderEvents(ctx) {
       ${(globalThis.__STORE__ || LIVE) ? '' : filterSelect('theme', 'Theme', THEMES.map((t) => [t, t]), ui.eventsTheme)}
       ${filterSelect('price', 'Price', PRICE_BANDS.map((b) => [b.id, b.label]), ui.eventsPrice)}
     </div>
-    ${(globalThis.__STORE__ || LIVE) ? '' : `<a class="groups-link" href="#/groups">${icon('users', { size: 18 })}<span>Groups heading out</span>${groups ? `<b class="num"><span aria-hidden="true">${groups}</span><span class="sr-only">${groups} tonight</span></b>` : ''}${icon('chevronRight', { size: 16 })}</a>`}
+    ${(globalThis.__STORE__ || LIVE) ? '' : `<a class="groups-link" href="#/groups">${icon('users', { size: 18 })}<span>Groups heading out</span>${groups ? `<b class="num"><span aria-hidden="true">${groups}</span><span class="sr-only">${groups} tonight</span></b>` : ''}${icon('chevronRight', { size: 16 })}</a>
+    <a class="groups-link create-link" href="#/events/new">${icon('plus', { size: 18 })}<span>Propose an event</span>${icon('chevronRight', { size: 16 })}</a>`}
     <div id="event-results">${eventResults(ctx)}</div>
   </div>`;
 }

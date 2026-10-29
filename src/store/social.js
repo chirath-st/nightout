@@ -17,3 +17,8 @@ export const validHandle = (h) => /^[A-Za-z0-9._]{1,30}$/.test(h);
 export const PLANS = Object.freeze([]);
 export const PLUS_PERKS = Object.freeze([]);
 export const SAMPLE_BAR_CARDS = Object.freeze([]);
+// Profile social links (team build only; the store build has no profile handles).
+export const validLinkedIn = () => false;
+export const bareHandle = () => '';
+export const instagramUrl = () => '';
+export const linkedinUrl = () => '';

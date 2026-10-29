@@ -101,6 +101,15 @@ export const initials = (name) => (name || '?').split(/\s+/).filter(Boolean).map
 
 /** Instagram handle rules (letters, numbers, periods, underscores; 1–30 chars). */
 export const validHandle = (h) => /^[A-Za-z0-9._]{1,30}$/.test(h);
+/** A LinkedIn public profile name (linkedin.com/in/<name>): letters, numbers and hyphens, 3–100. */
+export const validLinkedIn = (h) => /^[A-Za-z0-9-]{3,100}$/.test(h);
+/** What someone typed or pasted ("@name", "instagram.com/name", a full profile URL) → the bare handle. */
+export const bareHandle = (raw, site) => String(raw ?? '').trim()
+  .replace(new RegExp(`^(https?://)?(www\\.)?${site === 'linkedin' ? 'linkedin\\.com/in/' : 'instagram\\.com/'}`, 'i'), '')
+  .replace(/^@/, '').replace(/[/?#].*$/, '');
+/** The profile pages a handle opens (the person's own handles only; sample people's handles are never linked). */
+export const instagramUrl = (h) => `https://www.instagram.com/${encodeURIComponent(h)}/`;
+export const linkedinUrl = (h) => `https://www.linkedin.com/in/${encodeURIComponent(h)}/`;
 
 /** Night Out Plus (SIMULATED): no billing exists in the prototype; prices show what a plan might cost. */
 export const PLANS = Object.freeze([

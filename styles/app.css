@@ -1648,7 +1648,7 @@ section.ideas { margin-top: 28px; display: grid; gap: 10px; }
 .lb-dot { position: relative; width: 14px; height: 14px; border-radius: 50%; background: var(--ink-4); }
 .line-badge[data-level="quiet"] { --glow: rgb(95 227 161 / .55); }
 .line-badge[data-level="lively"] { --glow: rgb(255 159 67 / .55); }
-.line-badge[data-level="packed"] { --glow: rgb(255 107 94 / .6); }
+.line-badge[data-level="packed"] { --glow: rgb(255 84 112 / .6); }
 .line-badge[data-level="quiet"] .lb-dot { background: var(--quiet); }
 .line-badge[data-level="lively"] .lb-dot { background: var(--lively); }
 .line-badge[data-level="packed"] .lb-dot { background: var(--packed); }
@@ -1808,7 +1808,10 @@ button.member-row:focus-visible { outline: 2px solid var(--focus); outline-offse
 .door-summary { margin-top: 4px; font-size: var(--t-sm); line-height: 1.4; color: var(--ink-2); }
 .door-summary b { color: var(--ink); }
 .feed { margin: 4px 0 0; padding: 0; list-style: none; }
-.feed li { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 56px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.feed li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; min-height: 56px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+/* A long input name keeps its line; the chip moves under it (right-aligned) instead of breaking "23 / heads". */
+.feed li > .feed-main { flex: 1 1 auto; }
+.feed li > .feed-chip { margin-left: auto; }
 .feed li:last-child { border-bottom: 0; }
 .feed-main { display: grid; gap: 2px; min-width: 0; font-size: var(--t-sm); font-weight: 600; overflow-wrap: anywhere; }
 .feed-main small { font-size: var(--t-xs); font-weight: 500; color: var(--ink-3); }
@@ -2316,6 +2319,8 @@ html:not([data-modality="touch"]) :is(
 .biz-chart li.is-tonight i { background: transparent; border: 2px solid var(--ink); border-bottom-width: 0; }
 .biz-chart .num { font-size: var(--t-xs); font-weight: 700; }
 .biz-chart small { color: var(--ink-3); font-size: 11px; white-space: nowrap; }
+/* "Tonight so far" takes two lines in its column instead of running past the panel at 320px (B1, 2026-10-28). */
+.biz-chart li.is-tonight small { white-space: normal; text-align: center; line-height: 1.15; }
 .biz-photo-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .biz-cover { position: relative; margin: 16px 0 0; border-radius: var(--r-card); overflow: hidden; aspect-ratio: 16 / 10; max-width: 100%; background: var(--surface-2); }
 .biz-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -2325,13 +2330,184 @@ html:not([data-modality="touch"]) :is(
 .biz-photo-grid li { position: relative; aspect-ratio: 1; border-radius: var(--r-md); overflow: hidden; background: var(--surface-2); }
 .biz-photo-grid img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .biz-photo-x { position: absolute; top: 4px; right: 4px; width: 44px; height: 44px; border-radius: 50%; background: rgb(0 0 0 / .66); color: var(--ink); }
-@media (min-width: 900px) { .biz-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* Two columns only when the page itself is wide. The app column is at most --phone-w (430px), so on a desktop browser
+   this stays one column like the phone: keyed to the window, it split every panel into 189px halves (K1, 2026-10-28). */
+.biz-page { container-type: inline-size; }
+@container (min-width: 760px) { .biz-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 /* Business view in a live team build (views/business.js renderVenueLive): Sign out in the head, a hand count with
    heads tapped on a photo that stays on the phone. */
 .biz-signout { margin-left: auto; flex: none; }
+/* Live: Sign out sits on the eyebrow line, so the venue's name gets the full width (it wrapped to three lines). */
+.biz-eyerow { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
+.biz-eyerow .biz-badge { min-width: 0; margin: 0; }
+.biz-head:has(.biz-eyerow) { align-items: flex-start; }
+.biz-head:has(.biz-eyerow) .biz-id { flex: 1; }
 .biz-head + .undo-row { margin-top: var(--s-4); }
 .biz-head ~ .undo-row > span:last-child { display: flex; gap: 4px; }
 .count-input { width: 96px; margin-top: 6px; font-size: var(--t-xl); font-weight: 700; text-align: center; }
 .mark-photo .scene-btn > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .mark-dot { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; border: 3px solid rgb(0 0 0 / .75); background: var(--accent); box-shadow: 0 0 0 1px #fff; pointer-events: none; }
 .biz-status { margin-top: 12px; }
+
+/* ---------- Colour pass (2026-10-28): more accent, each hue with one job ----------
+   Crowd level (green quiet / orange lively / red packed) now also tints the wait block and its range, the typical-night
+   chart, the map pins and the Business view's count preview; violet (--social) marks people and activity (going, Live,
+   groups, codes redeemed); green and red mark a code's state and an input's outcome. Yellow stays the one action colour
+   (reporting the line). Every colour sits next to a word, a number or a shape that says the same. Ratios: tokens.css;
+   palette check: evidence/b2b-colour-20261028. */
+
+/* Wait block (bar page): a level-tinted edge and wash, and the range bar in the level's colour. Text keeps its ink. */
+.queue-block[data-crowd="quiet"] { --c: var(--quiet); }
+.queue-block[data-crowd="lively"] { --c: var(--lively); }
+.queue-block:is([data-crowd="packed"], [data-crowd="capacity"]) { --c: var(--packed); }
+.queue-block:is([data-crowd="quiet"], [data-crowd="lively"], [data-crowd="packed"], [data-crowd="capacity"]) {
+  border-color: color-mix(in srgb, var(--c) 45%, var(--line));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 14%, var(--surface)) 0%, var(--surface) 60%);
+}
+.queue-block:is([data-crowd="quiet"], [data-crowd="lively"], [data-crowd="packed"]) .qb-scale-range > .r-mid,
+.queue-block:is([data-crowd="quiet"], [data-crowd="lively"], [data-crowd="packed"]) .qb-scale-range > :is(.r-lo, .r-hi)::before { background: var(--c); }
+.console-grid .queue-block[data-crowd] { border: 0; background: none; } /* inside a panel it stays flat: the panel is the edge */
+
+/* Typical weekend night: each hour in its level's colour (bar height says the same); the hour now is ringed and labelled
+   in bold. (Dimming the other hours turned the colours muddy on black.) */
+.typical-bars span[data-band="quiet"] { background: var(--quiet); }
+.typical-bars span[data-band="lively"] { background: var(--lively); }
+.typical-bars span[data-band="packed"] { background: var(--packed); }
+.typical-bars span.is-now { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--ink); }
+.typical-axis span.is-now { color: var(--ink); font-weight: 800; }
+
+/* Map pins: the three-bar meter in a deep shade that a white or grey pin can carry. */
+.map-pin-btn .meter { margin-right: 5px; vertical-align: -1px; }
+:where(.map-pin-btn) .meter i { background-color: rgb(0 0 0 / .2); } /* unfilled; low specificity so every filled-bar rule wins */
+.map-pin-btn .meter[data-level="quiet"] { --c: var(--quiet-deep); }
+.map-pin-btn .meter[data-level="lively"] { --c: var(--lively-deep); }
+.map-pin-btn .meter:is([data-level="packed"], [data-level="capacity"]) { --c: var(--packed-deep); }
+
+/* People and activity: violet. */
+.poll-opt[data-vote="going"]::before { background: color-mix(in srgb, var(--social) 32%, var(--surface)); }
+.poll-opt[data-vote="maybe"]::before { background: color-mix(in srgb, var(--social) 15%, var(--surface)); }
+.poll-opt[data-vote="going"][aria-pressed="true"]::before { background: color-mix(in srgb, var(--social) 42%, var(--surface)); }
+.poll-opt[data-vote="going"] .poll-pct { color: var(--social); }
+.poll-opt[data-vote="going"][aria-pressed="true"] { border-color: var(--social); box-shadow: inset 0 0 0 1px var(--social); }
+.live-chip { background: var(--social); color: var(--social-ink); }
+.ev-meta:has([data-going]) > .ic:first-child, .ev-meta [data-going] { color: var(--social); }
+a.groups-link > .ic:first-child, a.groups-link b { color: var(--social); }
+.group-spots .gs-text .num { color: var(--social); }
+.mini-tag.hop-now { border-color: var(--social); background: var(--social); color: var(--social-ink); }
+.biz-chart li i { background: color-mix(in srgb, var(--social) 55%, var(--surface-2)); }
+.biz-chart li.is-tonight i { background: transparent; border: 2px solid var(--social); border-bottom-width: 0; } /* hollow: the night isn't over */
+.biz-chart li:not(.is-tonight)[style*="--h:0.000"] i { background: var(--line-strong); } /* a night with none: a grey stub */
+
+/* Business view: a code's state, an input's outcome, the count's preview, a door's status. */
+.redeem-result[data-kind="used"] { border-color: var(--danger); }
+.redeem-result[data-kind="used"] > svg { color: var(--danger); }
+.redeem-result[data-kind="done"] { background: color-mix(in srgb, var(--quiet) 10%, var(--surface-2)); }
+.feed-chip[data-outcome="sets"] { color: var(--quiet); background: color-mix(in srgb, var(--quiet) 14%, var(--surface-2)); }
+.feed-chip[data-outcome="backs"] { color: var(--quiet); }
+.feed-chip[data-outcome="against"] { color: var(--danger); background: var(--danger-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 40%, transparent); }
+.story li.is-done .ic { color: var(--quiet); }
+.math-strip b[data-crowd="quiet"] { color: var(--quiet); }
+.math-strip b[data-crowd="lively"] { color: var(--lively); }
+.math-strip b:is([data-crowd="packed"], [data-crowd="capacity"]) { color: var(--packed); }
+/* Door status: the selection stays white like every other choice; a dot says the state in the guest-side colours
+   (letting in green, one in one out red, paused grey, closed an empty ring), a deep shade on the white pill. */
+.door-status .radio-card span { display: flex; align-items: center; justify-content: center; gap: 7px; }
+.door-status .radio-card span::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--dot); box-shadow: inset 0 0 0 1.5px var(--dot-ring, transparent); }
+.door-status input[value="moving"] + span { --dot: var(--quiet); }
+.door-status input[value="capacity"] + span { --dot: var(--packed); }
+.door-status input[value="paused"] + span { --dot: var(--aging); }
+.door-status input[value="closed"] + span { --dot: transparent; --dot-ring: var(--ink-3); }
+.door-status input[value="moving"]:checked + span { --dot: var(--quiet-deep); }
+.door-status input[value="capacity"]:checked + span { --dot: var(--packed-deep); }
+.door-status input[value="paused"]:checked + span { --dot: #5E5E5E; }
+.door-status input[value="closed"]:checked + span { --dot-ring: #5E5E5E; }
+
+/* B2B spacing: a door block that follows a button or a hint gets the panel's rhythm (live count panel, L-C). */
+:is(.btn, .hint) + .door-row { margin-top: var(--s-4); }
+
+/* Expected turnout (idea review): the level word wears its colour like the meter beside it; smaller number when narrow. */
+.turnout-level:has(.meter[data-level="quiet"]) b { color: var(--quiet); }
+.turnout-level:has(.meter[data-level="lively"]) b { color: var(--lively); }
+.turnout-level:has(.meter:is([data-level="packed"], [data-level="capacity"])) b { color: var(--packed); }
+@media (max-width: 359.98px) { .turnout-num { font-size: 26px; } }
+
+/* F1: at 320px the selected section tab's bold label ran off its pill ("Redeem"); the white pill marks it already. */
+.biz-tabs [aria-pressed="true"] { font-weight: 600; }
+@media (max-width: 359.98px) { .biz-tabs button { font-size: 12px; } }
+
+/* F2: priority slots: the time range and its counts keep one line; the stepper takes what is left (112–176px). */
+.cap-row:has([id^="cap-"]) { grid-template-columns: max-content minmax(112px, 176px); justify-content: space-between; }
+.cap-row [id^="cap-"], .cap-row:has([id^="cap-"]) small { white-space: nowrap; }
+
+/* F11: the sticky Publish bar's fade reaches the tab bar, so no sliced text shows under the button (web and iPhone). */
+.photo-cta { bottom: calc(var(--tabbar-h) + var(--safe-b)); padding-bottom: 8px; }
+
+/* ---------- Impact (Business view > Report), 2026-10-28 ----------
+   The venue dashboard brief: one trusted outcome first, then the measures with their own units; tabular numbers; the
+   chosen measure in violet (activity) over the previous period in grey; up/down marked by glyph and sign as well as
+   colour. No count-up animation. */
+.imp-head { display: grid; gap: 4px; }
+.imp-range { color: var(--ink-2); font-size: var(--t-xs); font-variant-numeric: tabular-nums; }
+.imp-range span { display: block; color: var(--ink-3); }
+.imp-hero { display: grid; justify-items: start; gap: 4px; margin-top: 16px; padding: 14px; border-radius: var(--r-md); background: color-mix(in srgb, var(--quiet) 8%, var(--surface-2)); box-shadow: inset 3px 0 0 var(--quiet); }
+.imp-big { font-family: var(--font-num); font-stretch: var(--w-cond); font-size: 52px; font-weight: 800; line-height: .95; font-variant-numeric: tabular-nums; }
+.imp-method { display: flex; gap: 6px; align-items: flex-start; color: var(--ink-2); font-size: var(--t-xs); line-height: 1.35; }
+.imp-method .ic { flex: none; color: var(--quiet); margin-top: 1px; }
+.imp-delta { font-size: var(--t-xs); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink-3); }
+.imp-delta[data-dir="up"] { color: var(--quiet); }
+.imp-delta[data-dir="down"] { color: var(--danger); }
+.imp-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.imp-tile { display: grid; justify-items: start; align-content: start; gap: 3px; min-height: 84px; padding: 10px 12px; border-radius: var(--r-md); border: 1px solid var(--line-strong); background: var(--surface-2); color: var(--ink); text-align: left; }
+.imp-tile[aria-pressed="true"] { border-color: var(--social); box-shadow: inset 0 0 0 1px var(--social); }
+.imp-tile.is-na { background: none; border-style: dashed; }
+.imp-tl { color: var(--ink-2); font-size: var(--t-xs); font-weight: 600; }
+.imp-tv { font-family: var(--font-num); font-stretch: var(--w-cond); font-size: 26px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.imp-trend { margin: 16px 0 0; }
+.imp-trend figcaption { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; font-size: var(--t-sm); }
+.imp-key { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-3); font-size: var(--t-xs); }
+.imp-key i { display: inline-block; width: 14px; height: 0; border-top: 2px solid var(--social); }
+.imp-key i.k-prior { border-top: 2px dashed var(--ink-4); margin-left: 6px; }
+.imp-chart { display: block; width: 100%; height: auto; margin-top: 8px; overflow: visible; }
+.imp-chart .imp-axis { stroke: var(--line-strong); stroke-width: 1; }
+.imp-chart .imp-prior { fill: none; stroke: var(--ink-4); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.imp-chart .imp-now { fill: none; stroke: var(--social); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.imp-axis-labels { display: flex; justify-content: space-between; color: var(--ink-3); font-size: 11px; }
+.imp-data, .imp-defs { margin-top: 10px; font-size: var(--t-sm); }
+.imp-data summary, .imp-defs summary { min-height: 44px; display: flex; align-items: center; color: var(--ink-2); font-weight: 600; cursor: pointer; }
+.imp-table-wrap { max-height: 260px; overflow: auto; border-top: 1px solid var(--line); }
+.imp-data table { width: 100%; border-collapse: collapse; font-size: var(--t-xs); }
+.imp-data :is(th, td) { padding: 6px 4px; border-bottom: 1px solid var(--line); text-align: right; font-weight: 500; }
+.imp-data :is(thead th, tbody th) { text-align: left; color: var(--ink-2); }
+.imp-defs ul { display: grid; gap: 6px; margin: 0; padding-left: 18px; color: var(--ink-2); line-height: 1.4; }
+.imp-journey { display: grid; gap: 8px; margin: 8px 0 0; padding: 0; list-style: none; }
+.imp-journey li { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; align-items: center; gap: 10px; font-size: var(--t-sm); }
+.ij-label { color: var(--ink-2); }
+.ij-bar { height: 10px; border-radius: 3px; background: var(--fill-2); overflow: hidden; }
+.ij-bar i { display: block; height: 100%; width: calc(var(--w) * 100%); border-radius: 3px; background: color-mix(in srgb, var(--social) 75%, var(--surface-2)); }
+.imp-journey li:last-child .ij-bar i { background: var(--quiet); }
+.ij-n { min-width: 4ch; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.imp-attn { display: grid; gap: 8px; justify-items: start; margin-top: 16px; padding: 12px 14px; border-radius: var(--r-md); background: color-mix(in srgb, var(--lively) 9%, var(--surface-2)); box-shadow: inset 3px 0 0 var(--lively); font-size: var(--t-sm); line-height: 1.4; }
+.imp-events li { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.imp-ev-n { display: grid; justify-items: end; }
+.imp-ev-n b { color: var(--social); font-size: var(--t-base); }
+.imp-ev-n small { color: var(--ink-3); font-size: var(--t-xs); }
+.imp .biz-gate { margin-top: 12px; }
+
+/* Events: "Propose an event" sits under "Groups heading out" on every Events view (it was only inside Ideas). */
+a.groups-link.create-link { margin-top: 0; border-top: 0; }
+a.groups-link.create-link > .ic:first-child { color: var(--social); }
+
+/* Profile: the person's own Instagram and LinkedIn open as links (pasted URLs become handles). */
+.social-links { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.social-links a.handle { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-input); text-underline-offset: 3px; }
+.li-mark { display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 3px; background: var(--ink); color: var(--bg); font-size: 10px; font-weight: 800; line-height: 1; margin-right: 4px; }
+
+/* Points: top reporters this week (merit, not chance). The top three ranks and your row carry the activity violet. */
+.leaderboard { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.leaderboard li { display: grid; grid-template-columns: 22px 28px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 48px; padding: 0 8px; border-radius: var(--r-md); }
+.leaderboard li.is-you { background: color-mix(in srgb, var(--social) 14%, var(--surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--social) 55%, transparent); }
+.lb-rank { color: var(--ink-3); font-weight: 800; text-align: center; }
+.leaderboard li:nth-child(-n+3) .lb-rank { color: var(--social); }
+.lb-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-base); font-weight: 600; }
+.lb-n { color: var(--ink-2); font-size: var(--t-sm); }
+.lb-n b { color: var(--ink); }

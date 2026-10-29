@@ -220,8 +220,7 @@ function businessHeadLive(v, ctx, section, sections) {
   const s = ctx.venue;
   return `<div class="biz-head">
       <a class="back-link back-icon" href="#/profile" data-action="back" aria-label="Back to Profile">${icon('chevronLeft', { size: 22 })}</a>
-      <div class="biz-id"><p class="eyebrow biz-badge">Business view · ${esc(s.staff.display_name || 'Venue account')}</p><h1 class="page-title" id="page-h" tabindex="-1">${esc(v.name)}</h1></div>
-      <button type="button" class="btn btn-sm biz-signout" data-action="venue-signout">Sign out</button>
+      <div class="biz-id"><div class="biz-eyerow"><p class="eyebrow biz-badge">Business view · ${esc(s.staff.display_name || 'Venue account')}</p><button type="button" class="btn btn-sm biz-signout" data-action="venue-signout">Sign out</button></div><h1 class="page-title" id="page-h" tabindex="-1">${esc(v.name)}</h1></div>
     </div>
     ${confirmOutRow(s)}
     ${s.staff.bars.length > 1 ? `<div class="field-group biz-venue">

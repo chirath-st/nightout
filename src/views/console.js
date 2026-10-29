@@ -1,14 +1,15 @@
 // Door console (Ship E): what a Night Out ambassador or, as a demo role, a bar's bouncer would use at the door.
 // Snap the line (a drawn, simulated photo), count the heads, publish; set each door's status and pace; see every input
 // that shaped the guest-facing estimate. SIMULATED: no camera, no image, no real staff; nothing leaves this device.
-import { esc, estimateBlock, stateBox } from '../ui/components.js';
+import { esc, estimateBlock, stateBox, crowdStatus } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
 import { describeEstimate, relativeAge, PACE_COPY } from '../lib/queue.js';
 import { doorPace, withObservations, WINDOW } from '../lib/merge.js';
 import { lineScene, DRAW_MAX } from '../ui/lineart.js';
 import { formatTime } from '../lib/clock.js';
-import { dealPanel, passPanel, backTitle } from './pages.js';
+import { dealPanel, passPanel, backIcon } from './pages.js';
 import { ideaPanel } from './ideas.js';
+import { impactPanel } from './impact.js';
 import { businessHead, redeemPanel, reportPanel, photosPanel, renderVenueLive, BIZ_SECTIONS } from './business.js';
 import { LIVE } from '../lib/backend.js';
 
@@ -68,7 +69,7 @@ function mathStrip(v, ctx) {
   return `<div class="math-strip" aria-live="off">
     <p class="ms-main">${line1}</p>
     ${p ? `<p class="ms-sub">${esc(p)}</p>` : ''}
-    ${photo ? `<p class="ms-sub">Guests will see <b>${esc(photoPreview(photo.count, v, ctx.now, ctx.state, ctx.console.role).headline)}</b> after publishing.</p>` : ''}
+    ${photo ? (() => { const pv = photoPreview(photo.count, v, ctx.now, ctx.state, ctx.console.role); return `<p class="ms-sub">Guests will see <b data-crowd="${crowdStatus(pv).level}">${esc(pv.headline)}</b> after publishing.</p>`; })() : ''}
   </div>`;
 }
 
@@ -187,7 +188,7 @@ function renderBusiness(v, ctx) {
     offers: () => ((ctx.console.ideasFirst ??= ctx.ideas.some((x) => x.venueId === v.id && x.status === 'pending' && x.endsAt > ctx.now))
       ? `${ideaPanel(v, ctx)}${dealPanel(v, ctx)}${passPanel(v, ctx)}` : `${dealPanel(v, ctx)}${passPanel(v, ctx)}${ideaPanel(v, ctx)}`),
     redeem: () => redeemPanel(v, ctx),
-    report: () => reportPanel(v, ctx),
+    report: () => `${impactPanel(v, ctx)}${reportPanel(v, ctx)}`,
     photos: () => photosPanel(v, ctx),
   };
   return `<div class="page console-page biz-page" data-section="${section}" style="max-width:1100px">
@@ -206,8 +207,7 @@ export function renderConsole(ctx) {
   if (ctx.state.business?.on) return renderBusiness(v, ctx);
   const role = ctx.console.role ?? 'ambassador';
   return `<div class="page console-page" style="max-width:1100px">
-    ${backTitle('Door console')}
-    <p class="eyebrow biz-badge">Demo login · sample data</p>
+    <div class="biz-head">${backIcon('profile', 'Profile')}<div class="biz-id"><p class="eyebrow biz-badge">Demo login · sample data</p><h1 class="page-title" id="page-h" tabindex="-1">Door console</h1></div></div>
     <p class="page-sub">For bar owners and door staff.</p>
     <p class="console-lede">Wait ≈ people in line ÷ door pace. Anything older than 20 minutes is hidden.</p>
     <div class="field-group" style="margin-top:var(--s-4)">

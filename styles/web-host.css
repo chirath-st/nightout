@@ -6,7 +6,7 @@
 main{padding-bottom:calc(var(--tabbar-h) + var(--safe-b) + 47px + var(--demo-banner-h))}
 html{scroll-padding-bottom:calc(var(--tabbar-h) + var(--safe-b) + 27px + var(--demo-banner-h))}
 .map-preview{bottom:calc(var(--tabbar-h) + var(--safe-b) + 23px + var(--demo-banner-h))}
-.photo-cta{bottom:calc(var(--tabbar-h) + var(--safe-b) + 19px + var(--demo-banner-h))}
+.photo-cta{bottom:calc(var(--tabbar-h) + var(--safe-b) + 11px + var(--demo-banner-h));padding-bottom:8px}
 .toast-region{bottom:calc(var(--tabbar-h) + var(--safe-b) + 24px + var(--demo-banner-h))}
 [data-route="console"]:has(.photo-cta) .toast-region{bottom:calc(var(--tabbar-h) + var(--safe-b) + 84px + var(--demo-banner-h))}
 [data-route="scan"]:not(:has(.scan-submit)) .toast-region{bottom:calc(var(--safe-b) + 16px + var(--demo-banner-h))}

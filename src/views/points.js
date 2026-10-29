@@ -8,6 +8,7 @@ import { icon } from '../ui/icons.js';
 import { formatTime } from '../lib/clock.js';
 import { REWARDS, DRINKS_LOCK, POINTS, balanceOf, nextReward, initials, checkedInTonight, youSeed } from '../data/social.js';
 import { personAvatar } from '../ui/avatars.js';
+import { PEOPLE } from '../data/social.js';
 import { isOpenAt } from '../lib/explore.js';
 import { LIVE } from '../lib/backend.js';
 
@@ -77,6 +78,18 @@ function livePoints(ctx) {
   </div>`;
 }
 
+/** Top line reporters this week (demo): sample people with sample counts, and you with your own reports. Merit only,
+ *  no chance and no prize promised (no bar has agreed to give anything). */
+function leaderboard(st) {
+  const sample = [['Ana M.', 23], ['Kenji A.', 19], ['Sofia R.', 17], ['Ravi J.', 14], ['Lily K.', 12]].map(([name, n]) => ({ ...PEOPLE.find((x) => x.name === name), n }));
+  const you = { name: st.profile.name || 'You', you: true, n: st.reports.length, seed: youSeed(st.profile.name) };
+  const rows = [...sample, you].sort((a, b) => b.n - a.n || (a.you ? -1 : 0));
+  const rank = rows.findIndex((r) => r.you) + 1;
+  const shown = rank <= 5 ? rows.slice(0, 5) : [...rows.slice(0, 4), rows[rank - 1]];
+  return `<div class="section-head"><h2 id="lb-h">Top reporters this week</h2></div>
+    <ol class="leaderboard" aria-labelledby="lb-h">${shown.map((r) => { const at = rows.indexOf(r) + 1; return `<li${r.you ? ' class="is-you"' : ''}><span class="lb-rank num">${at}</span>${personAvatar({ seed: r.seed, initials: initials(r.name) }, 28)}<span class="lb-name">${esc(r.name)}${r.you ? ' <span class="mini-tag">You</span>' : ''}</span><span class="lb-n num"><b>${r.n}</b> report${r.n === 1 ? '' : 's'}</span></li>`; }).join('')}</ol>`;
+}
+
 export function renderPoints(ctx) {
   if (LIVE) return livePoints(ctx);
   const st = ctx.state;
@@ -117,6 +130,7 @@ export function renderPoints(ctx) {
       <li>${icon('check', { size: 20 })}<span>Tell us when you got in<small>Gives everyone a measured wait</small></span><b class="num">+${POINTS.GOT_IN}</b></li>
     </ul>
     <a class="btn btn-block" href="#/scan" style="margin-top:12px">${icon('camera', { size: 18 })}Report a line</a>
+    ${leaderboard(st)}
 
     <div class="section-head"><h2>Rewards</h2></div>
     <ul class="reward-grid">
