@@ -97,7 +97,6 @@ export function renderPoints(ctx) {
   const next = nextReward(balance);
   const vouchers = [...st.vouchers].sort((a, b) => b.at - a.at);
   const history = [...st.points].reverse().slice(0, 15);
-  const passes = st.passes.length;
   const uniqueBars = new Set(st.checkins.map((c) => c.venueId)).size;
   const dailyDone = st.lastDaily === st.clock.base;
   return `<div class="page">
@@ -159,7 +158,6 @@ export function renderPoints(ctx) {
       const at = used ? ctx.venues.find((x) => x.id === used.venueId)?.name ?? 'a venue' : null;
       return `<li data-key="${esc(v.id)}"><span><b>${esc(r?.title ?? 'Reward')}</b><small>Code ${esc(v.ref)} · ${used ? `used at ${esc(at)}, ${esc(formatTime(used.at))}` : 'not valid toward alcohol'}</small></span><span class="num muted">${esc(formatTime(v.at))}</span></li>`;
     }).join('')}</ul>` : '<p class="hint">Nothing redeemed yet.</p>'}
-    ${passes ? `<a class="list-link" href="#/passes">${icon('ticket', { size: 20 })}<span>Priority passes (${passes})</span>${icon('chevronRight', { size: 18 })}</a>` : ''}
 
     <div class="section-head"><h2 id="history-h">Point history</h2></div>
     <ul class="plain-list history-list">${history.map((e) => `<li data-key="${esc(e.id)}"><span>${esc(e.label)}${e.at != null ? `<small>${esc(formatTime(e.at))}</small>` : ''}</span><span class="num ${e.delta >= 0 ? 'plus' : 'muted'}">${e.delta >= 0 ? '+' : '−'}${fmt(Math.abs(e.delta))}</span></li>`).join('')}</ul>

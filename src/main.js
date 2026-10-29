@@ -2,12 +2,12 @@
 import { load, save, clear, defaultState } from './lib/store.js';
 import { normalizeClock, demoNow, advance, formatTime, START_OFFSET_MIN, nightIsOver } from './lib/clock.js';
 import { buildDataset, atNight, atNightOn } from './data/venues.js';
-import { buildGroups, POINTS, LINE_BUCKETS, REWARDS, balanceOf, nextReward, validHandle, validLinkedIn, bareHandle, checkedInTonight, PLANS, SAMPLE_BAR_CARDS } from './data/social.js';
+import { buildGroups, POINTS, LINE_BUCKETS, REWARDS, balanceOf, nextReward, validHandle, validLinkedIn, bareHandle, checkedInTonight, SAMPLE_BAR_CARDS } from './data/social.js';
 import { resolveVenues } from './lib/model.js';
 import { withObservations, headsFor, scanOutcome } from './lib/merge.js';
 import { parseHash, buildHash, exploreStateFromQuery, exploreQuery } from './lib/router.js';
 import { FILTERS, SORTS, exploreList, areaLabel } from './lib/explore.js';
-import { windowState, purchasable, createPass, maxPartyFor, passStatus, money, refCode } from './lib/pass.js';
+import { refCode } from './lib/pass.js';
 import { estimateCompact, estimateBlock, estimateRing, estimateFor, pointsChip, esc, mapCard, cardStatus, cardFresh, srSummary, dealTag, venueStatus, factStrip, setLiveLoadFailed, venuePhoto, venueLogo } from './ui/components.js';
 import { icon } from './ui/icons.js';
 import { renderExplore, exploreResults, exploreBanners, exploreChips, extraChips, quickViewOf, pinParts, areaSheet, dealsRail } from './views/explore.js';
@@ -15,13 +15,12 @@ import { renderGroups, renderGroupNew, validateGroup, membersSheet, memberProfil
 import { renderEvents, eventResults, eventCard } from './views/events.js';
 import { renderScan, pickListItems, scanEstimate, scanSubmitReady, draftQueue } from './views/scan.js';
 import { renderPoints, checkinSheet } from './views/points.js';
-import { renderProfile, settingsSheet, manageSubSheet, helpSheet } from './views/profile.js';
+import { renderProfile, settingsSheet, helpSheet } from './views/profile.js';
 import { renderVenue, directionsSheet, pollSection, dealsSection } from './views/venue.js';
 import { buildEvents, buildIdeas } from './data/events.js';
 import { resolveIdeas, checkIdea, defaultNight, defaultCover, coverLabel, nightLabel, ideaCounts } from './lib/ideas.js';
 import { renderIdeaNew, ideaCard } from './views/ideas.js';
-import { renderPassSheet } from './views/passSheet.js';
-import { renderSaved, renderPasses, renderPassDetail, renderAbout, newDealDraft } from './views/pages.js';
+import { renderSaved, renderAbout, newDealDraft } from './views/pages.js';
 import { renderConsole, photoPanel, photoPreview, currentDoor } from './views/console.js';
 import { checkCode, normalizeCode, samplePhoto, MAX_UPLOADS, BIZ_SECTIONS, venueSections, voucherCode, countWait, typedCount, countBase } from './views/business.js';
 import { DRAW_MAX } from './ui/lineart.js';
@@ -37,7 +36,7 @@ import { reminderAt, reminderDays, reminderId, reminderText, reminderPhrase, def
 import { setOrigin, milesBetween, DEMO_SPOT } from './lib/geo.js';
 
 // Build flavor. `globalThis.__STORE__` is replaced with `true` when scripts/build-www.mjs builds the App Store app, and
-// esbuild then drops every team-only branch and module (sample nights, demo controls, points, groups, passes, Plus).
+// esbuild then drops every team-only branch and module (sample nights, demo controls, points, groups).
 // Unbuilt (the repo, tests, the private team build) it is undefined, so everything below runs as the team build.
 // Always write the check inline as `globalThis.__STORE__`: a copy in a variable defeats the dead-code removal.
 // LIVE (lib/backend.js) is true only in a live team build (scripts/build-www.mjs --live): the team app on a server, for
@@ -81,8 +80,7 @@ const app = {
   ideas: [],
   ideaDraft: null,
   ideaErrors: {},
-  passFlow: null,
-  venueBack: null, // where the venue page's Back link returns to (Tonight, Saved, Passes…)
+  venueBack: null, // where the venue page's Back link returns to (Tonight, Saved, Events…)
   scroll: new Map(),
   renderedHash: null,
   visit: 0, // increments per route; inline Undo rows only show during the visit where the action happened
@@ -191,7 +189,7 @@ function rebuild() {
   const base = buildDataset(app.state.dataset, app.state.clock.base, app.state.syncAt ?? app.state.clock.base + START_OFFSET_MIN * 60_000);
   const n = now();
   // This device's photo counts, guest reports and door state merge into each bar's queue (src/lib/merge.js).
-  app.venues = resolveVenues(base, app.state.overrides, app.state.passes, app.state.deals).map((v) => withObservations(v, app.state, n, { since: app.state.clock.base, night: app.state.clock.realStart }));
+  app.venues = resolveVenues(base, app.state.overrides, app.state.deals).map((v) => withObservations(v, app.state, n, { since: app.state.clock.base, night: app.state.clock.realStart }));
   app.groups = buildGroups(app.state.clock.base);
   app.events = buildEvents(app.state.clock.base);
   app.ideas = resolveIdeas(buildIdeas(app.state.clock.base, app.events), app.state.ideas.created, app.state.ideas.decisions, new Set(app.venues.map((v) => v.id)), app.state.clock.base);
@@ -203,7 +201,7 @@ function ctx(extra = {}) {
   return {
     venues: app.venues, now: now(), state: app.state, explore: app.explore, ui: app.ui, savedSet: savedSet(),
     offline: isOffline(), console: app.console, visit: app.visit, groups: app.groups, events: app.events, ideas: app.ideas,
-    backHref: app.venueBack?.href ?? app.lastExploreHash, backLabel: app.venueBack?.label ?? 'Bars', passesFrom: app.passesFrom,
+    backHref: app.venueBack?.href ?? app.lastExploreHash, backLabel: app.venueBack?.label ?? 'Bars',
     native: isNative(), canRemind: (globalThis.__STORE__ || LIVE) && canRemind(), loadFailed: (globalThis.__STORE__ || LIVE) && app.ui.refreshError && !app.live?.at,
     // Live data loaded, but events and deals never arrived (the Events view and bar pages say so instead of "none listed").
     eventsMissing: (globalThis.__STORE__ || LIVE) && Boolean(app.live?.at) && app.live.edAt === null,
@@ -328,7 +326,7 @@ function liftToasts() {
   region.classList.toggle('is-settled', live.some((t) => t._settled));
   live.forEach((t) => { t._settled = true; });
   const card = route === 'tonight' ? document.querySelector('#main .map-preview:not([hidden])') : route === 'console' ? document.querySelector('#main .photo-cta .btn')
-    : route === 'venue' || route === 'pass' ? document.querySelector('#main .venue-actions') : null; // the bar page's Report the line row
+    : route === 'venue' ? document.querySelector('#main .venue-actions') : null; // the bar page's Report the line row
   region.style.removeProperty('--toast-lift');
   if (!card) return;
   // The toasts' bottom edge without a lift, from layout: the lift is a translate (it may still be gliding), so the
@@ -571,7 +569,7 @@ function focusKey(el) {
   if (!el || el === document.body) return null;
   if (el.id) return `#${CSS.escape(el.id)}`;
   if (el.type === 'radio' && el.name) return `input[name="${CSS.escape(el.name)}"][value="${CSS.escape(el.value)}"]`;
-  const attrs = ['data-action', 'data-input', 'data-id', 'data-delta', 'data-window', 'data-filter', 'data-view', 'data-kind', 'data-key', 'data-role', 'data-nav-venue', 'data-s', 'data-code'];
+  const attrs = ['data-action', 'data-input', 'data-id', 'data-delta', 'data-filter', 'data-view', 'data-kind', 'data-key', 'data-role', 'data-nav-venue', 'data-s', 'data-code'];
   const sel = attrs.filter((a) => el.hasAttribute(a)).map((a) => `[${a}="${CSS.escape(el.getAttribute(a))}"]`).join('');
   return sel || null;
 }
@@ -580,7 +578,7 @@ function preserveFocus(fn, fallback = pageHeading) {
   const key = focusKey(active);
   // A stepper button that hits its limit becomes disabled: keep focus on its sibling instead of <body>.
   const sibling = active?.closest?.('.stepper') && active.dataset.action
-    ? `.stepper [data-action="${CSS.escape(active.dataset.action)}"]${active.dataset.window ? `[data-window="${CSS.escape(active.dataset.window)}"]` : ''}:not(:disabled)`
+    ? `.stepper [data-action="${CSS.escape(active.dataset.action)}"]:not(:disabled)`
     : null;
   fn();
   if (!key) return;
@@ -770,7 +768,7 @@ function focusInvalid(el, shakeEl) {
   if (!el) return;
   el.scrollIntoView({ block: 'center', behavior: motionOK() ? 'smooth' : 'auto' });
   el.focus({ preventScroll: true });
-  shake(shakeEl ?? el.closest('.select, .input-prefix, .check, .radio-row, .window-grid') ?? el);
+  shake(shakeEl ?? el.closest('.select, .input-prefix, .check, .radio-row') ?? el);
 }
 /** Draw a check (its path) in over --d-fade; resolves when it's drawn. */
 function drawStroke(path, { delay = 0 } = {}) {
@@ -790,22 +788,20 @@ function layoutRect(el) {
 /* ---------------- rendering ---------------- */
 const TAB_OF = globalThis.__STORE__
   ? { tonight: 'bars', venue: 'bars', events: 'events', scan: 'scan', saved: 'saved', profile: 'profile', about: 'profile' }
-  : { tonight: 'bars', venue: 'bars', pass: 'bars', events: 'events', ideaNew: 'events', groups: 'events', groupNew: 'events', scan: 'scan', points: 'points', passes: 'points', passDetail: 'points', profile: 'profile', saved: 'profile', console: 'profile', about: 'profile' };
-/** Screens that exist only in the team build (they need payments, accounts or moderation the App Store app doesn't have yet). */
-const TEAM_ONLY = new Set(['pass', 'passes', 'passDetail', 'console', 'ideaNew', 'groups', 'groupNew', 'points']);
-/** Screens a live team build hides: their sample people, prices and passes must never sit next to server data. */
-const LIVE_HIDDEN = new Set(['pass', 'passes', 'passDetail', 'ideaNew', 'groups', 'groupNew']);
+  : { tonight: 'bars', venue: 'bars', events: 'events', ideaNew: 'events', groups: 'events', groupNew: 'events', scan: 'scan', points: 'points', profile: 'profile', saved: 'profile', console: 'profile', about: 'profile' };
+/** Screens that exist only in the team build (they need accounts or moderation the App Store app doesn't have yet). */
+const TEAM_ONLY = new Set(['console', 'ideaNew', 'groups', 'groupNew', 'points']);
+/** Screens a live team build hides: their sample people and ideas must never sit next to server data. */
+const LIVE_HIDDEN = new Set(['ideaNew', 'groups', 'groupNew']);
 function renderShell() {
   const r = app.route;
-  // Passes sits under Points but also opens from Profile: the highlighted tab follows where it was opened (as its Back does).
-  const tab = r.name === 'passes' && app.passesFrom === 'profile' ? 'profile' : TAB_OF[r.name];
+  const tab = TAB_OF[r.name];
   document.querySelectorAll('[data-tab]').forEach((a) => {
     if (a.dataset.tab === tab) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   });
   placeTabIndicator(TABS.indexOf(tab));
   const tonightTab = document.querySelector('[data-tab="bars"]');
   if (tonightTab) tonightTab.setAttribute('href', app.lastExploreHash);
-  updateBadge();
   // Back from Scan (it hides the top bar): the chip rolls from what it last showed once the new page has painted.
   if (chipBehind && r.name !== 'scan' && !app.ui.holdPoints) { chipBehind = false; requestAnimationFrame(() => requestAnimationFrame(updatePointsChip)); } else updatePointsChip();
 }
@@ -858,27 +854,17 @@ function releasePoints() {
   if (app.route?.name === 'points') patchPoints();
   updatePointsChip();
 }
-function updateBadge() {
-  const active = app.state.passes.filter((p) => ['upcoming', 'active'].includes(passStatus(p, now()))).length;
-  const badge = document.querySelector('[data-pass-badge]');
-  if (badge) { badge.textContent = active ? String(active) : ''; badge.hidden = !active; }
-  const sr = document.querySelector('[data-pass-badge-sr]');
-  if (sr) sr.textContent = active ? `, ${active} active` : '';
-}
 
 function mainHtml() {
   const r = app.route;
   const c = ctx();
   switch (r.name) {
     case 'tonight':
-    case 'venue':
-    case 'pass': {
+    case 'venue': {
       const id = r.name === 'tonight' ? null : r.params.id;
       return id ? renderVenue(c, id) : `<div class="page">${renderExplore(c)}</div>`;
     }
     case 'saved': return renderSaved(c);
-    case 'passes': if (!globalThis.__STORE__) return renderPasses(c); break;
-    case 'passDetail': if (!globalThis.__STORE__) return renderPassDetail(c, r.params.id); break;
     case 'console': if (!globalThis.__STORE__) return renderConsole(c); break;
     case 'about': return (globalThis.__STORE__ || LIVE) ? renderAboutStore(c, { version: APP_VERSION }) : renderAbout(c);
     case 'events': return renderEvents(c);
@@ -916,7 +902,7 @@ function render({ focus = 'heading', scroll = 'keep' } = {}) {
     revealPhotos(main);
     app.renderedHash = location.hash || '#/';
     // A bar id that isn't listed renders a plain not-found page: it keeps the top bar (the hero layout is for a real bar).
-    document.body.dataset.route = ['venue', 'pass'].includes(app.route?.name) ? (app.venues.some((v) => v.id === app.route.params.id) ? 'venue' : 'notfound') : app.route?.name ?? '';
+    document.body.dataset.route = app.route?.name === 'venue' ? (app.venues.some((v) => v.id === app.route.params.id) ? 'venue' : 'notfound') : app.route?.name ?? '';
     watchMasthead();
     watchSortSeg();
     liftToasts();
@@ -924,7 +910,6 @@ function render({ focus = 'heading', scroll = 'keep' } = {}) {
     if (banners) banners.dataset.sig = exploreBanners(ctx());
     const h1 = main.querySelector('h1');
     document.title = `${h1 ? `${h1.textContent.trim()} · ` : ''}${APP_NAME}`;
-    syncSheet();
   });
   if (scroll === 'restore') window.scrollTo(0, app.scroll.get(app.renderedHash) ?? 0);
   else if (scroll === 'top') window.scrollTo(0, 0);
@@ -1163,8 +1148,8 @@ let activeNav = null;
 /** Lists whose cards fly their photo into the bar page's hero, and back (QA plan 5.2). */
 const LIST_ROUTES = new Set(['tonight', 'saved', 'events']);
 /** Drill-ins (QA plan 5.3). A bar page opens from anywhere; tab roots are never children, so tab taps stay instant. */
-const NAV_CHILDREN = { profile: ['saved', 'passes', 'about', 'console'], points: ['passes', 'passDetail'], passes: ['passDetail'], events: ['groups', 'ideaNew', 'groupNew'], groups: ['groupNew'] };
-const isChildOf = (child, parent) => (child === 'venue' ? !['venue', 'pass', 'scan'].includes(parent) : !!NAV_CHILDREN[parent]?.includes(child));
+const NAV_CHILDREN = { profile: ['saved', 'about', 'console'], events: ['groups', 'ideaNew', 'groupNew'], groups: ['groupNew'] };
+const isChildOf = (child, parent) => (child === 'venue' ? !['venue', 'scan'].includes(parent) : !!NAV_CHILDREN[parent]?.includes(child));
 /** 'forward' | 'back' | 'present' | 'dismiss', or null for an instant swap (tab to tab, same page, unrelated jumps). */
 function navDirection(prev, r, viaPop) {
   if (!prev || prev.name === r.name) return null;
@@ -1412,7 +1397,7 @@ function route({ viaPop = false } = {}) {
   if (app.route.name !== 'tonight' && !app.explore.q) app.ui.searchOpen = false;
   const r = app.route;
   const entry = history.state ?? {};
-  const isListRoute = (name) => ['tonight', 'venue', 'pass'].includes(name);
+  const isListRoute = (name) => ['tonight', 'venue'].includes(name);
   const hasExploreQuery = EXPLORE_KEYS.some((k) => r.query[k]);
   if (r.name === 'tonight' || (isListRoute(r.name) && hasExploreQuery)) {
     app.explore = exploreStateFromQuery(r.query, FILTER_IDS, SORT_IDS);
@@ -1422,26 +1407,25 @@ function route({ viaPop = false } = {}) {
     app.explore = { ...entry.explore };
     app.lastExploreHash = buildHash('tonight', {}, exploreQuery(app.explore));
   }
-  if (r.name === 'venue' || r.name === 'pass') app.lastVenueId = r.params.id;
+  if (r.name === 'venue') app.lastVenueId = r.params.id;
   if (r.name === 'venue' && (viaPop || !prev)) {
     // Back/Forward and reload: the label belongs to this history entry, not to the last visit.
     app.venueBack = entry.back ?? null;
   } else if (r.name === 'venue') {
     const from = prev.name === 'scan' && app.scanOpener ? app.scanOpener : prev;
     if (!isListRoute(from.name)) {
-      const labels = { saved: 'Saved', passes: 'Passes', passDetail: 'Pass', console: 'Console', about: 'About', events: 'Events' };
+      const labels = { saved: 'Saved', console: 'Console', about: 'About', events: 'Events' };
       app.venueBack = labels[from.name] ? { label: labels[from.name], href: buildHash(from.name, from.params, from.query) } : null;
     } else if (from.name === 'tonight') app.venueBack = null;
   }
-  if (isListRoute(r.name)) history.replaceState({ ...(history.state ?? {}), idx: histIdx(), back: r.name === 'tonight' ? null : app.venueBack ?? null, explore: { ...app.explore } }, '');
+  // A bar link with extra path (an old #/venue/<id>/pass, a hand-typed one) opens the bar under its own address.
+  const venueHash = r.name === 'venue' ? buildHash('venue', r.params, r.query) : null;
+  const canonical = venueHash && location.hash.split('?')[0] !== venueHash.split('?')[0] ? venueHash : undefined;
+  if (isListRoute(r.name)) history.replaceState({ ...(history.state ?? {}), idx: histIdx(), back: r.name === 'tonight' ? null : app.venueBack ?? null, explore: { ...app.explore } }, '', canonical);
+  if (canonical) app.renderedHash = canonical;
   if (r.name === 'console' && r.query.venue) app.console.venueId = r.query.venue;
   if (!globalThis.__STORE__) enterBusiness(r, prev);
   if (!globalThis.__STORE__ && LIVE && r.name === 'points') loadPoints();
-  // Passes sits under Points but opens from Profile too: its Back names where it came from (kept on its history entry).
-  if (r.name === 'passes') {
-    app.passesFrom = !viaPop && prev ? (TAB_OF[prev.name] === 'profile' ? 'profile' : 'points') : entry.from ?? app.passesFrom ?? 'points';
-    history.replaceState({ ...(history.state ?? {}), from: app.passesFrom }, '');
-  }
   if (r.name === 'groupNew' && !app.groupDraft) { app.groupDraft = newGroupDraft(); app.groupErrors = {}; }
   if (r.name === 'events' && (globalThis.__STORE__ || LIVE ? ['tonight', 'week', 'saved'] : ['tonight', 'week', 'ideas', 'saved']).includes(r.query.view)) app.ui.eventsView = r.query.view;
   if (r.name === 'ideaNew') {
@@ -1464,15 +1448,6 @@ function route({ viaPop = false } = {}) {
     history.replaceState({ ...(history.state ?? {}), idx: histIdx() }, '', '#/scan');
     app.renderedHash = '#/scan';
   }
-  if (r.name === 'pass') {
-    if (!(globalThis.__STORE__ || LIVE) && (!app.passFlow || app.passFlow.venueId !== r.params.id || app.passFlow.step === 'done')) startPassFlow(r.params.id);
-  } else if (app.passFlow && app.passFlow.step !== 'pending') {
-    app.passFlow = null;
-  }
-
-  // Only re-render the main content when the page actually changed (sheet open/close keeps the page).
-  const samePage = prev && ((prev.name === 'venue' && r.name === 'pass') || (prev.name === 'pass' && r.name === 'venue')) && prev.params.id === r.params.id;
-  if (samePage) { renderShell(); syncSheet(); app.renderedHash = location.hash; return; }
 
   const backToList = viaPop && LIST_ROUTES.has(r.name) && prev?.name === 'venue';
   const toDetail = !viaPop && r.name === 'venue' && LIST_ROUTES.has(prev?.name);
@@ -1481,7 +1456,7 @@ function route({ viaPop = false } = {}) {
     render({ focus: focusRow ? 'venue' : 'heading', scroll: viaPop ? 'restore' : 'top' });
   };
   // Store build: any first screen loads live data (a reminder or a relaunch can open Events or Saved first).
-  const needsFirstFetch = (globalThis.__STORE__ || LIVE || ['tonight', 'venue', 'pass'].includes(r.name)) && !app.firstFetchStarted;
+  const needsFirstFetch = (globalThis.__STORE__ || LIVE || ['tonight', 'venue'].includes(r.name)) && !app.firstFetchStarted;
   if (needsFirstFetch) app.firstFetchStarted = true;
   if (firstRoute) {
     firstRoute = false;
@@ -1825,206 +1800,6 @@ function tick() {
       updateBanners();
     }
   }
-  updateBadge();
-}
-
-/* ---------------- pass flow ---------------- */
-function startPassFlow(venueId) {
-  const v = app.venues.find((x) => x.id === venueId);
-  const firstOpen = v?.pass?.windows.find((w) => purchasable(windowState(v.pass, w, now())));
-  app.passFlow = { venueId, windowId: firstOpen?.id ?? null, party: 2, ack: false, step: 'review', errors: {}, opId: null, passId: null, notice: null };
-}
-
-function syncSheet() {
-  const dlg = document.getElementById('sheet');
-  const wantOpen = app.route?.name === 'pass' && app.passFlow;
-  if (!wantOpen) {
-    if (dlg.open) closeSheetAnimated();
-    return;
-  }
-  if (sheetClosing) {
-    clearTimeout(sheetClosing.t);
-    dlg.removeEventListener('transitionend', sheetClosing.onEnd);
-    sheetClosing = null;
-    dlg.classList.remove('is-closing');
-    dlg.style.transform = '';
-  }
-  renderSheet();
-  if (!dlg.open) {
-    dlg.classList.remove('is-closing');
-    dlg.showModal();
-    dlg._openedAt = performance.now(); // drags wait for the opening slide to finish (--d-sheet-lock)
-    const auto = dlg.querySelector('[data-autofocus]') || dlg.querySelector('input:checked:not(:disabled)') || dlg.querySelector('input:not(:disabled), button:not(:disabled)');
-    auto?.focus();
-  }
-}
-function renderSheet({ beat = false } = {}) {
-  const dlg = document.getElementById('sheet');
-  const { title, body, foot } = renderPassSheet(ctx(), app.passFlow);
-  const sheetFocus = () => (dlg.open ? dlg.querySelector('[data-autofocus]') || dlg.querySelector('input[name="win"]:checked:not(:disabled)') || dlg.querySelector('input:not(:disabled), button:not(:disabled)') : null);
-  // An edit within a step (window, party, the checkbox, an error) patches the sheet in place (QA plan 4.8): the picked
-  // window's fill glides, the party size rolls, prices swap, and focus and scroll never move. A new step renders.
-  const bodyEl = dlg.querySelector('.sheet-body'), footEl = dlg.querySelector('.sheet-foot');
-  if (dlg.dataset.step === app.passFlow.step && bodyEl && footEl) {
-    const part = (html) => { const t = document.createElement('template'); t.innerHTML = html; return t.content; };
-    preserveFocus(() => {
-      swapText(dlg.querySelector('.sheet-title'), title);
-      patchChildren(bodyEl, part(body));
-      patchChildren(footEl, part(foot));
-    }, sheetFocus);
-    return;
-  }
-  const prevScroll = bodyEl?.scrollTop ?? 0;
-  const prevStep = dlg.dataset.step;
-  // A new step glides the sheet to its new height (QA plan 7.2): "Back to review" comes in from the left.
-  const dir = prevStep === 'review' || !prevStep ? 0 : app.passFlow.step === 'review' ? -1 : 0;
-  swapSheet(dlg, () => {
-    preserveFocus(() => {
-      dlg.innerHTML = `<div class="sheet-head">
-          <button type="button" class="sheet-grabber" data-action="close-sheet" aria-label="Close (or drag down)"></button>
-          <h2 class="sheet-title" id="sheet-title">${esc(title)}</h2>
-          <button type="button" class="icon-btn sheet-close" data-action="close-sheet" aria-label="Close">${icon('x')}</button>
-        </div>
-        <div class="sheet-body">${body}</div>
-        <div class="sheet-foot">${foot}</div>`;
-      dlg.setAttribute('aria-labelledby', 'sheet-title');
-    }, sheetFocus);
-    // A new step (e.g. "Pass created") opens at the top.
-    dlg.dataset.step = app.passFlow.step;
-    const sb = dlg.querySelector('.sheet-body');
-    if (sb) sb.scrollTop = prevStep === app.passFlow.step ? prevScroll : 0;
-  }, dir, { body: !(beat && motionOK() && !reducedMotion()) }); // "Pass created" brings its own parts in (8.4)
-}
-let sheetClosing = null;
-function closeSheetAnimated() {
-  const dlg = document.getElementById('sheet');
-  if (!dlg.open || sheetClosing) return;
-  const finish = () => {
-    if (!sheetClosing) return;
-    clearTimeout(sheetClosing.t);
-    dlg.removeEventListener('transitionend', sheetClosing.onEnd);
-    sheetClosing = null;
-    dlg.classList.remove('is-closing', 'is-dragging');
-    dlg.style.transform = '';
-    if (dlg.open) dlg.close();
-    dlg.innerHTML = '';
-    // Desktop re-renders the detail pane under the sheet, so the trigger may be gone: put focus back on it.
-    if (!document.activeElement || document.activeElement === document.body) {
-      (document.querySelector('#main [data-nav="pass"]') || pageHeading())?.focus({ preventScroll: true });
-    }
-  };
-  const onEnd = (e) => { if (e.target === dlg && (e.propertyName === 'transform' || e.propertyName === 'opacity')) finish(); };
-  sheetClosing = { t: setTimeout(finish, cssMs('--d-sheet-out', 220) + 80), onEnd };
-  dlg.addEventListener('transitionend', onEnd);
-  // Exit from wherever the sheet is (mid-drag or mid-open): drop the inline offset in the same frame as the class.
-  dlg.classList.remove('is-dragging');
-  dlg.style.transform = '';
-  dlg.classList.add('is-closing');
-}
-function requestCloseSheet() {
-  if (app.passFlow?.step === 'pending') return; // never abandon an in-flight request silently
-  const venueHash = buildHash('venue', { id: app.passFlow?.venueId ?? app.route.params.id });
-  if (app.route.name === 'pass') goBack(venueHash);
-}
-
-function submitPass() {
-  const f = app.passFlow;
-  const v = app.venues.find((x) => x.id === f.venueId);
-  f.errors = {};
-  f.notice = null;
-  const win = v.pass.windows.find((w) => w.id === f.windowId);
-  if (!win || !purchasable(windowState(v.pass, win, now()))) {
-    f.errors.window = win ? 'That window is no longer available. Choose another.' : 'Choose an entry window.';
-    f.windowId = win && purchasable(windowState(v.pass, win, now())) ? f.windowId : null;
-  }
-  if (!f.ack) f.errors.ack = 'Check the box to continue.';
-  if (Object.keys(f.errors).length) {
-    renderSheet(); // the error drops in (patch)
-    const first = document.querySelector(f.errors.window ? '#sheet input[name="win"]:not(:disabled)' : '#sheet [data-input="pass-ack"]');
-    focusInvalid(first, document.querySelector(f.errors.window ? '#sheet .window-grid' : '#sheet .check'));
-    return;
-  }
-  f.party = Math.min(f.party, maxPartyFor(win));
-  f.opId = f.opId ?? `op-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
-  runPassRequest();
-}
-function runPassRequest() {
-  const f = app.passFlow;
-  f.step = 'pending';
-  f.errorKind = null;
-  renderSheet();
-  document.querySelector('#sheet .sheet-foot button')?.focus();
-  const g = gesture; // the outcome lands as the request's own result: a keyboard submit stays instant
-  setTimeout(() => withGesture(g, () => {
-    // The simulated request finishes even if the user navigated away; then the outcome arrives as a toast.
-    const inSheet = () => app.passFlow === f && app.route?.name === 'pass' && document.getElementById('sheet').open;
-    const v = app.venues.find((x) => x.id === f.venueId);
-    const finishAway = (message, opts) => {
-      if (app.passFlow === f) app.passFlow = null;
-      toast(message, opts);
-    };
-    // Idempotency: if this operation already produced a pass, don't create another.
-    const existing = app.state.passes.find((p) => p.id === f.opId);
-    if (existing) {
-      f.passId = existing.id; f.step = 'done';
-      if (inSheet()) { renderSheet(); focusSheetResult(); }
-      return;
-    }
-    const beat = () => { if (!reducedMotion() && motionOK()) passBeat(document.getElementById('sheet')); };
-    if (isOffline() || app.state.sim.failNextPass) {
-      f.errorKind = isOffline() ? 'offline' : 'server';
-      if (f.errorKind === 'server') { app.state.sim.failNextPass = false; persist(); }
-      f.step = 'error';
-      if (inSheet()) { renderSheet(); focusSheetResult(); } else finishAway(`The pass for ${v?.name ?? 'that venue'} wasn’t created. Nothing was charged.`);
-      return;
-    }
-    const win = v?.pass?.windows.find((w) => w.id === f.windowId);
-    if (!win || !purchasable(windowState(v.pass, win, now())) || win.remaining < f.party) {
-      f.step = 'review';
-      f.notice = 'That window sold out or was paused while you were reviewing. No pass was created and nothing was charged.';
-      f.windowId = null;
-      if (inSheet()) {
-        renderSheet();
-        (document.querySelector('#sheet input[name="win"]:not(:disabled)') || document.querySelector('#sheet [data-notice]'))?.focus();
-      } else finishAway('That window filled up before the pass was created. Nothing was charged.');
-      return;
-    }
-    const pass = createPass({ opId: f.opId, venue: v, win, party: f.party, now: now() });
-    app.state.passes.push(pass);
-    persist();
-    rebuild();
-    f.passId = pass.id;
-    f.step = 'done';
-    updateBadge();
-    if (inSheet()) { renderSheet({ beat: true }); focusSheetResult(); beat(); return; }
-    finishAway(`Pass created for ${v.name}.`, { actionLabel: 'View pass', onAction: () => go(buildHash('passDetail', { id: pass.id })) });
-    if (app.route.name === 'passes') render({ focus: 'none' });
-  }), 900);
-}
-function focusSheetResult() { document.querySelector('#sheet [data-autofocus]')?.focus(); }
-/**
- * "Pass created" (QA plan 8.4, one beat, after 1.5): in the frame after the render (so iOS isn't running a spring while
- * JS is busy), the white well pops from .9 (--spring-pop, cubic on iOS), its check draws in after 60ms (--d-fade), and
- * the heading, the line under it and the pass follow 60ms apart, rising 6px (--d-reveal). It rides the sheet's height
- * glide (7.2). Focus stays on the heading. Reduced motion: the sheet's short linear fade only.
- */
-function passBeat(dlg) {
-  const res = dlg.querySelector('.sheet-body .result-ok');
-  if (!res) return;
-  const well = res.querySelector('.result-icon');
-  const parts = [res.querySelector(':scope > h2'), res.querySelector(':scope > p'), res.querySelector(':scope > .pass-card')].filter(Boolean);
-  // Hidden until the beat's frame, so nothing flashes in at rest first.
-  const hold = [well, ...parts].filter(Boolean).map((el) => el.animate({ opacity: [0, 0] }, { duration: T.sheetLock }));
-  requestAnimationFrame(() => {
-    hold.forEach((a) => a.cancel());
-    if (!dlg.open || !res.isConnected) return;
-    if (well) {
-      well.animate({ scale: [0.9, 1] }, popTiming());
-      well.animate({ opacity: [0, 1] }, { duration: T.fade, easing: T.easeOut });
-      drawStroke(well.querySelector('path'), { delay: 60 });
-    }
-    parts.forEach((el, i) => el.animate({ opacity: [0, 1], translate: ['0 6px', '0 0'] }, { duration: T.reveal, delay: 60 * (i + 1), easing: T.easeOut, fill: 'backwards' }));
-  });
 }
 
 /* ---------------- saves ---------------- */
@@ -2456,11 +2231,6 @@ function dropUploads(match = () => true) {
   for (const u of app.console.uploads) if (match(u) && !u.sample) URL.revokeObjectURL(u.url);
   app.console.uploads = app.console.uploads.filter((u) => !match(u));
 }
-function setPassOverride(venue, patch) {
-  const o = app.state.overrides[venue.id] ?? (app.state.overrides[venue.id] = {});
-  o.pass = { ...(o.pass ?? {}), ...patch, capacity: { ...(o.pass?.capacity ?? {}), ...(patch.capacity ?? {}) } };
-}
-
 /* ---------------- Business view, live team build: a venue account on the server ---------------- */
 // Everything here runs only when LIVE (lib/backend.js) and goes through venueApi, never the guest's client. Human counts
 // only: a number, −/+, and taps on a photo that never leaves the phone. Nothing counts heads automatically.
@@ -3103,7 +2873,6 @@ function resetDemo() {
   app.state.ageConfirmed = true;
   persist();
   rebuild();
-  app.passFlow = null;
   if (!globalThis.__STORE__) dropUploads();
   app.console = freshConsole();
   app.ideaDraft = null;
@@ -3127,31 +2896,6 @@ function undoReset() {
   toast('Reset undone.');
 }
 
-/** A pass changed status (cancel, restore): its card is patched where it is (QA plan 4.12), never re-sorted under the
- *  finger; the list re-sorts on the next visit. */
-function patchPass(id) {
-  const sel = `[data-key="${CSS.escape(id)}"]`;
-  const live = document.querySelector(`#main ${sel}`);
-  const tpl = document.createElement('template');
-  tpl.innerHTML = mainHtml();
-  const fresh = tpl.content.querySelector(sel);
-  if (live && fresh) patchTree(live, fresh); else render({ focus: 'none' });
-  updateBadge();
-}
-function restorePass(id) {
-  const p = app.state.passes.find((x) => x.id === id);
-  if (!p || !p.cancelledAt) return;
-  dismissCurrentToast();
-  const v = app.venues.find((x) => x.id === p.venueId);
-  const w = v?.pass?.windows.find((x) => x.id === p.windowId);
-  if (!w || w.remaining < p.party || now() >= p.windowEnd) { toast('Can’t restore: that window has ended or filled up.'); return; }
-  p.cancelledAt = null; persist(); rebuild();
-  if (['passes', 'passDetail'].includes(app.route.name)) {
-    patchPass(p.id);
-    (document.querySelector(`[data-action="cancel-pass"][data-id="${CSS.escape(p.id)}"]`) || pageHeading())?.focus({ preventScroll: true });
-  } else render({ focus: 'heading' });
-  toast(`Pass for ${p.venueName} restored.`);
-}
 function undoClear() {
   const c = app.ui.clearedQueue;
   if (!c) return;
@@ -3922,29 +3666,13 @@ function disclose(d) {
   }, () => {});
 }
 
-/* ---------------- my account: settings, help, subscription, VIP cards (all simulated) ---------------- */
+/* ---------------- my account: settings, help, VIP cards (all simulated) ---------------- */
 /** dir: 1 drills in (member → profile), -1 goes back; an open sheet glides to its new height (swapSheet). */
 function openAccountSheet(html, focusSel, dir = 0) {
   const dlg = preparePicker();
   if (dlg.open) swapSheet(dlg, () => { dlg.innerHTML = html; }, dir);
   else { dlg.innerHTML = html; showPicker(dlg); }
   (dlg.querySelector(focusSel) || dlg.querySelector('.sheet-close'))?.focus();
-}
-function chooseSubscription(value) {
-  const before = { ...app.state.subscription };
-  app.state.subscription = value === 'none'
-    ? { ...before, plan: 'none' }
-    : { plan: 'plus', billing: value, since: before.plan === 'plus' && before.billing === value ? before.since : now() };
-  persist();
-  closePicker(() => document.querySelector('[data-action="manage-sub"]')?.focus({ preventScroll: true }));
-  if (app.route.name === 'profile') rerenderPage();
-  const plan = PLANS.find((x) => x.id === value);
-  if (value === 'none') {
-    toast('Night Out Plus canceled.', {
-      actionLabel: 'Undo',
-      onAction: () => { app.state.subscription = before; persist(); if (app.route.name === 'profile') rerenderPage(); announce('Night Out Plus restored.'); },
-    });
-  } else toast(`Night Out Plus · ${plan.label}.`);
 }
 function addVipCard() {
   const have = new Set(app.state.vipCards.map((c) => c.venueId));
@@ -4368,7 +4096,7 @@ function showPicker(dlg) {
  * and the new body fades in after 60ms, from the side for a drill-in (dir 1) or a Back (dir -1), else rising 4px.
  * Height is layout, once per step. Keyboard: instant. Reduced motion: instant height, a short linear fade.
  */
-function swapSheet(dlg, swap, dir = 0, { body = true } = {}) {
+function swapSheet(dlg, swap, dir = 0) {
   if (!dlg.open) { swap(); return; }
   // A glide still running: read the height it shows now, then stop it, so the next glide starts from what is on screen
   // (and the instant paths end at the natural height with no stale keyframes) (MJ7).
@@ -4384,7 +4112,7 @@ function swapSheet(dlg, swap, dir = 0, { body = true } = {}) {
   swap();
   const h1 = dlg.offsetHeight;
   if (Math.abs(h1 - h0) >= 8) dlg.animate({ height: [`${h0}px`, `${h1}px`] }, { duration: T.tray, easing: T.easeInOut });
-  if (body) dlg.querySelector('.sheet-body')?.animate({ opacity: [0, 1], translate: [dir ? `${12 * dir}px 0` : '0 4px', '0 0'] }, { duration: T.reveal, delay: 60, easing: T.easeOut, fill: 'backwards' });
+  dlg.querySelector('.sheet-body')?.animate({ opacity: [0, 1], translate: [dir ? `${12 * dir}px 0` : '0 4px', '0 0'] }, { duration: T.reveal, delay: 60, easing: T.easeOut, fill: 'backwards' });
 }
 
 /* ---------------- points: daily login and door check-ins (simulated QR) ---------------- */
@@ -4491,13 +4219,6 @@ function handleClick(e) {
     if (LIST_ROUTES.has(app.route?.name) && target.name === 'venue') {
       history.replaceState({ ...(history.state ?? {}), navFrom: { id: target.params.id, sel: thumbSelector(nav) } }, '');
     }
-    if (nav.closest('#sheet') && href.startsWith('#/passes')) {
-      // Leaving the sheet for a pass: replace the sheet entry so Back returns to the venue.
-      app.passFlow = null;
-      closeSheetAnimated();
-      go(href, { replace: true });
-      return;
-    }
     go(href);
   }
 }
@@ -4589,58 +4310,12 @@ function handleAction(a, el, e) {
       if (navigator.onLine === false) { toast('Your device still reports no connection.'); return true; }
       simulateFetch();
       return true;
-    case 'go-online-retry': if (!(globalThis.__STORE__ || LIVE)) { // the pass flow's retry (team build)
-      app.state.sim.offline = false;
-      persist();
-      if (navigator.onLine === false) { toast('Your device still reports no connection.'); return true; }
-      runPassRequest();
-      return true;
-    } return false;
     case 'apply-stale': app.ui.staleNotice = null; renderResultsOnly(); return true;
     case 'undo-remove': undoRemove(); return true;
     case 'undo-reset': if (!(globalThis.__STORE__ || LIVE)) {
       undoReset(); return true;
     } return false;
     case 'back': goBack(el.getAttribute('href') || '#/'); return true;
-    case 'close-sheet': requestCloseSheet(); return true;
-    case 'party': if (!(globalThis.__STORE__ || LIVE)) {
-      {
-      const f = app.passFlow;
-      const v = app.venues.find((x) => x.id === f.venueId);
-      const win = v.pass.windows.find((w) => w.id === f.windowId);
-      const max = win ? maxPartyFor(win) : 4;
-      f.party = Math.max(1, Math.min(max, f.party + Number(el.dataset.delta)));
-      renderSheet();
-      announce(`Party size ${f.party}`);
-      return true;
-    }
-    } return false;
-    case 'submit-pass': if (!(globalThis.__STORE__ || LIVE)) {
-      submitPass(); return true;
-    } return false;
-    case 'retry-pass': if (!(globalThis.__STORE__ || LIVE)) {
-      runPassRequest(); return true;
-    } return false;
-    case 'back-to-review': if (!(globalThis.__STORE__ || LIVE)) {
-      app.passFlow.step = 'review'; renderSheet(); return true;
-    } return false;
-    case 'view-pass': if (!(globalThis.__STORE__ || LIVE)) {
-      return false; // handled as navigation
-    } return false;
-    case 'cancel-pass': if (!(globalThis.__STORE__ || LIVE)) {
-      {
-      const p = app.state.passes.find((x) => x.id === el.dataset.id);
-      if (!p) return true;
-      p.cancelledAt = now();
-      persist(); rebuild(); patchPass(p.id);
-      (document.querySelector(`[data-action="restore-pass"][data-id="${CSS.escape(p.id)}"]`) || pageHeading())?.focus({ preventScroll: true });
-      toast(`Pass for ${p.venueName} cancelled.`, { actionLabel: 'Undo', onAction: () => restorePass(p.id) });
-      return true;
-    }
-    } return false;
-    case 'restore-pass': if (!(globalThis.__STORE__ || LIVE)) {
-      restorePass(el.dataset.id); return true;
-    } return false;
     case 'biz-section': if (!globalThis.__STORE__) {
       bizSection(el.dataset.s); return true;
     } return false;
@@ -4718,29 +4393,6 @@ function handleAction(a, el, e) {
     } return false;
     case 'deal-remove': if (!(globalThis.__STORE__ || LIVE)) {
       removeDeal(el.dataset.id); return true;
-    } return false;
-    case 'console-price': if (!(globalThis.__STORE__ || LIVE)) {
-      {
-      const v = consoleVenue();
-      const next = Math.max(100, Math.min(5000, v.pass.basePrice + Number(el.dataset.delta)));
-      setPassOverride(v, { basePrice: next });
-      audit(v, `Priority price → ${money(next)} per person (+ fee)`);
-      persist(); rebuild(); rerenderConsole();
-      announce(`Price ${money(next)} per person`);
-      return true;
-    }
-    } return false;
-    case 'console-cap': if (!(globalThis.__STORE__ || LIVE)) {
-      {
-      const v = consoleVenue();
-      const w = v.pass.windows.find((x) => x.id === el.dataset.window);
-      const next = Math.max(w.sold, Math.min(50, w.capacity + Number(el.dataset.delta)));
-      setPassOverride(v, { capacity: { [w.id]: next } });
-      audit(v, `Capacity ${formatTime(w.start)} window → ${next}`);
-      persist(); rebuild(); rerenderConsole();
-      announce(`Capacity ${next} for the ${formatTime(w.start)} window`);
-      return true;
-    }
     } return false;
     case 'dataset': if (!(globalThis.__STORE__ || LIVE)) {
       setDataset(el.dataset.kind); return true;
@@ -4947,9 +4599,6 @@ function handleAction(a, el, e) {
     case 'help-about': if (!globalThis.__STORE__) {
       closePicker(() => go('#/about')); return true;
     } return false;
-    case 'manage-sub': if (!(globalThis.__STORE__ || LIVE)) {
-      openAccountSheet(manageSubSheet(ctx()), 'input:checked'); return true;
-    } return false;
     case 'vip-add': if (!(globalThis.__STORE__ || LIVE)) {
       addVipCard(); return true;
     } return false;
@@ -5051,12 +4700,6 @@ function handleChange(e) {
       t.closest('.select')?.classList.toggle('is-set', !!t.value);
       renderEventResults();
       break;
-    case 'pass-window': if (!(globalThis.__STORE__ || LIVE)) {
-      app.passFlow.windowId = t.value; app.passFlow.errors = {}; renderSheet(); break;
-    } break;
-    case 'pass-ack': if (!(globalThis.__STORE__ || LIVE)) {
-      app.passFlow.ack = t.checked; if (t.checked && app.passFlow.errors.ack) { delete app.passFlow.errors.ack; renderSheet(); } break;
-    } break;
     case 'console-venue': if (!globalThis.__STORE__) {
       if (LIVE) { venueSwitch(t.value); break; }
       app.console.venueId = t.value;
@@ -5094,16 +4737,6 @@ function handleChange(e) {
         else d[t.dataset.key] = t.value.split(':').map(Number);
       }
       break;
-    } break;
-    case 'console-pause': if (!(globalThis.__STORE__ || LIVE)) {
-      {
-      const v = consoleVenue();
-      setPassOverride(v, { paused: t.checked });
-      audit(v, t.checked ? 'Paused priority passes' : 'Resumed priority passes');
-      persist(); rebuild(); rerenderConsole();
-      toast(t.checked ? `Priority passes paused for ${v.name}.` : `Priority passes resumed for ${v.name}.`);
-      break;
-    }
     } break;
     case 'group-field': if (!(globalThis.__STORE__ || LIVE)) {
       {
@@ -5169,9 +4802,6 @@ function handleChange(e) {
     case 'business': if (!(globalThis.__STORE__ || LIVE)) {
       setBusiness(t.checked, t); break;
     } break;
-    case 'sub-plan': if (!(globalThis.__STORE__ || LIVE)) {
-      chooseSubscription(t.value); break;
-    } break;
     case 'sim': if (!(globalThis.__STORE__ || LIVE)) {
       // the switch itself says it (no toast restating it, QA plan 9.6)
       app.state.sim[t.dataset.key] = t.checked;
@@ -5186,7 +4816,6 @@ const onSubmit = (e) => withGesture(e, () => handleSubmit(e));
 function handleSubmit(e) {
   e.preventDefault();
   if (!globalThis.__STORE__) { // these forms exist only in the team build
-    if (e.target.id === 'pass-form') submitPass();
     if (e.target.id === 'deal-form') postDeal();
     if (e.target.id === 'group-form') postGroup();
     if (e.target.id === 'idea-form') postIdea();
@@ -5214,7 +4843,7 @@ const rubber = (o, d = 600, k = 0.55) => -((Math.abs(o) * d * k) / (d + k * Math
  * max(120px, 25%) that isn't flicking back closes it. Otherwise it snaps back. The close buttons stay the single-pointer
  * alternative (WCAG 2.5.7).
  */
-function wireDrag(dlg, { onDismiss, canDismiss = () => true }) {
+function wireDrag(dlg, { onDismiss }) {
   let drag = null;
   let snap = null;
   let suppressClickUntil = 0;
@@ -5226,7 +4855,7 @@ function wireDrag(dlg, { onDismiss, canDismiss = () => true }) {
   dlg.addEventListener('pointerdown', (e) => {
     if (!e.isPrimary) return;
     dropStale();
-    if (!e.target.closest('.sheet-grabber, .sheet-head') || e.target.closest('a, input, button:not(.sheet-grabber)')) return;
+    if (!e.target.closest('.sheet-grabber, .sheet-head') || e.target.closest('a, input, button')) return;
     if (dlg.classList.contains('is-closing') || performance.now() - (dlg._openedAt ?? 0) < T.sheetLock) return; // still sliding
     // Grab mid-flight: read where the sheet is right now (e.g. a snap-back spring), then hold it there.
     const base = new DOMMatrix(getComputedStyle(dlg).transform).m42 || 0;
@@ -5262,7 +4891,7 @@ function wireDrag(dlg, { onDismiss, canDismiss = () => true }) {
     const avg = (dy - base) / Math.max(1, now - t0);
     const H = dlg.offsetHeight;
     // A quick flick down, or pulled far and not flicking back up. A slow short pull snaps back.
-    const dismiss = e.type === 'pointerup' && canDismiss() && (avg > 0.4 || (dy > Math.max(120, 0.25 * H) && vTail > -0.05));
+    const dismiss = e.type === 'pointerup' && (avg > 0.4 || (dy > Math.max(120, 0.25 * H) && vTail > -0.05));
     if (dismiss) { onDismiss(); return; } // the exit transition starts from the current drag offset
     // iOS runs linear() springs on the main thread: it gets the composited cubic instead.
     const easing = CSS.supports('-webkit-touch-callout', 'none') ? T.easeSheet : T.springDrawer;
@@ -5273,19 +4902,6 @@ function wireDrag(dlg, { onDismiss, canDismiss = () => true }) {
   dlg.addEventListener('pointerup', end);
   dlg.addEventListener('pointercancel', end);
 }
-function wireSheet() {
-  const dlg = document.getElementById('sheet');
-  dlg.addEventListener('cancel', (e) => { e.preventDefault(); requestCloseSheet(); });
-  // Chromium may force-close a modal on a repeated Escape. Never let that hide an in-flight pass request.
-  dlg.addEventListener('close', () => {
-    if (sheetClosing || app.route?.name !== 'pass' || app.passFlow?.step !== 'pending') return;
-    dlg.showModal();
-    dlg.querySelector('.sheet-foot button')?.focus();
-  });
-  dlg.addEventListener('click', (e) => { if (isBackdropClick(e, dlg)) requestCloseSheet(); });
-  wireDrag(dlg, { onDismiss: requestCloseSheet, canDismiss: () => app.passFlow?.step !== 'pending' });
-}
-
 /* ---------------- boot ---------------- */
 function boot() {
   readTokens();
@@ -5346,7 +4962,6 @@ function boot() {
   });
   window.addEventListener('online', () => { if (app.route.name === 'tonight' || app.route.name === 'venue') simulateFetch(); if (!globalThis.__STORE__ && LIVE) flushCounts(); });
   window.addEventListener('offline', () => renderResultsOnly());
-  wireSheet();
   const picker = document.getElementById('picker');
   picker.addEventListener('cancel', (e) => { e.preventDefault(); closePickerToOpener(); });
   picker.addEventListener('click', (e) => { if (isBackdropClick(e, picker)) closePickerToOpener(); });

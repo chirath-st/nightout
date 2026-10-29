@@ -1,4 +1,4 @@
-// Demo clock. The prototype always runs on a simulated night so hours, freshness and pass windows behave the same
+// Demo clock. The prototype always runs on a simulated night so hours, freshness and deal windows behave the same
 // whenever it is reviewed. The night is anchored at 10:40 PM on the review date (`base`: the synthetic dataset's
 // times hang off it and it never moves), and the demo starts at midnight (team ask, 2026-10-17: "it's maybe
 // midnight, so everybody's already open"), i.e. START_OFFSET_MIN after the anchor. It advances in real time and can

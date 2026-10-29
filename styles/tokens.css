@@ -110,10 +110,6 @@
   --danger: #FF8A80;      /* field errors only, always with an icon and words: 9.2:1 */
   --danger-soft: #1A0F0E;
 
-  --pass-bg: #0B0B0B;
-  --pass-ink: #FFFFFF;
-  --pass-ink-2: #BDBDBD;
-
   --focus: #FFFFFF;       /* 2px ring + 5px black halo: visible on black, on photos and around white buttons */
   --focus-halo: #000000;
 

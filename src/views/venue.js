@@ -1,4 +1,4 @@
-import { esc, estimateBlock, saveButton, stateBox, windowLabel, coverText, venuePhoto, venueLogo, distanceText, factStrip, howItWorks, promoLabel, promoItem } from '../ui/components.js';
+import { esc, estimateBlock, saveButton, stateBox, coverText, venuePhoto, venueLogo, distanceText, factStrip, howItWorks, promoLabel, promoItem } from '../ui/components.js';
 import { formatTime } from '../lib/clock.js';
 import { VIBE, POLL } from '../data/events.js';
 import { eventWindow, isLive, pollResult } from '../lib/events.js';
@@ -8,7 +8,7 @@ import { dealsTonight, dealState, DEAL_KINDS } from '../lib/deals.js';
 import { dealWhen } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
 import { isOpenAt } from '../lib/explore.js';
-import { offerSummary, money, dollars } from '../lib/pass.js';
+import { dollars } from '../lib/pass.js';
 import { TYPICAL_LABELS } from '../lib/queue.js';
 import { TYPICAL_HOURS } from '../data/venues.js';
 import { ideasSection } from './ideas.js';
@@ -50,28 +50,6 @@ function lastNightSection(venue) {
   </section>`;
 }
 
-function passCta(venue, now) {
-  if (!venue.pass) {
-    return '';
-  }
-  const s = offerSummary(venue.pass, now);
-  const per = money(venue.pass.basePrice + venue.pass.serviceFee);
-  const why = {
-    available: `Skip the general line during a set window. ${per} per person, all-in.`,
-    paused: 'Priority passes are paused for now.',
-    soldout: 'Every window is sold out tonight.',
-    passed: 'All of tonight’s priority windows have ended.',
-    unavailable: 'Not offered tonight.',
-  }[s.state];
-  // Only the available state gets a control; other states are plain status text, not a dead button.
-  const btn = s.state === 'available'
-    ? `<a class="btn btn-primary btn-lg btn-block" href="#/venue/${encodeURIComponent(venue.id)}/pass" data-nav="pass">${icon('ticket')}Review priority pass</a>`
-    : `<p class="pass-state">${icon('ticket')}<span>${esc(s.label)}</span></p>`;
-  return `<section class="pass-cta" aria-labelledby="pass-h">
-    <div class="section-head"><h2 id="pass-h">Priority entry</h2></div>
-    <p>${why}</p>${btn}</section>`;
-}
-
 export function renderVenue(ctx, id) {
   const venue = ctx.venues.find((v) => v.id === id);
   if (!venue) {
@@ -83,7 +61,6 @@ export function renderVenue(ctx, id) {
   const openText = open === true ? 'Open now' : open === false ? 'Closed now' : 'Hours not listed';
   const cover = venue.cover === 0 ? 'No cover' : venue.cover == null ? 'Not listed' : `${dollars(venue.cover)} at the door`;
   const saved = ctx.savedSet.has(venue.id);
-  const windows = venue.pass?.enabled ? venue.pass.windows.map((w) => windowLabel(w.start, w.end)).join(', ') : 'Not offered';
   const kind = [coverText(venue), venue.tags?.join(' · ')].filter(Boolean).join(' | ');
   const hoursShort = venue.closedTonight ? 'Closed tonight' : venue.hours ? `${to12(venue.hours.open)}–${to12(venue.hours.close)}` : null;
   const ev = tonightEvent(ctx, venue);
@@ -118,14 +95,12 @@ export function renderVenue(ctx, id) {
     ${(globalThis.__STORE__ || LIVE) ? '' : foodSection(venue)}
     ${(globalThis.__STORE__ || LIVE) ? '' : pollSection(venue, ctx.state.votes?.[venue.id] ?? null)}
     ${(globalThis.__STORE__ || LIVE) ? lastNightSection(venue) : typicalStrip(venue, now)}
-    ${(globalThis.__STORE__ || LIVE) ? '' : passCta(venue, now)}
     <div class="section-head"><h2>Entry details</h2></div>
     <dl class="facts">
       <div><dt>Cover</dt><dd>${esc(cover)}</dd></div>
       <div><dt>Age policy</dt><dd>21+ with valid physical ID</dd></div>
       <div><dt>Hours tonight</dt><dd>${esc(hours)}</dd></div>
       <div><dt>Status</dt><dd>${esc(openText)}</dd></div>
-      ${(globalThis.__STORE__ || LIVE) ? '' : `<div><dt>Priority windows</dt><dd>${esc(windows)}</dd></div>`}
       <div><dt>Address</dt><dd>${esc([venue.address, venue.area].filter(Boolean).join(' · ') || 'Not listed')}</dd></div>
       ${distanceText(venue) ? `<div><dt>Distance</dt><dd>${esc(distanceText(venue))} from ${esc(originLabel())}</dd></div>` : ''}
       ${venue.source ? `<div><dt>Name &amp; address from</dt><dd>${esc(venue.source)}</dd></div>` : ''}

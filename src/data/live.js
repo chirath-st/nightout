@@ -114,7 +114,7 @@ export function liveData(snapshot = {}) {
       blurb: dir.blurb ?? '', source: dir.source ?? null, tags: [],
       art: dir.art ?? 'lamps', palette: dir.palette ?? null,
       hours: hoursTonight(row.hours),
-      cover: num(row.cover), typical: null, menu: [], pass: null,
+      cover: num(row.cover), typical: null, menu: [],
       doors: [{ id: 'main', label: 'Door' }],
       queue: queueFromStatus(st),
       lastNight: lastNightFrom(st?.last_night),

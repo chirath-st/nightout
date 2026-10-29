@@ -7,7 +7,7 @@ import { describeEstimate, relativeAge, PACE_COPY } from '../lib/queue.js';
 import { doorPace, withObservations, WINDOW } from '../lib/merge.js';
 import { lineScene, DRAW_MAX } from '../ui/lineart.js';
 import { formatTime } from '../lib/clock.js';
-import { dealPanel, passPanel, backIcon } from './pages.js';
+import { dealPanel, backIcon } from './pages.js';
 import { ideaPanel } from './ideas.js';
 import { impactPanel } from './impact.js';
 import { businessHead, redeemPanel, reportPanel, photosPanel, renderVenueLive, BIZ_SECTIONS } from './business.js';
@@ -186,7 +186,7 @@ function renderBusiness(v, ctx) {
     // Ideas waiting for this bar's answer come first. The order is fixed when Offers opens (main.js resets ideasFirst on
     // a section or venue change), so approving one doesn't throw the panel under the deal form mid-task.
     offers: () => ((ctx.console.ideasFirst ??= ctx.ideas.some((x) => x.venueId === v.id && x.status === 'pending' && x.endsAt > ctx.now))
-      ? `${ideaPanel(v, ctx)}${dealPanel(v, ctx)}${passPanel(v, ctx)}` : `${dealPanel(v, ctx)}${passPanel(v, ctx)}${ideaPanel(v, ctx)}`),
+      ? `${ideaPanel(v, ctx)}${dealPanel(v, ctx)}` : `${dealPanel(v, ctx)}${ideaPanel(v, ctx)}`),
     redeem: () => redeemPanel(v, ctx),
     report: () => `${impactPanel(v, ctx)}${reportPanel(v, ctx)}`,
     photos: () => photosPanel(v, ctx),
@@ -225,7 +225,6 @@ export function renderConsole(ctx) {
       ${feedPanel(v, ctx)}
       ${dealPanel(v, ctx)}
       ${ideaPanel(v, ctx)}
-      ${passPanel(v, ctx)}
       ${auditPanel(v, ctx)}
     </div>
   </div>`;

@@ -107,7 +107,6 @@
 
 /* ---------- Venue detail ---------- */
 /* The disclosure badge icon stays 14px at every size (higher specificity than any hero art rule). */
-.back-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: var(--s-3); }
 .back-link { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 14px 0 8px; border-radius: var(--r-pill); color: var(--ink); text-decoration: none; font-weight: 600; font-size: 15px; border: 1px solid var(--line-input); background: transparent; transition: transform var(--d-press) var(--ease-out); }
 .back-link svg { width: 20px; height: 20px; }
 .back-link:active { transform: scale(0.97); }
@@ -154,36 +153,7 @@ details.how ul { list-style: disc; padding-left: 20px; }
 .menu-item { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 15px; line-height: 20px; }
 .menu-item span:last-child { font-variant-numeric: tabular-nums; color: var(--ink-2); }
 
-.pass-cta { margin-top: 28px; display: grid; gap: 12px; }
-.pass-cta h2 { font-size: var(--t-xs); line-height: 16px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-2); }
-.pass-cta p { font-size: 15px; line-height: 21px; color: var(--ink-2); }
-.pass-cta .pass-state { display: flex; gap: 8px; align-items: center; min-height: 48px; padding: 0 14px; border-radius: var(--r-md); background: var(--surface-2); color: var(--ink-2); font-weight: 600; }
-.pass-state svg { width: 18px; height: 18px; flex: none; }
 
-/* ---------- Passes ---------- */
-.pass-card {
-  position: relative; overflow: hidden; border-radius: var(--r-xl); padding: 20px; color: var(--pass-ink);
-  background: linear-gradient(165deg, #1C1C1E 0%, var(--pass-bg) 60%); border: 1px solid var(--line-strong);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06); display: grid; gap: 16px; isolation: isolate;
-}
-.pass-watermark { position: absolute; inset: -40% -20%; z-index: -1; display: grid; place-items: center; transform: rotate(-18deg); pointer-events: none; }
-.pass-watermark span { font-size: 14px; font-weight: 800; letter-spacing: 0.3em; color: rgb(255 255 255 / 0.06); white-space: nowrap; line-height: 2.4; }
-.pass-top { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px 12px; }
-.pass-top > div { flex: 1 1 12rem; min-width: 0; }
-.pass-top .qb-label { color: var(--pass-ink-2); }
-.pass-venue { font-family: var(--font-display); font-size: 26px; font-weight: 800; line-height: 30px; margin-top: 4px; overflow-wrap: break-word; hyphens: auto; }
-.pass-status { flex: none; height: 26px; display: inline-flex; align-items: center; padding: 0 10px; border-radius: var(--r-pill); font-size: var(--t-xs); font-weight: 700; border: 1px solid var(--line-input); }
-.pass-card[data-status="active"] .pass-status { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.pass-card[data-status="expired"] .pass-status, .pass-card[data-status="cancelled"] .pass-status { background: var(--surface-2); color: var(--ink-2); border-color: var(--surface-2); }
-.pass-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px 16px; padding-top: 16px; border-top: 1px dashed var(--line-strong); }
-.pass-grid dt { color: var(--ink-3); font-size: var(--t-2xs); line-height: 14px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-.pass-grid dd { margin: 3px 0 0; font-size: var(--t-md); line-height: 22px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.pass-invalid { border-top: 1px dashed var(--line-strong); padding-top: 14px; font-size: var(--t-sm); font-weight: 700; display: flex; gap: 8px; align-items: center; }
-.pass-invalid svg { width: 18px; height: 18px; flex: none; color: var(--aging); }
-.pass-card p, .result .pass-card p { color: var(--pass-ink); max-width: none; }
-.pass-ref { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.12em; }
-.pass-list { display: grid; gap: 20px; margin-top: 20px; }
-.pass-item-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 
 /* ---------- Sheet / dialog ---------- */
 dialog.sheet {
@@ -203,27 +173,10 @@ dialog.sheet::backdrop { background: var(--scrim); }
 .sheet-close::before { content: ""; position: absolute; width: 30px; height: 30px; border-radius: 50%; background: var(--fill-2); }
 .sheet-close svg { position: relative; width: 14px; height: 14px; stroke-width: 2.4; }
 .sheet-body { padding: 8px var(--gutter) 24px; overflow-y: auto; overscroll-behavior: contain; flex: 1; }
-.sheet-foot { padding: 12px var(--gutter) calc(12px + var(--safe-b)); border-top: 1px solid var(--fill-2); flex: none; background: var(--raised); }
-.sheet-foot .total-line { display: flex; justify-content: space-between; align-items: baseline; font-size: 15px; color: var(--ink-2); margin-bottom: 10px; }
-.sheet-foot .total-line strong { font-size: 20px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
 
 fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 legend, .sheet-body .label { font-weight: 700; font-size: 17px; line-height: 22px; margin-bottom: 12px; padding: 0; color: var(--ink); }
 .field-group + .field-group { margin-top: 24px; }
-.window-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-@media (max-width: 339.98px) { .window-grid { grid-template-columns: minmax(0, 1fr); } }
-.window-option { position: relative; display: grid; gap: 2px; align-content: center; min-height: 64px; padding: 10px 12px; border: 1px solid var(--line-input); border-radius: var(--r-md); cursor: pointer; transition: border-color var(--d-select) var(--ease-out), background-color var(--d-select) var(--ease-out), transform var(--d-press) var(--ease-out); }
-.window-option input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
-.window-option:active:not(:has(input:disabled)) { transform: scale(0.98); }
-.window-option:has(input:checked) { border-color: var(--accent); background: var(--accent); }
-.window-option:has(input:checked) .w-time { color: var(--accent-ink); }
-.window-option:has(input:checked) .w-state { color: #3A3A3C; }
-.window-option:has(input:disabled) { cursor: not-allowed; border: 1px dashed var(--line-strong); }
-.window-option:has(input:disabled) .w-time, .window-option:has(input:disabled) .w-state { color: var(--ink-3); }
-.window-option:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
-.w-time { position: relative; font-size: var(--t-md); line-height: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.w-state { position: relative; font-size: var(--t-2xs); line-height: 14px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); }
-.w-state.is-few { color: var(--ink); font-weight: 800; }
 .stepper { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line-strong); border-radius: var(--r-pill); padding: 2px; }
 .stepper output { min-width: 3ch; text-align: center; font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .stepper .icon-btn { width: 44px; height: 44px; }
@@ -231,10 +184,6 @@ legend, .sheet-body .label { font-weight: 700; font-size: 17px; line-height: 22p
 .stepper-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .stepper-row .label { margin-bottom: 0; }
 .hint { font-size: 13px; line-height: 18px; color: var(--ink-2); margin-top: 6px; }
-.price-table { width: 100%; border-collapse: collapse; font-size: 15px; }
-.price-table td { padding: 10px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; color: var(--ink-2); }
-.price-table td:last-child { text-align: right; color: var(--ink); }
-.price-table tr.total td { font-weight: 700; font-size: var(--t-md); border-bottom: 0; color: var(--ink); }
 .terms { font-size: 15px; line-height: 21px; color: var(--ink-sub); display: grid; gap: 10px; }
 .terms li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; }
 .terms li svg { width: 18px; height: 18px; margin-top: 2px; color: var(--ink-2); }
@@ -243,15 +192,9 @@ legend, .sheet-body .label { font-weight: 700; font-size: 17px; line-height: 22p
 .field-error { color: var(--danger); font-size: var(--t-sm); font-weight: 600; margin-top: 8px; display: flex; gap: 6px; align-items: center; }
 .field-error svg { width: 16px; height: 16px; }
 .result { display: grid; gap: var(--s-4); text-align: center; justify-items: center; padding: var(--s-3) 0; }
-.result-icon { width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; }
-.result-icon svg { width: 32px; height: 32px; }
-.result-ok .result-icon { background: var(--accent); color: var(--accent-ink); }
-.result-err .result-icon { background: var(--danger-soft); color: var(--danger); }
 .result h2 { font-family: var(--font-display); font-weight: 800; font-size: 26px; line-height: 30px; text-wrap: balance; }
 .result p { color: var(--ink-2); font-size: 15px; line-height: 21px; max-width: 38ch; }
-.result .pass-card { text-align: left; width: 100%; }
-.spinner { width: 24px; height: 24px; border-radius: 50%; border: 3px solid var(--line-strong); border-top-color: var(--accent); }
-@media (prefers-reduced-motion: no-preference) { .spinner { animation: spin 0.9s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } } }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* ---------- Console (operator) ---------- */
 .console-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-5); margin-top: var(--s-4); }
@@ -275,8 +218,6 @@ legend, .sheet-body .label { font-weight: 700; font-size: 17px; line-height: 22p
 .audit { font-size: 15px; }
 .audit li { padding: 12px 0; border-bottom: 1px solid var(--line); display: grid; gap: 2px; overflow-wrap: anywhere; }
 .audit time { font-size: var(--t-xs); color: var(--ink-3); font-variant-numeric: tabular-nums; }
-.cap-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
-.cap-row small { display: block; color: var(--ink-2); font-size: var(--t-xs); }
 .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0 12px; }
 .switch { position: relative; width: 51px; height: 31px; flex: none; }
 .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
@@ -728,7 +669,6 @@ main { min-width: 0; padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 40px
 .tabbar:has(> .tab[aria-current="page"]:active) .tab-indicator::before { scale: .96; --d-press: var(--d-press-down); }
 .kbd .tab-indicator { transition: none; }
 @media (prefers-reduced-motion: reduce) { .tab-indicator { transition: none; } }
-.tab .badge { position: absolute; top: -2px; right: 2px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--ink); color: var(--bg); font-size: 11px; font-weight: 800; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px var(--bg); }
 
 /* ---------- Buttons ---------- */
 .btn {
@@ -1018,7 +958,6 @@ dialog.sheet::backdrop { background: var(--scrim); }
 .sheet-close::before { content: ""; position: absolute; width: 30px; height: 30px; border-radius: 50%; background: var(--fill-2); box-shadow: inset 0 0 0 1px var(--line-input); }
 .sheet-close .ic { position: relative; width: 14px; height: 14px; stroke-width: 2.4; }
 .sheet-body { padding: 4px var(--gutter) 20px; overflow-y: auto; overscroll-behavior: contain; }
-.sheet-foot { padding: 12px var(--gutter) calc(12px + var(--safe-b)); border-top: 1px solid var(--line); }
 .option-list { display: grid; }
 .option-row { position: relative; display: flex; align-items: center; gap: 14px; min-height: 56px; border-bottom: 1px solid var(--line); font-size: var(--t-md); font-weight: 600; cursor: pointer; }
 .option-row input { position: absolute; inset: 0; z-index: 1; opacity: 0; margin: 0; cursor: pointer; }
@@ -1105,8 +1044,8 @@ dialog.sheet::backdrop { background: var(--scrim); }
    - wait ring: .ring, .ring-*
    - .crowd-chip, .area-pill silver, .tabbar silver capsule
    - the old .deal-slot over the photo and .deal-tag white badge
-   Keep (restyled by tokens alone): .panel, .radio-card, .switch, .stepper, .text-input, .select, .check, .window-option,
-   the pass-card watermark, .map-* pins (pin fills use the level hues via data-pin-tone), console tables, .age-*. */
+   Keep (restyled by tokens alone): .panel, .radio-card, .switch, .stepper, .text-input, .select, .check,
+   .map-* pins (pin fills use the level hues via data-pin-tone), console tables, .age-*. */
 /* Kept from the previous base (the spec base doesn't define these). */
 [hidden] { display: none !important; }
 @media (pointer: fine) { html { overscroll-behavior: none; } }
@@ -1116,12 +1055,12 @@ html.is-native { -webkit-user-select: none; user-select: none; -webkit-touch-cal
 html.is-native :is(a, img, svg) { -webkit-touch-callout: none; -webkit-user-drag: none; }
 html.is-native :is(input, textarea, .prose, .prose *, .dir-address) { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 html { scroll-padding-top: calc(var(--topbar-h) + var(--safe-t) + 8px); scroll-padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 16px); }
-button, .btn, .chip, .tab, .venue-link, .back-link, .demo-chip, .window-option, .radio-card, .segmented, .map-pin-btn, details.how summary { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+button, .btn, .chip, .tab, .venue-link, .back-link, .demo-chip, .radio-card, .segmented, .map-pin-btn, details.how summary { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .skip { position: absolute; left: 12px; top: -60px; z-index: 100; background: var(--ink); color: var(--bg); padding: 10px 14px; border-radius: var(--r-sm); font-weight: 700; }
 .skip:focus { top: calc(8px + var(--safe-t)); }
 .title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .section-title { margin: 32px 0 10px; }
-.page > .page-title:first-child, .page > .back-row:first-child, .page > .title-row:first-child { margin-top: 12px; }
+.page > .page-title:first-child, .page > .title-row:first-child { margin-top: 12px; }
 
 /* Kept from v3: the visible summary when a search or filter is active. */
 .filter-summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; padding: 6px 6px 6px 14px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--line-input); font-size: var(--t-sm); color: var(--ink-sub); }
@@ -1324,7 +1263,7 @@ html[data-hidden] *, html[data-hidden] *::before, html[data-hidden] *::after { a
 .pick-row:not([aria-disabled="true"]):active { background: var(--surface); }
 .pick-row:not(:has(.bar-logo)) { grid-template-columns: minmax(0, 1fr) auto auto; }
 
-/* ---------- My account (Ship D): VIP cards, subscription, settings. All simulated. ---------- */
+/* ---------- My account (Ship D): VIP cards, settings. All simulated. ---------- */
 .account-title { margin-bottom: 12px; }
 .settings-btn { flex: none; }
 .avatar-lg { font-size: 26px; }
@@ -1340,7 +1279,6 @@ button.list-link { width: 100%; border: 0; border-bottom: 1px solid var(--line);
 .list-switch > .ic:first-child { flex: none; color: var(--ink-2); } /* the same icon column as the rows under it */
 .list-switch label { flex: 1; min-width: 0; display: grid; gap: 2px; cursor: pointer; }
 .list-switch .hint { margin: 0; }
-.opt-sub { display: block; font-size: var(--t-xs); font-weight: 500; color: var(--ink-3); }
 
 .vip-card { position: relative; display: grid; gap: 18px; padding: 18px 18px 16px; border-radius: var(--r-lg); background: linear-gradient(150deg, #26262a 0%, #111113 46%, #050505 100%); box-shadow: inset 0 0 0 1px var(--line-strong), 0 12px 32px rgba(0,0,0,.45); overflow: hidden; isolation: isolate; aspect-ratio: 1.586; max-height: 230px; }
 .vip-card::before { content: ""; position: absolute; inset: -40% -10% auto auto; width: 70%; height: 140%; background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,.07) 48%, transparent 66%); transform: rotate(8deg); z-index: -1; pointer-events: none; }
@@ -1367,18 +1305,6 @@ button.list-link { width: 100%; border: 0; border-bottom: 1px solid var(--line);
 .vip-list li { display: grid; gap: 4px; }
 .vip-list .btn-ghost { justify-self: end; }
 
-.sub-card { padding: 16px; border-radius: var(--r-lg); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-strong); }
-.sub-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.sub-name { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 800; font-size: var(--t-lg); }
-.sub-state { padding: 3px 9px; border-radius: var(--r-pill); font-size: var(--t-xs); font-weight: 700; background: var(--fill-2); color: var(--ink-2); }
-.sub-state[data-on="true"] { background: var(--fill-2); color: var(--ink); }
-.sub-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0 0; padding: 12px 0; border-block: 1px solid var(--line); }
-.sub-facts div { display: grid; gap: 2px; min-width: 0; }
-.sub-facts dt { font-size: var(--t-2xs); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
-.sub-facts dd { margin: 0; font-size: var(--t-sm); font-weight: 700; }
-.sub-perks { display: grid; gap: 8px; margin: 14px 0 16px; }
-.sub-perks li { display: flex; align-items: center; gap: 8px; font-size: var(--t-sm); color: var(--ink-2); }
-.sub-perks .ic { flex: none; color: var(--ink); }
 
 /* ---------- Scan the line (Redesign 3): full-screen 3-step flow, no top bar or tab bar ---------- */
 [data-route="scan"] :is(.topbar, .tabbar):not(.nav-ghost-part) { display: none; } /* the old page's copies still leave (.nav-ghost-part) */
@@ -1868,7 +1794,7 @@ a.groups-link:active { background: var(--surface); }
    so even a quick tap bottoms out in 50ms, and the release (whose after-change style is the rest state) eases back over
    240ms. Descendants inherit it (.tab-inner, .rail-photo, .avatars, a bucket's span). */
 :is(.bar-link, .btn, .chip, .act, .hero-btn, .icon-btn, .tool-btn, .poll-opt, .sort-seg button, .segmented button, .segmented label,
-  .window-option, .shutter, .bucket, .pts-chip, .back-link, .scan-nearest, .rail-tile, .rail-all, button.group-spots, .map-pin-btn, .tab):active,
+  .shutter, .bucket, .pts-chip, .back-link, .scan-nearest, .rail-tile, .rail-all, button.group-spots, .map-pin-btn, .tab):active,
 .ev-card:has(> .ev-link:active), .idea-card:has(> .idea-link:active) { --d-press: var(--d-press-down); }
 /* Presses that were missing. */
 .tool-btn { transition: transform var(--d-press) var(--ease-out), background-color var(--d-select) var(--ease-out); }
@@ -1976,13 +1902,6 @@ button.member-row { transition: background-color var(--d-select) var(--ease-out)
 .map-btn .ic-stack > .ic { transition: opacity var(--d-quick) var(--ease-out), scale var(--d-quick) var(--ease-out); }
 .map-btn[aria-pressed="false"] .ic-list, .map-btn[aria-pressed="true"] .ic-map { opacity: 0; scale: .9; }
 .map-btn[aria-pressed="false"] .ic-map, .map-btn[aria-pressed="true"] .ic-list { transition-duration: var(--d-icon); }
-/* A cancelled pass greys in place but stays readable (ink-3, 6.1:1; it used to fade to 2.1:1); the status chip keeps its
-   outline and place, and the bar's name is struck through as a non-colour cue. */
-.pass-card :is(.pass-grid dd, .pass-invalid, .pass-venue) { transition: color var(--d-select) var(--ease-out); }
-.pass-card[data-status="cancelled"] :is(.pass-grid dd, .pass-invalid, .pass-venue) { color: var(--ink-3); }
-.pass-card[data-status="cancelled"] .pass-venue { text-decoration: line-through; }
-.pass-status { transition: background-color var(--d-select) var(--ease-out), color var(--d-select) var(--ease-out), border-color var(--d-select) var(--ease-out); }
-.pass-card[data-status="cancelled"] .pass-status { border-color: var(--line-input); }
 /* Events filter pills (4.12): a set filter fills over --d-select; the results stay instant. */
 .select select { transition: background-color var(--d-select) var(--ease-out), color var(--d-select) var(--ease-out), border-color var(--d-select) var(--ease-out); }
 .select > svg { transition: color var(--d-select) var(--ease-out); }
@@ -2174,9 +2093,7 @@ details.how.is-closing summary::after { transform: rotate(45deg) translateY(-2px
 .card-fresh .ic { display: inline-block; vertical-align: -2px; margin-right: 4px; }
 /* 9.4 Bar page: one section rhythm (32px) and one heading system. */
 section.ideas { margin-top: 0; }
-.typical, .pass-cta { margin-top: 0; }
-.pass-cta > .section-head { margin-bottom: 2px; }
-.pass-cta .section-head h2 { text-transform: none; color: var(--ink); }
+.typical { margin-top: 0; }
 /* 9.7 Events views and filter pills: 34px to the eye, 44px to the finger. */
 .ev-views button { position: relative; }
 .ev-views button::before { content: ""; position: absolute; inset: -5px 0; }
@@ -2193,8 +2110,6 @@ section.ideas { margin-top: 0; }
 .group-host-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .group-host-text .handle { flex: none; min-height: 24px; } /* one line with the name, still a 24px box */
 .group-host-text .handle::before { inset: -10px -4px; } /* 44px to the finger */
-/* 9.9 Window times: condensed numerals on one line, so every tile is the same height. */
-.w-time { font-family: var(--font-num); font-stretch: var(--w-cond); font-size: 19px; font-weight: 800; white-space: nowrap; }
 /* 9.10 Narrow phones and long bar names. */
 .select select { text-overflow: ellipsis; }
 .field-pair { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
@@ -2224,13 +2139,9 @@ section.ideas { margin-top: 0; }
 .waiting-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
 .history-list li > .num:last-child { font-family: var(--font-num); font-stretch: var(--w-cond); font-size: 20px; font-weight: 800; }
 .picker .hint.center { justify-content: center; text-align: center; }
-/* 9.15 Console: the guests' preview is not a card inside a card; steppers share a right edge. */
+/* 9.15 Console: the guests' preview is not a card inside a card. */
 .console-grid .queue-block { margin-top: 0; padding: 0; border: 0; background: none; border-radius: 0; box-shadow: none; }
-.cap-row { grid-template-columns: minmax(0, 1fr) 176px; }
-.cap-row .stepper { justify-self: end; }
 .stepper output { min-width: 5ch; }
-/* 9.16 Billing on one line. */
-.sub-facts dd { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* 9.17 One rounded ring per control (never transitioned): the tab rings its pill, the rail tile its photo. */
 .tab:focus-visible { outline: none; box-shadow: none; }
 .tab:focus-visible .tab-inner { outline: 2px solid var(--focus); outline-offset: 2px; }
@@ -2435,9 +2346,6 @@ a.groups-link > .ic:first-child, a.groups-link b { color: var(--social); }
 .biz-tabs [aria-pressed="true"] { font-weight: 600; }
 @media (max-width: 359.98px) { .biz-tabs button { font-size: 12px; } }
 
-/* F2: priority slots: the time range and its counts keep one line; the stepper takes what is left (112–176px). */
-.cap-row:has([id^="cap-"]) { grid-template-columns: max-content minmax(112px, 176px); justify-content: space-between; }
-.cap-row [id^="cap-"], .cap-row:has([id^="cap-"]) small { white-space: nowrap; }
 
 /* F11: the sticky Publish bar's fade reaches the tab bar, so no sliced text shows under the button (web and iPhone). */
 .photo-cta { bottom: calc(var(--tabbar-h) + var(--safe-b)); padding-bottom: 8px; }

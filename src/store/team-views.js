@@ -1,5 +1,5 @@
-// App Store build stand-in for the team-only screens: groups, the venue console, ideas, points, passes and the team
-// Profile (Plus, VIP cards). The store build never routes to them (main.js TEAM_ONLY); these keep shared code compiling.
+// App Store build stand-in for the team-only screens: groups, the venue console, ideas, points and the team Profile
+// (VIP cards). The store build never routes to them (main.js TEAM_ONLY); these keep shared code compiling.
 const none = () => '';
 // groups.js
 export const allGroups = () => [];
@@ -37,11 +37,8 @@ export const ideasSection = none;
 // points.js
 export const renderPoints = none;
 export const checkinSheet = none;
-// passSheet.js
-export const renderPassSheet = none;
-// profile.js (team Profile: Plus, VIP cards)
+// profile.js (team Profile: VIP cards)
 export const vipCard = none;
 export const renderProfile = none;
 export const settingsSheet = none;
-export const manageSubSheet = none;
 export const helpSheet = none;

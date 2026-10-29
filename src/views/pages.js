@@ -1,22 +1,17 @@
-import { esc, venueCard, stateBox, passCard, estimateBlock, banner, dealWhen } from '../ui/components.js';
+import { esc, venueCard, stateBox, estimateBlock, banner, dealWhen } from '../ui/components.js';
 import { DEAL_KINDS, DRINK_ITEMS, DEAL_TITLE_MAX, slowHours } from '../lib/deals.js';
 import { TYPICAL_HOURS, atNight } from '../data/venues.js';
 import { DEMO_SPOT } from '../lib/geo.js';
 import { icon } from '../ui/icons.js';
-import { passStatus, money } from '../lib/pass.js';
 import { FRESHNESS_MINUTES } from '../lib/queue.js';
-import { offerSummary } from '../lib/pass.js';
 import { formatTime, hhmm, timeLabel } from '../lib/clock.js';
 import { activeReminders } from '../lib/reminders.js';
 import { LIVE } from '../lib/backend.js';
 
-/** "12:00–12:30 AM": one AM/PM when both ends share it, so a slot fits one line. */
-const timeSpan = (a, b) => { const [x, y] = [formatTime(a), formatTime(b)]; return x.slice(-2) === y.slice(-2) ? `${x.slice(0, -3)}–${y}` : `${x}–${y}`; };
-
 /** Icon-only Back for a drill-in page (QA plan 9.13): a Home Screen app has no browser Back. It plays the back transition.
  *  Every child page uses this one disc (its name is in the accessible label), so Back looks the same everywhere. */
-export const backIcon = (to, label, { history = true } = {}) => `<a class="back-link back-icon" href="#/${to}"${history ? ' data-action="back"' : ''} aria-label="Back to ${label}">${icon('chevronLeft', { size: 22 })}</a>`;
-export const backTitle = (title, to = 'profile', { label = to === 'points' ? 'Points' : 'Profile', extra = '' } = {}) =>
+export const backIcon = (to, label) => `<a class="back-link back-icon" href="#/${to}" data-action="back" aria-label="Back to ${label}">${icon('chevronLeft', { size: 22 })}</a>`;
+export const backTitle = (title, to = 'profile', { label = 'Profile', extra = '' } = {}) =>
   `<div class="title-row back-title">${backIcon(to, label)}<h1 class="page-title" id="page-h" tabindex="-1">${title}</h1>${extra}</div>`;
 
 /* ---------- Saved ---------- */
@@ -35,74 +30,18 @@ export function renderSaved(ctx) {
   </div>`;
 }
 
-/* ---------- Passes ---------- */
-export function renderPasses(ctx) {
-  const passes = [...ctx.state.passes].sort((a, b) => b.createdAt - a.createdAt);
-  const example = ctx.venues.find((v) => offerSummary(v.pass, ctx.now).state === 'available');
-  const order = { active: 0, upcoming: 1, expired: 2, cancelled: 3 };
-  passes.sort((a, b) => order[passStatus(a, ctx.now)] - order[passStatus(b, ctx.now)]);
-  return `<div class="page">
-    ${backTitle('Priority passes', ctx.passesFrom === 'profile' ? 'profile' : 'points')}
-    
-    ${passes.length
-      ? `<div class="pass-list">${passes.map((p) => passItem(p, ctx.now)).join('')}</div>`
-      : stateBox({ iconName: 'ticket', title: 'No passes yet', body: example ? 'Get one from a bar’s page while its priority window is open.' : 'No bar has a priority window open right now.', actions: example ? `<a class="btn btn-primary" href="#/venue/${encodeURIComponent(example.id)}">See ${esc(example.name)}</a>` : '<a class="btn btn-primary" href="#/">Browse bars</a>' })}
-  </div>`;
-}
-
-function passItem(p, now) {
-  const status = passStatus(p, now);
-  const canCancel = status === 'upcoming' || status === 'active';
-  return `<div data-key="${esc(p.id)}">
-    ${passCard(p, now, { headingLevel: 2 })}
-    <div class="pass-item-actions">
-      <a class="btn" href="#/venue/${encodeURIComponent(p.venueId)}" aria-label="View venue: ${esc(p.venueName)}">${icon('arrowRight')}View venue</a>
-      ${canCancel ? `<button type="button" class="btn btn-danger" data-action="cancel-pass" data-id="${esc(p.id)}">Cancel pass</button>` : ''}
-      ${status === 'cancelled' && now < p.windowEnd ? `<button type="button" class="btn" data-action="restore-pass" data-id="${esc(p.id)}">Restore pass</button>` : ''}
-    </div>
-  </div>`;
-}
-
-export function renderPassDetail(ctx, id) {
-  const p = ctx.state.passes.find((x) => x.id === id);
-  if (!p) {
-    return `<div class="page">${stateBox({ iconName: 'ticket', title: 'Pass not found', body: 'It may have been removed.', actions: '<a class="btn btn-primary" href="#/passes">All passes</a>', headingLevel: 1 })}</div>`;
-  }
-  return `<div class="page">
-    <div class="back-row">${backIcon('passes', 'All passes', { history: false })}</div>
-    <h1 class="sr-only" id="page-h" tabindex="-1">Pass for ${esc(p.venueName)}</h1>
-    ${passItem(p, ctx.now)}
-    <p class="hint" style="margin-top:12px">Created ${esc(formatTime(p.createdAt))}.</p>
-  </div>`;
-}
-
-/* ---------- Venue console panels (the console itself is views/console.js) ---------- */
-export function passPanel(v, ctx) {
-  if (!v.pass) return `<section class="panel" aria-labelledby="pp-h"><h2 id="pp-h">Priority pass</h2><p class="hint">No priority pass for this bar.</p></section>`;
-  const p = v.pass;
-  return `<section class="panel" aria-labelledby="pp-h">
-    <h2 id="pp-h">Priority pass availability</h2>
-    <div class="switch-row"><label for="pp-pause"><span class="label" style="margin:0">Pause priority passes</span><span class="hint">Guests see “Paused by venue”.</span></label>
-      <span class="switch"><input id="pp-pause" type="checkbox" role="switch" data-input="console-pause" ${p.paused ? 'checked' : ''}><span></span></span></div>
-    <div class="cap-row" style="border-top:1px solid var(--line)"><div><span class="label" style="margin:0" id="price-label">Price per person</span><small>+${money(p.serviceFee)} fee</small></div>
-      <div class="stepper" role="group" aria-labelledby="price-label"><button type="button" class="icon-btn" data-action="console-price" data-delta="-100" aria-label="Lower price by $1" ${p.basePrice <= 100 ? 'disabled' : ''}>${icon('minus')}</button><output>${money(p.basePrice)}</output><button type="button" class="icon-btn" data-action="console-price" data-delta="100" aria-label="Raise price by $1" ${p.basePrice >= 5000 ? 'disabled' : ''}>${icon('plus')}</button></div></div>
-    ${p.windows.map((w) => `<div class="cap-row"><div><span id="cap-${w.id}">${esc(timeSpan(w.start, w.end))}</span><small>${w.sold} sold, ${w.remaining} left</small></div>
-      <div class="stepper" role="group" aria-labelledby="cap-${w.id}"><button type="button" class="icon-btn" data-action="console-cap" data-window="${w.id}" data-delta="-1" aria-label="Reduce capacity" ${w.capacity <= w.sold ? 'disabled' : ''}>${icon('minus')}</button><output>${w.capacity}</output><button type="button" class="icon-btn" data-action="console-cap" data-window="${w.id}" data-delta="1" aria-label="Increase capacity" ${w.capacity >= 50 ? 'disabled' : ''}>${icon('plus')}</button></div></div>`).join('')}
-    <p class="hint" style="margin-top:10px">Priority is first-come within posted capacity. No profiling or selection of guests.</p>
-  </section>`;
-}
-
 /* ---------- About ---------- */
 export function renderAbout(ctx) {
   const s = ctx.state.sim;
   const v = FRESHNESS_MINUTES.venue;
   const toggle = (key, label, hint) => `<div class="switch-row"><label for="sim-${key}"><span class="label" style="margin:0">${label}</span><span class="hint">${hint}</span></label><span class="switch"><input id="sim-${key}" type="checkbox" role="switch" data-input="sim" data-key="${key}" ${s[key] ? 'checked' : ''}><span></span></span></div>`;
-  // The web demo draws illustrations and initials instead of the bars' photos and logos (nightout-media), so it says so.
-  const media = ctx.venues.some((x) => x.photo || x.logo);
+  // Only openly licensed bar photos ship (web and iPhone alike); every other bar is drawn. With the media meta set to
+  // 'illustration' there are none, and About says so.
+  const media = ctx.venues.some((x) => x.photo);
   return `<div class="page">
     ${backTitle('About Night Out')}
     <div class="prose" style="margin-top:var(--s-4)">
-      <p><strong>Night Out is a prototype. ${media ? 'Bar names, addresses, logos and photos are real; everything else is sample data.' : 'Bar names and addresses are real. The storefront drawings and initials are illustrations, not the bars’ photos or logos; everything else is sample data.'}</strong> Waits, reports, passes, prices, hours, deals, events, ideas, points, rewards and people are made up and don’t describe how these bars operate. No bar is affiliated with Night Out or has endorsed it.</p>
+      <p><strong>Night Out is a prototype. ${media ? 'Bar names and addresses are real, and so is the one credited photo. The other storefront drawings and initials are illustrations; everything else is sample data.' : 'Bar names and addresses are real. The storefront drawings and initials are illustrations, not the bars’ photos; everything else is sample data.'}</strong> Waits, reports, prices, hours, deals, events, ideas, points, rewards and people are made up and don’t describe how these bars operate. No bar is affiliated with Night Out or has endorsed it.</p>
       <p>Student bars around Easton Ave and Hamilton St, checked in October 2026 against New Jersey ABC license records and the bars’ own websites. Distances are straight-line from ${esc(DEMO_SPOT.label)}, using OpenStreetMap, New Jersey address points and the US Census geocoder.</p>
     </div>
     <h2 class="section-title">How estimates are labeled</h2>
@@ -119,7 +58,6 @@ export function renderAbout(ctx) {
     <div class="panel">
       ${toggle('offline', 'Simulate offline', 'Estimates keep aging; refresh is unavailable.')}
       ${toggle('failNextRefresh', 'Fail the next refresh', 'Shows the error state while keeping cached results.')}
-      ${toggle('failNextPass', 'Fail the next pass request', 'Shows the safe-retry state in the pass flow.')}
       <fieldset class="field-group"><legend>Dataset</legend>
         <div class="segmented" role="group" aria-label="Dataset" style="--n:3">
           ${[['demo', 'Demo'], ['worst', 'Worst case'], ['empty', 'Empty']].map(([k, l]) => `<button type="button" data-action="dataset" data-kind="${k}" aria-pressed="${ctx.state.dataset === k}">${l}</button>`).join('')}
@@ -133,7 +71,7 @@ export function renderAbout(ctx) {
       <p class="hint">Demo time is ${esc(formatTime(ctx.now))}.</p>
     </div>
     <h2 class="section-title">Credits</h2>
-    <p class="prose"><span>Original code, icons and illustrations were made for this prototype. ${media ? 'Bar logos and photos are real and belong to the bars (Stuff Yer Face’s storefront photo: “Stuff Yer Face” by Ben+Sam on Flickr, CC BY-SA 2.0, creativecommons.org/licenses/by-sa/2.0, cropped; The Vine’s sign photo: @dtjphotography). They’re shown only so the demo is recognizable; no bar has given permission or is affiliated, and permission will be asked before any launch. Each photo’s source is on its bar page.' : 'This version shows none of the bars’ photos or logos.'} Text uses your device’s own fonts. Design and QA guidance came from pinned, licensed sources listed in <code>app/ATTRIBUTIONS.md</code>.</span></p>
+    <p class="prose"><span>Original code, icons and illustrations were made for this prototype. ${media ? 'Stuff Yer Face’s storefront photo: “Stuff Yer Face” by Ben+Sam on Flickr, CC BY-SA 2.0, creativecommons.org/licenses/by-sa/2.0, cropped; this edit is shared under the same licence.' : 'This version shows no bar photos.'} Text uses your device’s own fonts. Design and QA guidance came from pinned, licensed sources listed in <code>app/ATTRIBUTIONS.md</code>.</span></p>
   </div>`;
 }
 

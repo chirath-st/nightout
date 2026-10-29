@@ -1,6 +1,6 @@
 // DEMO DATA. Bar names and street addresses are real, from public listings as of Oct 2026 (sources
 // in each entry and on the About page). EVERYTHING ELSE IS SIMULATED for this prototype: waits,
-// line sizes, report counts, passes, prices, covers, hours, menus and typical patterns. None of it
+// line sizes, report counts, prices, covers, hours, menus and typical patterns. None of it
 // describes how these bars actually operate, and no bar is affiliated with or has endorsed Night Out.
 
 import { mergeVenue } from '../lib/merge.js';
@@ -61,22 +61,14 @@ const GEO = {
   'the-vine': [40.50096, -74.45488], 'olive-branch': [40.50104, -74.45321],
 };
 
-// Real logos and photos, shown so judges recognize the bars (user decision 2026-10-17: "we will ask for the bars'
-// permission once we actually launch"). They belong to the bars (and one Flickr photographer); no bar has given
-// permission or is affiliated. Files, sources and crops: assets/bars/CREDITS.md. Scarlet Pub and Huey's keep the
-// initials badge and illustration (no usable logo or photo); PITCH Social has a logo only.
-// The web copy of the app can't carry them (no permission to publish): its index.html says
-// <meta name="nightout-media" content="illustration">, and every bar then gets the illustration and initials.
+// Bar photos (owner decision 2026-10-28: "Keep appropriately licensed real photographs"). A photo ships only with a
+// licence that allows commercial use and edits (or a bar's written permission), on web and iPhone alike. The bars' own
+// website photos and logos had no licence, so they are withheld (app/media-withheld/, never copied into a build); those
+// bars keep their illustration and initials. Files, sources, licences and crops: assets/bars/CREDITS.md.
+// <meta name="nightout-media" content="illustration"> turns every photo off (no build uses it now).
 const venueMedia = () => (typeof document === 'undefined' || document.querySelector('meta[name="nightout-media"]')?.content !== 'illustration');
 const MEDIA = {
-  'olde-queens': { photo: 'Olde Queens Tavern website', alt: 'The Olde Queens Tavern neon sign at night', pos: '60% 40%' },
-  'ale-n-wich': { photo: 'Ale ’N ’Wich Pub website', alt: 'The brick corner building of Ale ’N ’Wich Pub', pos: '40% 55%' },
-  'pitch-social': {},
-  evelyns: { photo: 'Evelyn’s Restaurant website', alt: 'A plate of tabbouleh at Evelyn’s', pos: '50% 55%' },
   'stuff-yer-face': { photo: '“Stuff Yer Face” by Ben+Sam (Flickr), CC BY-SA 2.0, cropped', alt: 'The Stuff Yer Face storefront with its green awning', pos: '55% 50%' },
-  'thirty-burgers': { photo: '30 Burgers website (chain photo)', alt: 'A bacon cheeseburger from 30 Burgers', pos: '50% 45%' },
-  'the-vine': { photo: '@dtjphotography via The Vine’s website', alt: 'The Vine’s sign on a wall of greenery', pos: '50% 40%' },
-  'olive-branch': { photo: 'The Olive Branch website', alt: 'The beer taps at The Olive Branch', pos: '50% 50%' },
 };
 
 // SIMULATED deals ("weak hours" promotions), set up for the demo's midnight. No bar is offering these; every one is
@@ -125,8 +117,6 @@ const BASE = [
     obs: { photos: [{ id: 'oq-photo-1', by: 'ambassador', ago: 3, heads: 23 }], door: { by: 'ambassador', ago: 5, list: { main: { status: 'moving', pace: 2 }, side: { status: 'moving', pace: 2 } } } },
     queue: null,
     menu: MENUS.pub(),
-    pass: { enabled: true, paused: false, basePrice: 1000, serviceFee: 150, coverIncluded: true,
-      windows: [['w1', 0, 0, 0, 30, 6], ['w2', 0, 30, 1, 0, 4], ['w3', 1, 0, 1, 30, 10]] },
   },
   {
     id: 'scarlet-pub', name: 'Scarlet Pub', area: 'Easton Ave', address: '131 Easton Ave', tags: ['Pub'],
@@ -137,8 +127,6 @@ const BASE = [
     typical: [2, 3, 4, 4, 4, 3, 2],
     queue: { sourceType: 'crowd', ago: 6, reportCount: 4, peopleLow: 35, peopleHigh: 50, admitPerMin: 3, doorStatus: 'moving' },
     menu: MENUS.pub(),
-    pass: { enabled: true, paused: false, basePrice: 1500, serviceFee: 195, coverIncluded: false,
-      windows: [['w1', 0, 0, 0, 30, 0], ['w2', 0, 30, 1, 0, 3], ['w3', 1, 0, 1, 30, 8]] },
   },
   {
     id: 'ale-n-wich', name: "Ale 'N 'Wich Pub", area: 'Hamilton St', address: '246 Hamilton St', tags: ['Pub'],
@@ -149,7 +137,6 @@ const BASE = [
     typical: [1, 2, 3, 3, 2, 1, 0],
     queue: { sourceType: 'venue', ago: 14, peopleLow: 10, peopleHigh: 15, admitPerMin: 2, doorStatus: 'moving' },
     menu: MENUS.pub(),
-    pass: null,
   },
   {
     id: 'hueys-knight-club', name: "Huey's Knight Club", area: 'Easton Ave', address: '164 Easton Ave', tags: ['College bar'],
@@ -160,8 +147,6 @@ const BASE = [
     typical: [0, 1, 3, 4, 4, 4, 2],
     queue: { sourceType: 'venue', ago: 2, peopleLow: 60, peopleHigh: 80, admitPerMin: 1, doorStatus: 'capacity' },
     menu: MENUS.pub(),
-    pass: { enabled: true, paused: true, basePrice: 2000, serviceFee: 250, coverIncluded: true,
-      windows: [['w1', 0, 0, 0, 30, 5], ['w2', 0, 30, 1, 0, 5], ['w3', 1, 0, 1, 30, 5]] },
   },
   {
     id: 'evelyns', name: "Evelyn's Restaurant & Bar", area: 'Easton Ave', address: '45 Easton Ave', tags: ['Restaurant & bar', 'Patio'],
@@ -172,7 +157,6 @@ const BASE = [
     typical: [1, 1, 2, 2, 1, 0, 0],
     queue: { sourceType: 'venue', ago: 5, peopleLow: 0, peopleHigh: 2, admitPerMin: 2, doorStatus: 'moving' },
     menu: MENUS.restaurant(),
-    pass: null,
   },
   {
     id: 'pitch-social', name: 'PITCH Social', area: 'Easton Ave', address: '66 Easton Ave', tags: ['Bar', 'DJ nights'],
@@ -183,7 +167,6 @@ const BASE = [
     typical: [2, 3, 4, 4, 3, 2, 1],
     queue: { sourceType: 'crowd', ago: 4, reportCount: 3, peopleLow: 15, peopleHigh: 40, admitPerMin: 2.5, doorStatus: 'moving', conflict: true, conflictLow: 5, conflictHigh: 35 },
     menu: MENUS.pub(),
-    pass: null,
   },
   {
     id: 'stuff-yer-face', name: 'Stuff Yer Face', area: 'Easton Ave', address: '49 Easton Ave', tags: ['Restaurant & bar', 'Crawl stop'],
@@ -194,7 +177,6 @@ const BASE = [
     typical: [2, 3, 3, 3, 2, 1, 0],
     queue: { sourceType: 'crowd', ago: 9, reportCount: 3, peopleLow: 5, peopleHigh: 10, admitPerMin: 2, doorStatus: 'moving' },
     menu: MENUS.restaurant(),
-    pass: null,
   },
   {
     id: 'thirty-burgers', name: '30 Burgers & Brews', area: 'Easton Ave', address: '37 Easton Ave', tags: ['Burgers & bar', 'Crawl stop'],
@@ -205,7 +187,6 @@ const BASE = [
     typical: [1, 2, 3, 3, 3, 2, 1],
     queue: { sourceType: 'venue', ago: 12, peopleLow: 2, peopleHigh: 6, admitPerMin: 2, doorStatus: 'moving' },
     menu: MENUS.dogs(),
-    pass: null,
   },
   {
     id: 'the-vine', name: 'The Vine', area: 'Bartlett & Morrell St', address: '75 Morrell St', tags: ['College bar'],
@@ -216,8 +197,6 @@ const BASE = [
     typical: [0, 1, 2, 4, 4, 3, 1],
     queue: { sourceType: 'venue', ago: 1, peopleLow: 15, peopleHigh: 25, admitPerMin: 1.5, doorStatus: 'paused', note: 'Trivia final round: doors reopen at 12:30 AM' },
     menu: MENUS.pub(),
-    pass: { enabled: true, paused: false, basePrice: 1000, serviceFee: 150, coverIncluded: true,
-      windows: [['w1', 0, 15, 0, 45, 6], ['w2', 0, 45, 1, 15, 6]] },
   },
   {
     id: 'olive-branch', name: 'The Olive Branch', area: 'Bartlett & Morrell St', address: '37 Bartlett St', tags: ['College bar'],
@@ -228,7 +207,6 @@ const BASE = [
     typical: [1, 2, 3, 3, 3, 2, 1],
     queue: { sourceType: 'crowd', ago: 5, reportCount: 5, peopleLow: 25, peopleHigh: 40, admitPerMin: 2.5, doorStatus: 'moving' },
     menu: MENUS.pub(),
-    pass: null,
   },
 ];
 
@@ -243,14 +221,6 @@ function materialize(raw, demoStart, syncAt = demoStart) {
   const pub = PUBLISHED[v.id];
   if (pub) { v.menu = pub.food.length ? [{ title: 'Food', items: pub.food }] : []; v.menuSource = pub.source ? `From ${pub.source}, ${pub.checked}. Prices may change.` : null; }
   v.menu = v.menu.map((s) => ({ title: s.title, items: s.items.map(([name, price]) => ({ name, price })) }));
-  if (v.pass) {
-    v.pass = {
-      ...v.pass,
-      windows: v.pass.windows.map(([id, h1, m1, h2, m2, remaining]) => ({
-        id, start: atNight(demoStart, h1, m1), end: atNight(demoStart, h2, m2), remaining, capacity: remaining,
-      })),
-    };
-  }
   v.deals = (DEALS[v.id] ?? []).map(({ at, until, ...d }) => ({ ...d, venueId: v.id, startsAt: atNight(demoStart, at[0], at[1]), endsAt: atNight(demoStart, until[0], until[1]), synthetic: true }));
   const g = GEO[v.id];
   v.geo = g ? { lat: g[0], lng: g[1] } : null;
@@ -264,10 +234,7 @@ function materialize(raw, demoStart, syncAt = demoStart) {
     v.queue = mergeVenue({ seed: null, photos: v.obs.photos, door: v.obs.door, doors: v.doors, now: syncAt }).queue;
   }
   const m = MEDIA[v.id];
-  if (m && venueMedia()) {
-    v.logo = `assets/bars/${v.id}-logo.png`;
-    if (m.photo) Object.assign(v, { photo: `assets/bars/${v.id}-photo.jpg`, photoCredit: m.photo, photoAlt: m.alt, photoPos: m.pos });
-  }
+  if (m?.photo && venueMedia()) Object.assign(v, { photo: `assets/bars/${v.id}-photo.jpg`, photoCredit: m.photo, photoAlt: m.alt, photoPos: m.pos });
   v.synthetic = true;
   return v;
 }
@@ -285,7 +252,6 @@ function worstCase(demoStart, syncAt) {
   long.queue = { sourceType: 'venue', peopleLow: 250, peopleHigh: 320, admitPerMin: 2, doorStatus: 'moving', observedAt: syncAt - 2 * MIN, note: 'Rooftop closes early tonight; downstairs bar still admitting guests' };
   long.tags = ['Rooftop cocktails and late-night small plates', 'Patio'];
   long.menu = [{ title: 'Late kitchen', items: [{ name: 'Slow-roasted heirloom tomato flatbread with whipped ricotta and chili honey', price: 16 }] }];
-  long.pass = { ...long.pass, paused: true };
   const one = materialize(BASE[6], demoStart, syncAt);
   one.id = 'worst-one';
   one.address = null; one.source = 'Fictional stress-test entry';

@@ -11,15 +11,13 @@ export function parseHash(hash) {
   if (parts.includes(null)) return { name: 'notfound', params: {}, query: {} };
   const query = Object.fromEntries(new URLSearchParams(qs));
   if (parts.length === 0) return { name: 'tonight', params: {}, query };
-  const [head, id, sub] = parts;
+  const [head, id] = parts;
   switch (head) {
     case 'venue':
       if (!id) return { name: 'tonight', params: {}, query };
-      return { name: sub === 'pass' ? 'pass' : 'venue', params: { id }, query };
+      return { name: 'venue', params: { id }, query };
     case 'saved':
       return { name: 'saved', params: {}, query };
-    case 'passes':
-      return id ? { name: 'passDetail', params: { id }, query } : { name: 'passes', params: {}, query };
     case 'console':
       return { name: 'console', params: {}, query };
     case 'about':
@@ -44,10 +42,7 @@ export function buildHash(name, params = {}, query = {}) {
   let path;
   switch (name) {
     case 'venue': path = `/venue/${enc(params.id)}`; break;
-    case 'pass': path = `/venue/${enc(params.id)}/pass`; break;
     case 'saved': path = '/saved'; break;
-    case 'passes': path = '/passes'; break;
-    case 'passDetail': path = `/passes/${enc(params.id)}`; break;
     case 'console': path = '/console'; break;
     case 'about': path = '/about'; break;
     case 'events': path = '/events'; break;

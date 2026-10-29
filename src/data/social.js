@@ -111,13 +111,6 @@ export const bareHandle = (raw, site) => String(raw ?? '').trim()
 export const instagramUrl = (h) => `https://www.instagram.com/${encodeURIComponent(h)}/`;
 export const linkedinUrl = (h) => `https://www.linkedin.com/in/${encodeURIComponent(h)}/`;
 
-/** Night Out Plus (SIMULATED): no billing exists in the prototype; prices show what a plan might cost. */
-export const PLANS = Object.freeze([
-  { id: 'monthly', label: 'Monthly', price: '$4.99 a month' },
-  { id: 'annual', label: 'Yearly', price: '$39.99 a year' },
-]);
-export const PLUS_PERKS = Object.freeze(['Wait-drop alerts for saved bars', 'See deals 30 minutes early', '1.5× points on door check-ins']);
-
 /** Sample cards the "Add a VIP card" demo can add (no photo is read). Fictional programs at real bars. */
 export const SAMPLE_BAR_CARDS = Object.freeze([
   { venueId: 'scarlet-pub', title: 'Scarlet Pub regulars card' },

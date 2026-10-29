@@ -3,7 +3,7 @@
 // (Tim Gabe: one consistent pattern for the same situation).
 import { describeEstimate, FRESHNESS_MINUTES, ageMinutes } from '../lib/queue.js';
 import { isOpenAt } from '../lib/explore.js';
-import { passStatus, PASS_STATUS_COPY, money, dollars } from '../lib/pass.js';
+import { dollars } from '../lib/pass.js';
 import { formatTime } from '../lib/clock.js';
 import { reminderLabel, reminderShort } from '../lib/reminders.js';
 import { icon, TONE_ICON, TONE_LABEL } from './icons.js';
@@ -486,32 +486,6 @@ export function stateBox({ iconName = 'info', title, body, actions = '', heading
 
 export function banner(kind, iconName, html, actions = '') {
   return `<div class="banner banner-${kind}" role="${kind === 'error' ? 'alert' : 'status'}">${icon(iconName)}<div>${html}</div>${actions ? `<div class="banner-actions">${actions}</div>` : ''}</div>`;
-}
-
-/** "12:30–1:00 AM": the meridiem is said once when both ends share it (QA plan 9.9). */
-export function windowLabel(start, end) {
-  const a = formatTime(start), b = formatTime(end);
-  const ma = a.match(/\s?(AM|PM)$/), mb = b.match(/\s?(AM|PM)$/);
-  return ma && mb && ma[1] === mb[1] ? `${a.slice(0, ma.index)}–${b}` : `${a}–${b}`;
-}
-
-export function passCard(pass, now, { headingLevel = 3 } = {}) {
-  const status = passStatus(pass, now);
-  const h = `h${headingLevel}`;
-  const wm = Array.from({ length: 9 }, () => '<span>NOT VALID FOR ENTRY · NOT VALID FOR ENTRY</span>').join('');
-  return `<article class="pass-card" data-status="${status}" aria-label="Pass for ${esc(pass.venueName)}, not valid for entry">
-    <div class="pass-watermark" aria-hidden="true"><div>${wm}</div></div>
-    <div class="pass-top"><div><p class="qb-label" style="color:var(--pass-ink-2)">Priority pass</p><${h} class="pass-venue">${esc(pass.venueName)}</${h}></div><span class="pass-status">${esc(PASS_STATUS_COPY[status])}</span></div>
-    <dl class="pass-grid">
-      <div><dt>Entry window</dt><dd>${esc(windowLabel(pass.windowStart, pass.windowEnd))}</dd></div>
-      <div><dt>Party</dt><dd>${pass.party} ${pass.party === 1 ? 'person' : 'people'}</dd></div>
-      <div><dt>Total</dt><dd>${money(pass.total)} <span style="font-weight:500;color:var(--pass-ink-2)">(no charge)</span></dd></div>
-      <div><dt>Reference</dt><dd class="pass-ref">${esc(String(pass.ref).replace(/^DEMO-/, ''))}</dd></div>
-      <div><dt>Cover</dt><dd>${esc(pass.coverNote)}</dd></div>
-      <div><dt>ID</dt><dd>Physical ID checked at the door</dd></div>
-    </dl>
-    <p class="pass-invalid">${icon('alert')}No charge. Not valid for entry.</p>
-  </article>`;
 }
 
 /** Brand mark (team artwork, 2026-10-18): the hand-lettered "Night out" from the sprite in index.html. Decorative: callers label it. */

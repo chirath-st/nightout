@@ -12,17 +12,17 @@ export const SCHEMA_VERSION = 1;
 
 export function defaultState(realNow) {
   if (globalThis.__STORE__ || LIVE) {
-    // App Store build and the team build's live profile: nothing pre-filled. No profile, points, plan or sample
+    // App Store build and the team build's live profile: nothing pre-filled. No profile, points or sample
     // anything; the rest of the app reads these keys, so they exist but stay empty. vouchers holds reward codes this
     // phone was shown ({ id, code, title, expiresAt }); Delete my data clears them with everything else.
     return {
-      version: SCHEMA_VERSION, ageConfirmed: false, saved: [], passes: [], overrides: {}, audit: [],
+      version: SCHEMA_VERSION, ageConfirmed: false, saved: [], overrides: {}, audit: [],
       clock: { realStart: realNow, base: null, offsetMin: 0 }, dataset: 'live', syncAt: null,
-      sim: { offline: false, failNextRefresh: false, failNextPass: false },
+      sim: { offline: false, failNextRefresh: false },
       profile: { name: '', handle: '', linkedin: '' }, points: [], checkins: [], lastDaily: null, vouchers: [],
       groups: { joined: [], created: [] }, reports: [], activeWait: null,
       prefs: { notifyDrops: false, notifyDeals: false, notifyGroups: false }, vipCards: [],
-      subscription: { plan: 'none', billing: 'monthly', since: null }, savedEvents: [], goingEvents: [], votes: {},
+      savedEvents: [], goingEvents: [], votes: {},
       ideas: { joined: [], hyped: [], created: [], decisions: {} }, counts: [], doors: {}, deals: [],
       reminders: {}, // venueId -> { at, nid }: local reminders for saved bars (this phone only)
       splashSeen: false, // the animated wordmark plays on the first launch only
@@ -34,13 +34,12 @@ export function defaultState(realNow) {
     version: SCHEMA_VERSION,
     ageConfirmed: false,
     saved: [],
-    passes: [],
-    overrides: {}, // venueId -> { queue?, pass? } written by the operator console
+    overrides: {}, // venueId -> { queue?, clearedAt? } written by the operator console
     audit: [], // operator changes, newest first
     clock: { realStart: realNow, base: null, offsetMin: 0 },
     dataset: 'demo',
     syncAt: null, // demo time of the last successful simulated refresh
-    sim: { offline: false, failNextRefresh: false, failNextPass: false },
+    sim: { offline: false, failNextRefresh: false },
     // Social + rewards (all simulated, this device only)
     profile: { name: 'Alex', handle: '', linkedin: '' },
     points: [{ id: 'start', at: null, delta: 240, label: 'Starting balance' }],
@@ -52,7 +51,6 @@ export function defaultState(realNow) {
     activeWait: null, // { reportId, venueId, startedAt }
     prefs: { notifyDrops: false, notifyDeals: false, notifyGroups: false },
     vipCards: [], // sample bar cards added in My account: { id, venueId, title, addedAt } (no photo is read)
-    subscription: { plan: 'none', billing: 'monthly', since: null }, // SIMULATED Night Out Plus: off until picked; no billing exists
     savedEvents: [], // event ids (sample events, this device only)
     goingEvents: [],
     votes: {}, // venueId -> 'going' | 'maybe' | 'no' (sample poll, this device only)
@@ -116,32 +114,39 @@ function normDecisions(d) {
 }
 
 /** Before Ship E, Scan and the old console wrote whole queues into overrides; reports now merge in instead, so a kept
- *  queue would count the same report twice. Only `queue: null` (a cleared estimate) is still written. */
+ *  queue would count the same report twice. Only `queue: null` (a cleared estimate) is still written. Older states may
+ *  also carry `pass` (a removed feature's console settings): it is dropped. */
 function dropOldQueues(o) {
   if (!o || typeof o !== 'object') return {};
   const out = {};
   for (const [id, v] of Object.entries(o)) {
     if (!v || typeof v !== 'object') continue;
-    const { queue, ...rest } = v;
+    const { queue, pass: _pass, ...rest } = v;
     const keep = queue === null ? { ...rest, queue: null } : rest;
     if (Object.keys(keep).length) out[id] = keep;
   }
   return out;
 }
 
+/** Team console change-log lines written by features that no longer exist (priority-pass price, capacity and pause).
+ *  The store build has no console, so it never wrote them (and doesn't ship this). */
+const REMOVED_AUDIT = /^(Priority price → |Capacity .+ window → |Paused priority passes$|Resumed priority passes$)/;
+
 export function migrate(raw, realNow) {
   const base = defaultState(realNow);
   if (!raw || typeof raw !== 'object' || raw.version !== SCHEMA_VERSION) return base;
   if (!globalThis.__STORE__ && LIVE && raw.env !== BACKEND.env) return base;
+  // Older states can still hold priority passes and a simulated subscription (both removed): they are ignored.
+  const { passes: _passes, subscription: _subscription, ...kept } = raw;
+  const { failNextPass: _failNextPass, ...sim } = raw.sim && typeof raw.sim === 'object' ? raw.sim : {};
   return {
     ...base,
-    ...raw,
+    ...kept,
     saved: Array.isArray(raw.saved) ? raw.saved.filter((s) => typeof s === 'string') : [],
-    passes: Array.isArray(raw.passes) ? raw.passes : [],
     overrides: dropOldQueues(raw.overrides),
-    audit: Array.isArray(raw.audit) ? raw.audit.slice(0, 50) : [],
+    audit: Array.isArray(raw.audit) ? (globalThis.__STORE__ ? raw.audit : raw.audit.filter((a) => !REMOVED_AUDIT.test(a?.summary ?? ''))).slice(0, 50) : [],
     clock: { ...base.clock, ...(raw.clock || {}) },
-    sim: { ...base.sim, ...(raw.sim || {}) },
+    sim: { ...base.sim, ...sim },
     dataset: globalThis.__STORE__ || LIVE ? 'live' : ['demo', 'worst', 'empty'].includes(raw.dataset) ? raw.dataset : 'demo',
     profile: { ...base.profile, ...(raw.profile && typeof raw.profile === 'object' ? raw.profile : {}) },
     points: Array.isArray(raw.points) ? raw.points.filter((e) => Number.isFinite(e?.delta)) : base.points,
@@ -156,12 +161,6 @@ export function migrate(raw, realNow) {
     lastDaily: Number.isFinite(raw.lastDaily) ? raw.lastDaily : null,
     votes: raw.votes && typeof raw.votes === 'object' ? Object.fromEntries(Object.entries(raw.votes).filter(([, x]) => ['going', 'maybe', 'no'].includes(x))) : {},
     vipCards: arr(raw.vipCards).filter((c) => c && typeof c.id === 'string' && typeof c.title === 'string' && Number.isFinite(c.addedAt)).slice(0, 20),
-    subscription: {
-      // Only a plan someone picked counts (it carries `since`); the old untouched default ('plus', since null) reads as off.
-      plan: raw.subscription?.plan === 'plus' && Number.isFinite(raw.subscription?.since) ? 'plus' : 'none',
-      billing: raw.subscription?.billing === 'annual' ? 'annual' : 'monthly',
-      since: Number.isFinite(raw.subscription?.since) ? raw.subscription.since : null,
-    },
     ideas: {
       joined: strs(raw.ideas?.joined), hyped: strs(raw.ideas?.hyped),
       created: arr(raw.ideas?.created).map(normIdea).filter(Boolean).slice(0, 20), decisions: normDecisions(raw.ideas?.decisions),

@@ -1,8 +1,8 @@
-// My account (team ideas): profile, VIP cards, subscription, settings, help. Everything is the
-// demo user's and stays on this device. SIMULATED: no billing, no wallet pass, no photo is read.
+// My account (team ideas): profile, VIP cards, settings, help. Everything is the
+// demo user's and stays on this device. SIMULATED: no wallet pass, no photo is read.
 import { esc, wordmark } from '../ui/components.js';
 import { icon } from '../ui/icons.js';
-import { initials, balanceOf, youSeed, PLANS, PLUS_PERKS, SAMPLE_BAR_CARDS, instagramUrl, linkedinUrl } from '../data/social.js';
+import { initials, balanceOf, youSeed, SAMPLE_BAR_CARDS, instagramUrl, linkedinUrl } from '../data/social.js';
 import { personAvatar } from '../ui/avatars.js';
 import { usingDeviceLocation } from '../lib/geo.js';
 import { deletePanel } from './store.js';
@@ -34,13 +34,11 @@ export function vipCard(card, ctx, { main = false } = {}) {
 }
 
 /** live (a live team build): { confirmDelete, deleting, linked, unreachable, venueSignedIn }. The same Profile without
- *  the demo's points, Plus, VIP cards, passes and demo login; Venue sign-in opens Business view; Delete my data as in
+ *  the demo's points, VIP cards and demo login; Venue sign-in opens Business view; Delete my data as in
  *  the App Store build. */
 export function renderProfile(ctx, { editing = false, errors = {}, values = null } = {}, live = null) {
   const st = ctx.state;
   const p = st.profile;
-  const sub = st.subscription;
-  const plan = PLANS.find((x) => x.id === sub.billing) ?? PLANS[0];
   const cards = st.vipCards;
   const biz = st.business ?? { on: false };
   const bizVenue = ctx.venues.find((v) => v.id === biz.venueId) ?? ctx.venues[0];
@@ -83,19 +81,9 @@ ${liveRest(ctx, live)}` : `<dl class="fact-strip">
     
     ${cards.length ? `<ul class="vip-list">${cards.map((c) => `<li data-key="${esc(c.id)}">${vipCard(c, ctx)}<button type="button" class="btn btn-sm btn-ghost" data-action="vip-remove" data-id="${esc(c.id)}" aria-label="Remove ${esc(barCardTitle(c, ctx.venues))}">Remove</button></li>`).join('')}</ul>` : ''}
 
-    <div class="section-head"><h2>My subscription</h2></div>
-    <section class="sub-card" aria-label="Night Out Plus subscription">
-      <div class="sub-top"><span class="sub-name">${icon('star', { size: 18 })}Night Out Plus</span><span class="sub-state" data-on="${sub.plan === 'plus'}">${sub.plan === 'plus' ? 'On' : 'Off'}</span></div>
-      <p class="hint" style="margin:0">${sub.plan === 'plus' ? `${esc(plan.label)} plan · no charge` : 'Not subscribed.'}</p>
-      <ul class="sub-perks">${PLUS_PERKS.map((x) => `<li>${icon('check', { size: 16 })}${esc(x)}</li>`).join('')}</ul>
-      <button type="button" class="btn btn-block" data-action="manage-sub">Manage subscription</button>
-      
-    </section>
-
     <div class="section-head"><h2>Your stuff</h2></div>
     <nav class="list-group" aria-label="Your stuff">
       ${row('#/saved', 'heart', 'Saved bars', `${st.saved.length} saved`)}
-      ${row('#/passes', 'ticket', 'Priority passes', `${st.passes.length} pass${st.passes.length === 1 ? '' : 'es'}`)}
       ${row('#/points', 'star', 'Points & rewards')}
     </nav>
     <div class="section-head"><h2>For venues</h2></div>
@@ -145,17 +133,6 @@ export function settingsSheet() {
     : `<button type="button" class="list-link" data-action="use-location">${icon('pin', { size: 20 })}<span>Location<small>Off · tap to measure distances from you</small></span>${icon('chevronRight', { size: 18 })}</button>`}
     </div>
     <button type="button" class="btn btn-block" data-action="close-picker" style="margin-top:18px">Done</button>
-  </div>`;
-}
-
-export function manageSubSheet(ctx) {
-  const sub = ctx.state.subscription;
-  return `${sheetHead('Manage subscription')}<div class="sheet-body">
-    <fieldset><legend class="sr-only">Plan</legend><div class="option-list">
-      ${PLANS.map((x) => `<label class="option-row"><input type="radio" name="sub-plan" value="${x.id}" data-input="sub-plan" ${sub.plan === 'plus' && sub.billing === x.id ? 'checked' : ''}><span class="rd" aria-hidden="true">${icon('check')}</span><span>Plus · ${esc(x.label)}<small class="opt-sub">${esc(x.price)}</small></span></label>`).join('')}
-      <label class="option-row"><input type="radio" name="sub-plan" value="none" data-input="sub-plan" ${sub.plan !== 'plus' ? 'checked' : ''}><span class="rd" aria-hidden="true">${icon('check')}</span><span>No subscription<small class="opt-sub">Night Out stays free</small></span></label>
-    </div></fieldset>
-    <p class="hint" style="margin-top:12px">${icon('lock', { size: 14 })} Prices show what Plus might cost. Picking a plan here charges nothing.</p>
   </div>`;
 }
 
